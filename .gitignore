@@ -1,0 +1,8 @@
+﻿# 비밀 키: 절대 올리지 않는다
+.env
+.streamlit/secrets.toml
+
+# 개발 환경
+.venv/
+__pycache__/
+*.pyc

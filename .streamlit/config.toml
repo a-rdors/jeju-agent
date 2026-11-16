@@ -1,0 +1,20 @@
+[theme]
+base = "light"
+# 진한 청록: 흰 배경 대비 4.5:1 이상(WCAG AA)
+primaryColor = "#0B6B55"
+linkColor = "#0B6B55"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F1F6F4"
+textColor = "#16202A"
+borderColor = "#D3DED9"
+# 어르신 사용자를 고려해 기본 글자를 조금 크게
+baseFontSize = 17
+baseRadius = "large"
+buttonRadius = "large"
+font = "Noto Sans KR:https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>제주 같이나들이 AI Agent 기획서</title>
+<style>
+@page { size: A4; margin: 17mm 16mm 17mm 16mm; }
+:root { --ink:#1b2230; --muted:#5d6676; --line:#dfe3ea; --accent:#1f6f5c; --soft:#ecf5f1; --warn:#a8381f; --warn-soft:#fbefeb; --gray:#f4f6f9; }
+* { box-sizing: border-box; }
+body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; color:var(--ink); font-size:10.2pt; line-height:1.62; word-break:keep-all; }
+h1 { font-size:26pt; margin:0 0 2pt; letter-spacing:-0.5pt; }
+h2 { font-size:14pt; margin:18pt 0 8pt; padding-bottom:4pt; border-bottom:1.5pt solid var(--ink); break-after:avoid; }
+h3 { font-size:11.2pt; margin:11pt 0 4pt; color:var(--accent); break-after:avoid; }
+p { margin:0 0 6pt; }
+ul, ol { margin:0 0 6pt; padding-left:16pt; }
+li { margin:2pt 0; }
+.sub { color:var(--muted); font-size:11.5pt; margin-bottom:12pt; }
+.meta { display:flex; flex-wrap:wrap; gap:16pt; font-size:9pt; color:var(--muted); border-top:1pt solid var(--line); border-bottom:1pt solid var(--line); padding:6pt 0; margin-bottom:10pt; }
+.box { background:var(--soft); border-radius:6pt; padding:10pt 12pt; margin:8pt 0; break-inside:avoid; }
+.say { background:#fff; border-left:3pt solid var(--accent); padding:5pt 10pt; margin:5pt 0; font-size:10pt; }
+.note { background:var(--warn-soft); border-left:3pt solid var(--warn); padding:7pt 11pt; margin:8pt 0; font-size:9.3pt; break-inside:avoid; }
+.note b { color:var(--warn); }
+table { width:100%; border-collapse:collapse; margin:6pt 0 8pt; font-size:9.2pt; break-inside:avoid; }
+th, td { border-bottom:1pt solid var(--line); padding:4.5pt 6pt; text-align:left; vertical-align:top; }
+th { background:var(--gray); font-weight:700; }
+td.n { text-align:right; white-space:nowrap; }
+.tag { display:inline-block; font-size:7.8pt; padding:0 6pt; border-radius:8pt; background:var(--soft); color:var(--accent); font-weight:700; }
+.tag.w { background:var(--warn-soft); color:var(--warn); }
+.kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:6pt; margin:8pt 0; }
+.kpis div { border:1pt solid var(--line); border-radius:6pt; padding:7pt 8pt; break-inside:avoid; }
+.kpis b { display:block; font-size:15pt; color:var(--accent); line-height:1.2; }
+.kpis span { font-size:8.4pt; color:var(--muted); }
+.flow { display:grid; grid-template-columns:repeat(5,1fr); gap:5pt; margin:8pt 0; }
+.flow div { border:1pt solid var(--line); border-radius:6pt; padding:6pt 7pt; font-size:8.6pt; background:#fff; break-inside:avoid; }
+.flow b { display:block; color:var(--accent); font-size:9.2pt; margin-bottom:2pt; }
+.two { display:grid; grid-template-columns:1fr 1fr; gap:10pt; break-inside:avoid; }
+.keep { break-inside:avoid; }
+.ui { border:1.2pt solid var(--ink); border-radius:6pt; padding:8pt; font-size:8.6pt; break-inside:avoid; }
+.ui .bar { background:var(--gray); border-radius:4pt; padding:4pt 7pt; margin-bottom:6pt; color:var(--muted); }
+.ui .cols { display:grid; grid-template-columns:1.1fr 1fr; gap:6pt; }
+.ui .pane { border:1pt dashed #9aa3b2; border-radius:4pt; padding:6pt; min-height:120pt; }
+.ui .pane b { color:var(--accent); }
+.pb { break-before:page; }
+.foot { margin-top:14pt; font-size:8.3pt; color:var(--muted); border-top:1pt solid var(--line); padding-top:6pt; }
+.small { font-size:8.8pt; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<h1>제주 같이나들이</h1>
+<p class="sub">이동약자와 함께하는 제주 나들이를, 공공데이터 근거로 준비해 주는 AI Agent</p>
+<div class="meta"><span>제주 AI·빅데이터 활용 AI Agent 개발 챌린지</span><span>AI Agent 기획서</span><span>2026.11</span></div>
+
+<div class="box"><b>한 줄 요약.</b> 휠체어·유모차·시니어와 함께 나들이를 준비하는 가족이 평소 말투로 조건을 말하면, Agent가 제주데이터허브의 무장애 여행 데이터를 조회해 조건에 맞는 장소를 고르고, 경사·계단·화장실 같은 근거와 가까운 약국·응급실·정류소, 데이터 기준일을 담은 <b>인쇄용 코스표</b>를 만들어 준다.</div>
+
+<h2>1. 구현 목표</h2>
+<h3>분석 주제</h3>
+<p>제주데이터허브에는 제주특별자치도가 현장 조사한 무장애 여행 데이터가 장소별로 흩어져 있다. 공개 데이터 기준 50개 장소, 1,095개 지점의 위치 설명에 "오르막 시작 6도", "단차 9cm", "계단 8개, 휠체어 진입 어려움" 같은 구체적인 현장 정보가 들어 있다. 그러나 이 정보는 장소마다 다른 파일의 자유로운 문장으로 적혀 있어, 일반 도민이 "우리 가족이 갈 수 있는 곳"을 비교하기 어렵다.</p>
+
+<h3>AI를 활용한 분석 목표</h3>
+<ol>
+  <li><b>문장을 비교 가능한 정보로:</b> 지점별 설명 문장을 AI로 읽어 경사도, 계단, 단차, 노면, 장애인 화장실·주차 항목의 표로 바꾼다.</li>
+  <li><b>조건에 맞는 장소 선별:</b> 사용자의 이동 유형과 조건에 맞춰 장소를 고르고, 왜 맞는지 근거 지점을 함께 제시한다.</li>
+  <li><b>오래된 정보 재확인:</b> 2021년 조사 기준인 주변 식당·숙소를 2025년 음식점·숙박업 데이터와 대조해 영업 확인 여부를 표시한다.</li>
+  <li><b>비상 대비 정보 결합:</b> 코스 근처 약국, 병·의원, 응급실, 버스 정류소를 함께 제공한다.</li>
+</ol>
+
+<h3>공개 데이터에서 확인한 현장 정보 규모</h3>
+<div class="kpis">
+  <div><b>50곳</b><span>위치·주변·일반정보를 모두 갖춘 무장애 여행지</span></div>
+  <div><b>1,095개</b><span>좌표와 설명이 있는 코스 지점</span></div>
+  <div><b>39곳</b><span>경사도 숫자가 기록된 장소</span></div>
+  <div><b>836건</b><span>주변 식당·카페·숙소·관광지</span></div>
+</div>
+<p class="small">2026.11.10 공개 CSV 기준 1차 집계. 계단 언급 32곳, 단차 16곳, 접근 불가·어려움 19곳, 장애인 화장실 22곳, 장애인 주차 31곳. 문장 키워드 기준 자동 집계이므로 정제 과정에서 수치가 달라질 수 있다.</p>
+
+<h2>2. 서비스 제안</h2>
+<h3>사용자와 사용 장면</h3>
+<table>
+  <tr><th>구분</th><th>사용자</th><th>장면</th></tr>
+  <tr><td>주 사용자</td><td>이동약자와 나들이를 준비하는 가족</td><td>주말 나들이 전, 센터나 집에서 코스를 고르고 코스표를 인쇄·공유</td></tr>
+  <tr><td>2차 사용자</td><td>복지 담당자, 돌봄 종사자</td><td>이용자 외출 프로그램을 계획할 때 후보 장소와 주의 지점 확인</td></tr>
+</table>
+<p>1차 대상 이동 유형은 <b>휠체어(수동·전동), 유모차, 시니어</b>다. 공개 데이터에 점자·음성 안내 정보가 없어 시각장애인용 안내는 이번 범위에서 제외한다.</p>
+
+<h3>사용 예시</h3>
+<div class="say">"전동 휠체어 타는 아버지 모시고 서귀포 쪽 반나절 나들이. 경사 심한 곳 빼고, 장애인 화장실 있는 곳으로."</div>
+<p>Agent는 조건을 정리하고, 부족하면 "출발 지역이 어디인가요?"처럼 되묻는다. 결과로 장소 2~3곳, 장소별 최대 경사와 주의 지점, 장애인 화장실 위치, 주변 식당 영업 확인 결과, 가까운 약국·응급실·정류소, 데이터 기준일과 출처를 담은 코스표를 보여 준다.</p>
+
+<h3>핵심 기능</h3>
+<table>
+  <tr><th style="width:24%">기능</th><th>내용</th></tr>
+  <tr><td>대화형 조건 입력</td><td>평소 말투로 이동 유형, 지역, 시간, 필수 조건(화장실, 주차, 경사)을 입력. 빠진 조건은 되물음</td></tr>
+  <tr><td>근거 있는 장소 추천</td><td>정제된 접근성 표로 후보를 거르고, 추천 이유를 원본 지점 설명과 함께 제시</td></tr>
+  <tr><td>경사 기준 표시</td><td>경사도를 법정 접근로 기준과 비교해 "기준 이내 / 완화 기준 이내 / 기준 초과(동행 권장)"로 표시</td></tr>
+  <tr><td>주변 정보 재확인</td><td>2021년 조사 식당·숙소를 2025년 데이터와 대조해 "영업 확인 / 확인 안 됨" 표시</td></tr>
+  <tr><td>비상 대비</td><td>코스 근처 약국, 병·의원, 응급실, 버스 정류소와 거리</td></tr>
+  <tr><td>지도와 코스표</td><td>코스 지점과 주의 지점을 지도에 표시하고, 인쇄용 코스표와 휴대폰 길안내 링크(QR) 제공</td></tr>
+</table>
+
+<h3>편의성</h3>
+<ul>
+  <li>IT 비전문가도 쓸 수 있도록 입력은 문장 한 줄 또는 버튼 선택 중 편한 방식으로 한다.</li>
+  <li>결과는 한 장짜리 코스표로 정리해 인쇄하거나 휴대폰으로 가져갈 수 있다.</li>
+  <li>모르는 정보는 추측하지 않고 "확인 안 됨, 방문 전 전화 확인 권장"과 전화번호를 함께 보여 준다.</li>
+</ul>
+
+<h3>분석 데이터 활용 방안</h3>
+<p>정제한 접근성 표는 Agent 밖에서도 쓸 수 있다. 장소별 최대 경사, 계단·단차 지점, 장애인 화장실 유무를 한 표로 묶어 제주빅데이터센터에서 무장애 관광 현황 분석이나 시설 개선 우선순위 검토 자료로 활용할 수 있다.</p>
+
+<h2 class="pb">3. Agent 개발 구성</h2>
+<h3>역할과 목표</h3>
+<p>Agent의 역할은 <b>"근거를 보여 주는 나들이 준비 도우미"</b>다. 목표는 사용자 조건에 맞는 장소를 데이터 근거로 고르고, 확인되지 않은 정보는 확인되지 않았다고 알려 주는 것이다.</p>
+
+<h3>Workflow</h3>
+<div class="flow">
+  <div><b>① 조건 파악</b>이동 유형, 지역, 시간, 필수 조건 추출. 부족하면 되묻기</div>
+  <div><b>② 장소 검색</b>접근성 표에서 조건에 맞는 후보 조회</div>
+  <div><b>③ 주변 확인</b>약국·응급실·정류소 조회, 식당·숙소 영업 대조</div>
+  <div><b>④ 결과 검사</b>모든 추천 근거가 실제 데이터에 있는지 확인</div>
+  <div><b>⑤ 코스표 작성</b>근거·기준일·출처·한계를 담아 출력</div>
+</div>
+<p>AI 모델은 각 단계에서 필요한 도구를 스스로 골라 호출하고, 도구 결과를 보고 다음 행동을 정한다. 충분한 근거가 모이면 코스표를 작성한다.</p>
+
+<h3>사용 모델</h3>
+<table>
+  <tr><th style="width:26%">용도</th><th>모델·방식</th></tr>
+  <tr><td>대화와 도구 선택</td><td>Anthropic Claude API (Claude Sonnet 5.5) 도구 호출(tool use) 기능</td></tr>
+  <tr><td>데이터 정제(사전 작업)</td><td>같은 모델로 지점 설명 문장을 항목별로 구조화한 뒤, 무작위 표본을 사람이 원문과 대조 검수</td></tr>
+  <tr><td>규칙 기반 판단</td><td>경사 등급, 거리 계산, 영업 대조는 AI가 아닌 코드로 계산해 같은 입력에 항상 같은 결과가 나오게 함</td></tr>
+</table>
+
+<h3>Tool / API</h3>
+<table>
+  <tr><th style="width:26%">도구</th><th>하는 일</th><th style="width:28%">사용 데이터</th></tr>
+  <tr><td>search_places</td><td>이동 유형·지역·최대 경사·화장실 조건으로 장소 후보 검색</td><td>정제한 무장애 접근성 표</td></tr>
+  <tr><td>get_place_detail</td><td>장소의 코스 지점, 주의 지점, 원문 설명 조회</td><td>무장애여행 위치·일반정보</td></tr>
+  <tr><td>find_nearby</td><td>좌표 기준 가까운 약국·병·의원·응급실·정류소와 거리</td><td>허브 API, 응급실 파일, 상가 정보</td></tr>
+  <tr><td>check_open</td><td>2021년 주변시설이 2025년 데이터에 영업 중으로 있는지 대조</td><td>음식점 목록, 관광 숙박업 정보</td></tr>
+  <tr><td>make_course_sheet</td><td>코스표, 지도 표시용 데이터, 길안내 링크 생성</td><td>카카오맵 링크·지도 SDK</td></tr>
+</table>
+
+<div class="keep">
+<h3>판단 및 자율 수행 범위</h3>
+<div class="two">
+  <div>
+    <p><span class="tag">Agent가 스스로 함</span></p>
+    <ul>
+      <li>조건 해석과 부족한 조건 되묻기</li>
+      <li>도구 선택, 호출 순서, 후보 비교</li>
+      <li>근거 지점을 골라 쉬운 말로 설명</li>
+    </ul>
+  </div>
+  <div>
+    <p><span class="tag w">Agent가 하지 않음</span></p>
+    <ul>
+      <li>예약, 결제, 전화 등 외부 행동</li>
+      <li>"안전하다"는 보장. 데이터 기준일과 한계를 항상 함께 표시</li>
+      <li>데이터에 없는 시설 정보 추측</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<h2>4. 데이터 활용 계획</h2>
+<h3>필수 데이터 (제주데이터허브)</h3>
+<table>
+  <tr><th>데이터명</th><th>활용 항목</th><th>기준</th><th>방식</th></tr>
+  <tr><td>장소별 무장애여행 위치정보 (50개 장소)</td><td>지점 좌표, 구분, 설명, 상세정보, 추천코스 여부</td><td>2021.12</td><td>파일</td></tr>
+  <tr><td>장소별 무장애여행 주변정보 (50개 장소)</td><td>주변 시설명, 거리, 주소, 전화, 휠체어 진입, 장애인 화장실</td><td>2021.12</td><td>파일</td></tr>
+  <tr><td>장소별 무장애여행 일반정보 (50개 장소)</td><td>이동 유형별 추천 여부, 보호자 동반 권장</td><td>2021.12</td><td>파일</td></tr>
+  <tr><td>무장애 여행지 정보(통합)</td><td>장소명, 주소, 좌표</td><td>2021.09</td><td>파일</td></tr>
+  <tr><td>제주특별자치도 음식점 목록(통합)</td><td>사업장명, 영업상태, 폐업일자, 주소</td><td>2025.08</td><td>파일</td></tr>
+  <tr><td>제주특별자치도 상가(상권) 정보</td><td>상호명, 업종, 주소, 좌표</td><td>2025.09</td><td>파일</td></tr>
+  <tr><td>관광 숙박업 정보</td><td>업소명, 영업상태, 주소</td><td>2025.09</td><td>API</td></tr>
+  <tr><td>병·의원 정보 / 약국 정보</td><td>기관명, 진료과목, 영업상태, 주소</td><td>2025.09</td><td>API</td></tr>
+  <tr><td>제주 응급실 보유 병원 정보</td><td>병원명, 주소, 전화, 운영시간</td><td>2021.08</td><td>파일</td></tr>
+  <tr><td>버스 정류소 기본 정보</td><td>정류소명, 좌표, 방향</td><td>일 단위 갱신</td><td>API</td></tr>
+</table>
+<p class="small">공개 무장애 데이터와 음식점·상가·응급실 파일은 내려받아 확인했고, 약국·버스 정류소 API는 프로젝트 키로 호출을 확인했다. 병·의원, 관광 숙박업 API는 같은 형식으로 연동한다. 카카오 지도·로컬 API는 키 발급 후 연동할 예정이다.</p>
+
+<h3>수집·전처리 방법</h3>
+<ol>
+  <li><b>수집:</b> 허브 파일 다운로드와 프로젝트 키 기반 API 호출. API는 페이지 단위로 전체를 받아 저장해 두고 실행 중에는 필요할 때만 갱신한다.</li>
+  <li><b>정리:</b> "오르막 시작"과 "오르막 시작점" 같은 표기 차이를 통일하고, "삭제" 표시 지점과 내용 없는 표시 문구("접근성정보 있음")를 제외한다.</li>
+  <li><b>구조화:</b> 지점 설명 문장에서 경사도(도), 단차(cm), 계단 수, 노면, 화장실·주차 정보를 AI로 추출하고, 숫자는 원문에 실제로 있는 경우만 채택한다.</li>
+  <li><b>검수:</b> 무작위 표본 지점을 사람이 원문과 대조해 추출 정확도를 측정하고 결과 설명자료에 기록한다.</li>
+  <li><b>좌표 연결:</b> 주소만 있는 데이터는 상가 정보와 이름·주소로 연결하거나 카카오 로컬 API로 좌표를 구한다.</li>
+  <li><b>영업 대조:</b> 2021년 주변시설을 2025년 음식점·숙박업 데이터와 상호명·주소로 대조한다.</li>
+</ol>
+
+<h3>경사 기준</h3>
+<p>경사 판단에는 임의 기준을 쓰지 않는다. 「장애인·노인·임산부 등의 편의증진 보장에 관한 법률 시행규칙」 별표 1의 접근로 기울기 기준(18분의 1 이하, 지형상 곤란한 경우 12분의 1까지 완화)을 각도로 바꿔 약 3.2°와 약 4.8°를 경계로 쓴다. 기준값은 국가법령정보센터 현행 원문으로 다시 확인해 확정한다.</p>
+
+<h3>이용조건</h3>
+<ul>
+  <li>제주데이터허브 이용약관과 데이터별 이용조건을 따르고, 결과물과 코스표에 데이터 출처와 기준일을 표기한다.</li>
+  <li>대회 제공 데이터 목록 파일은 외부 저장소에 올리지 않는다.</li>
+  <li>API 키는 코드에 넣지 않고 환경변수(.env)로 관리하며 제출물에서 제외한다.</li>
+  <li>개인정보가 포함된 데이터는 사용하지 않는다. 사용 데이터는 장소·시설 단위 공공 정보다.</li>
+</ul>
+
+<h2 class="pb">5. 개발·탑재 계획</h2>
+<h3>구현 범위</h3>
+<table>
+  <tr><th style="width:50%">이번 제출에 구현</th><th>제외 또는 추후 검토</th></tr>
+  <tr><td>공개 50개 장소 접근성 표 · 대화형 조건 입력 · 장소 추천과 근거 · 경사 등급 · 주변시설 영업 대조 · 약국·응급실·정류소 · 지도와 인쇄용 코스표</td><td>2020년 조사 장소별 데이터(약 70곳) 추가 · 2019년 GPS·해발고도 기반 경사 계산 · 날씨 예보 연동 · 시각장애인용 음성 안내</td></tr>
+</table>
+
+<h3>기술 환경</h3>
+<table>
+  <tr><th style="width:26%">구분</th><th>내용</th></tr>
+  <tr><td>언어·화면</td><td>Python, Streamlit (웹 브라우저에서 실행되는 화면)</td></tr>
+  <tr><td>AI</td><td>Anthropic Claude API, 도구 호출 기반 Agent</td></tr>
+  <tr><td>데이터 저장</td><td>정제 결과를 CSV·SQLite로 저장. 별도 DB 서버 불필요</td></tr>
+  <tr><td>지도</td><td>카카오맵 JavaScript SDK, 카카오 로컬 API(주소→좌표), 카카오맵 길안내 링크 <span class="tag w">연동 예정</span><br><span class="small">카카오 개발자 앱 등록과 키 발급 후 연동한다. 길안내 링크는 키 없이 생성할 수 있다.</span></td></tr>
+  <tr><td>코드 관리</td><td>Git 비공개 저장소, README와 설치 스크립트 포함</td></tr>
+</table>
+
+<h3>UI 구성</h3>
+<div class="ui">
+  <div class="bar">제주 같이나들이 · 입력창: "누구와, 어디로, 무엇이 꼭 필요한가요?" · [휠체어] [유모차] [시니어] 빠른 선택</div>
+  <div class="cols">
+    <div class="pane"><b>대화와 추천 결과</b><br>· 정리된 조건 표시<br>· 추천 장소 2~3곳 카드<br>&nbsp;&nbsp;최대 경사 4°(기준 이내) · 계단 없음 · 장애인 화장실 1곳<br>&nbsp;&nbsp;주의 지점: "횡단보도 없음, 차량 주의"<br>· 근거 펼치기: 원문 지점 설명<br>· 데이터 기준일 2021.12 · 출처</div>
+    <div class="pane"><b>지도</b><br>· 코스 지점, 주의 지점, 화장실 핀<br>· 가까운 약국·응급실·정류소<br><br><b>코스표</b><br>· [인쇄] [휴대폰 길안내 QR]<br>· 주변 식당: 영업 확인 / 확인 안 됨</div>
+  </div>
+</div>
+<p class="small">화면 구성은 개발 중 바뀔 수 있다. 예시의 수치는 화면 설명용이다.</p>
+
+<h3>센터 실행환경과 외부 서비스 의존성</h3>
+<ul>
+  <li><b>최소사양:</b> 센터 Agent 운영 PC(Intel Core i7-8700 / GTX 1060 / RAM 32GB)에서 동작하도록 설계한다. AI 연산은 외부 API에서 처리하므로 PC에 GPU 부담이 없다. 실행은 Python 설치 후 실행 스크립트 하나로 한다.</li>
+  <li><b>외부 의존성:</b> Anthropic Claude API, 제주데이터허브 API, 카카오 지도·로컬 API. 모두 인터넷 연결과 각 서비스의 키가 필요하다.</li>
+  <li><b>인터넷이 제한될 때:</b> AI 대화 대신 버튼으로 조건을 고르는 화면으로 전환하고, 미리 저장한 데이터로 장소 추천과 코스표를 제공한다. 지도 대신 좌표와 주소 목록을 보여 준다.</li>
+</ul>
+
+<h2>6. 검증 방법과 한계</h2>
+<h3>검증 방법</h3>
+<ul>
+  <li><b>추출 정확도:</b> 무작위 지점 표본을 원문과 대조해 경사·계단·화장실 항목의 정확도를 측정한다.</li>
+  <li><b>시나리오 테스트:</b> 휠체어·유모차·시니어 조건의 질문 10개 이상을 만들고 추천 결과가 조건을 지키는지, 모든 근거가 원본 데이터에 있는지 확인한다.</li>
+  <li><b>재현성:</b> 같은 질문에 같은 후보가 나오도록 장소 선별과 경사 등급은 코드로 계산한다. 테스트 질문과 결과를 제출물에 포함한다.</li>
+</ul>
+
+<h3>한계</h3>
+<div class="note"><b>데이터 기준일.</b> 무장애 현장 정보는 2021년 전후 조사 자료로, 현재 시설 상태와 다를 수 있다. 코스표에 기준일을 표시하고 방문 전 확인을 권장한다.</div>
+<ul>
+  <li>주변 시설의 빈칸은 "불가"인지 "미조사"인지 구분할 수 없어 "확인 안 됨"으로 표시한다.</li>
+  <li>상호가 바뀐 가게는 영업 대조에서 놓칠 수 있다.</li>
+  <li>지도 서비스는 휠체어 기준 경로를 제공하지 않는다. 경로 접근성 판단은 무장애 조사 지점 정보에 근거한다.</li>
+  <li>실제 이동약자 사용자 대상 테스트는 이번 범위에 포함하지 않는다.</li>
+</ul>
+
+<h2>7. 개발 일정</h2>
+<table>
+  <tr><th style="width:22%">기간</th><th>할 일</th></tr>
+  <tr><td>11/10~11/11</td><td>데이터 수집, API 연동 확인, 문의 사항 정리</td></tr>
+  <tr><td>11/12~11/13</td><td>지점 설명 구조화, 표본 검수, 접근성 표 완성</td></tr>
+  <tr><td>11/14~11/15</td><td>Agent 도구 구현, AI 연결, 첫 화면</td></tr>
+  <tr><td>11/16</td><td>지도, 인쇄용 코스표, 영업 대조</td></tr>
+  <tr><td>11/17</td><td>시나리오 테스트, 오류 수정, 인터넷 제한 모드</td></tr>
+  <tr><td>11/18~11/19</td><td>매뉴얼, 데이터 활용 명세, 결과 설명자료 작성 후 제출</td></tr>
+</table>
+
+<p class="foot">데이터 출처: 제주데이터허브(jejudatahub.net), 제주특별자치도 · 수치는 2026.11.10 공개 데이터 기준 1차 집계 · 경사 기준: 장애인·노인·임산부 등의 편의증진 보장에 관한 법률 시행규칙 별표 1</p>
+
+<h2 class="pb">부록. 검토한 다른 주제 (팀 내부용)</h2>
+<div class="note"><b>제출 시 삭제.</b> 팀 논의용 부록이다. 대회 제출용 기획서에는 넣지 않는다.</div>
+<p>제주데이터허브 공개 카탈로그 1,259건을 보고 후보 7개를 비교했다. 무장애 주제와 창업 입지는 실제 파일을 열어 확인했고, 나머지는 데이터 제목·설명과 일부 미리보기만 본 상태다.</p>
+<table>
+  <tr><th style="width:17%">주제</th><th style="width:27%">주요 데이터 (기준)</th><th>장점</th><th>약점</th></tr>
+  <tr><td><b>이동약자 나들이</b> <span class="tag">선택</span></td><td>무장애 위치·주변·일반정보 50곳 (2021) + 음식점·의료·정류소 (2025)</td><td>경사·단차 등 구체적 현장 정보. 다른 팀과 겹칠 가능성 낮음. 문장을 표로 바꾸는 처리 과정이 기술력으로 보임</td><td>현장 정보가 2021년 기준. 실사용자 테스트 없음</td></tr>
+  <tr><td>창업 입지 분석</td><td>음식점 인허가·폐업 (2025), 상가 정보 (2025), 읍면동 카드 매출 매쉬업 (~2021.05)</td><td>동네별 개업·폐업 흐름 계산 가능. 창업 관심사와 맞음</td><td>동네별 매출은 2021년까지. 최신 카드 데이터는 지역 구분이 없음. 흔한 주제</td></tr>
+  <tr><td>농산물 출하 판단</td><td>농산물 일일 거래 (2025.10), 감귤 출하량 (2025.03)</td><td>데이터가 최신. 사용자가 분명함</td><td>팀에 농업 지식 없음. 틀리면 실제 손실로 이어짐</td></tr>
+  <tr><td>제주 데이터 비서</td><td>허브 전체 카탈로그</td><td>대회 취지와 가장 일치</td><td>범위가 넓어 기간 내 완성도 확보 어려움. 겹칠 가능성 큼</td></tr>
+  <tr><td>덜 붐비는 버스 시간</td><td>시간대별 버스 승차 (2025.10), 이용자 유형별 정류소 이용 (2025.10)</td><td>최신·대용량 데이터</td><td>과거 패턴 안내라 Agent다운 판단이 적음</td></tr>
+  <tr><td>관광지 혼잡도</td><td>와이파이 장소별 방문자 (2025.09), 관광지별 유입자 수 (2024)</td><td>최신 데이터. 관광객 수요 분명</td><td>와이파이 이용량이 실제 혼잡도인지 불확실. 관광 주제는 겹칠 가능성 큼</td></tr>
+  <tr><td>의료 접근 사각지대</td><td>병·의원·약국 API (2025), 읍면동별 노인 인구 (2020 전후), 정류소</td><td>행정 활용성 높음</td><td>일반 도민보다 공무원용. 인구 데이터가 오래됨</td></tr>
+</table>
+<h3>선택 이유</h3>
+<ul>
+  <li><b>데이터 활용:</b> 자유 문장을 비교 가능한 표로 바꾸는 실질적 처리 과정이 있다.</li>
+  <li><b>Agent 기술성:</b> 장소 검색, 주변 확인, 영업 대조, 코스표 작성으로 도구를 여러 개 쓰는 흐름이 자연스럽다.</li>
+  <li><b>창의성:</b> 관광·버스·창업보다 다른 팀과 겹칠 가능성이 낮다고 판단했다. 다른 팀 주제는 알 수 없으므로 추정이다.</li>
+  <li><b>신뢰성:</b> 오래된 데이터를 최신 데이터로 다시 확인하는 구조가 들어 있다.</li>
+  <li><b>일정:</b> 데이터 확인과 기획이 끝난 상태라 9일 일정에 맞는다.</li>
+</ul>
+<p>의료 접근 사각지대의 일부(가까운 약국·응급실 거리)는 이미 현재 기획의 비상 대비 기능에 들어가 있다.</p>
+</body>
+</html>
