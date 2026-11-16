@@ -223,10 +223,36 @@ def match_place(text):
     t = re.sub(r"\s", "", str(text))
     if t in names:
         return t
+    if find_area(t) or len(t) < 3:  # '서귀포', '애월' 같은 동네 이름은 장소 이름으로 보지 않는다
+        return None
     hits = [n for n in names if t in n or (len(t) >= 3 and n.replace("제주", "") in t)]
-    if not hits:  # 앞 세 글자가 겹치는 장소(예: 사려니숲 → 사려니숲길-무장애나눔길)
-        hits = [n for n in names if len(t) >= 3 and t[:3] in n]
     return sorted(hits, key=len)[0] if hits else None
+
+
+def resolve_anchor(name):
+    """'근처'의 기준이 되는 이름을 좌표로 바꾼다. 나들이 장소, 그다음 식당·카페 이름."""
+    if not name:
+        return None
+    d = load()
+    pl = match_place(name)
+    if pl:
+        r = d["places"][d["places"]["place"] == pl].iloc[0]
+        return (float(r["start_lat"]), float(r["start_lon"]), pl)
+    loc = find_area(name)
+    if loc:  # 동네 이름이면 동네 중심 좌표(가게 이름으로 해석하지 않는다)
+        return (loc["lat"], loc["lon"], loc["area"]) if loc.get("lat") is not None else None
+    key = re.sub(r"\s", "", str(name))
+    for df in (d["nearby"], d["food"]):
+        if "lat" not in df.columns:
+            continue
+        names = df["name"].fillna("").str.replace(r"\s", "", regex=True)
+        hit = df[(names == key) & df["lat"].notna()]
+        if hit.empty and len(key) >= 4:  # 이름 일부 일치는 4글자 이상일 때만
+            hit = df[names.str.contains(re.escape(key)) & df["lat"].notna()]
+        if len(hit):
+            r = hit.iloc[0]
+            return (float(r["lat"]), float(r["lon"]), str(r["name"]))
+    return None
 
 
 def get_place_detail(place, user_type="other"):
@@ -283,10 +309,10 @@ def get_place_detail(place, user_type="other"):
 def find_nearby_help(place, kinds=("약국", "병·의원", "응급실")):
     """장소 출발점에서 가장 가까운 약국·병의원·응급실."""
     d = load()
-    pl = d["places"][d["places"]["place"] == place]
-    if pl.empty:
-        return {"error": f"'{place}' 장소를 찾지 못했어요."}
-    lat, lon = float(pl.iloc[0]["start_lat"]), float(pl.iloc[0]["start_lon"])
+    anchor = resolve_anchor(place)
+    if anchor is None:
+        return {"error": f"'{place}' 위치를 찾지 못했어요."}
+    lat, lon, place = anchor
     med = d["medical"].copy()
     # 나들이 중 급할 때 갈 곳만 남긴다(치과·성형·피부과·검사 의원 제외)
     med = med[~med["detail"].fillna("").str.contains("치과|성형|피부|방사선|한의원|한방|요양")]
@@ -350,10 +376,11 @@ def search_food(food_kind=None, area=None, place=None, wheelchair_only=False, li
     """식당·카페 찾기. 휠체어 진입 정보가 있는 가게(2021 무장애 조사)를 먼저, 부족하면 일반 가게(2025 상가)로 채운다."""
     d = load()
     center = None
+    anchor_missing = None
     if place:
-        pl = d["places"][d["places"]["place"] == place]
-        if len(pl):
-            center = (float(pl.iloc[0]["start_lat"]), float(pl.iloc[0]["start_lon"]), place)
+        center = resolve_anchor(place)
+        if center is None:
+            anchor_missing = place
     city = None
     if center is None and origin_lat is not None and origin_lon is not None:
         center = (float(origin_lat), float(origin_lon), "현재 위치")
@@ -403,6 +430,10 @@ def search_food(food_kind=None, area=None, place=None, wheelchair_only=False, li
                            "open_status": "영업 중(2025 상가 자료)", "access_info": "휠체어 정보 없음",
                            "lat": float(r["lat"]), "lon": float(r["lon"])})
     # 같이나들이는 '갈 수 있는 곳'을 답한다: 접근성 확인된 가게만 주 결과, 나머지는 따로 분리
+    if anchor_missing and center is None and not city:
+        return {"food_kind": food_kind, "around": anchor_missing, "items": [], "unverified": [],
+                "with_access_info": 0, "anchor_not_found": True,
+                "note": f"'{anchor_missing}' 위치를 찾지 못했어요. 동네 이름(예: 서귀포 시내, 중문)으로 말해 주세요."}
     return {
         "food_kind": food_kind, "around": center[2] if center else (city or "제주 전체"),
         "items": acc[: int(limit)],

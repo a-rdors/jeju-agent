@@ -31,7 +31,8 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 7. '거기', '그곳', '그 근처'는 '직전 추천 장소'를 뜻한다. 다시 묻지 말고 그 장소 이름으로 도구를 부른다.
    사용자가 특정 장소의 길·화장실·쉼터를 물으면 get_place_detail, 약국·병원·응급은 find_nearby_help를 쓴다.
 8. 식당·맛집·카페·음식(해산물, 흑돼지, 국수 등)을 물으면 recommend_places가 아니라 search_food를 쓴다.
-   최근 추천한 장소 근처를 물으면 place에 그 장소 이름을, 동네를 말하면 area를 넣는다.
+   어떤 장소나 가게 '근처'를 물으면 place에 그 이름을 그대로 넣는다(식당 이름도 된다). 동네를 말하면 area를 넣는다.
+   결과에 anchor_not_found가 있으면 위치를 못 찾았다고 솔직히 말하고 동네 이름을 물어본다. 다른 지역 결과를 지어내지 않는다.
    이 서비스는 '어디가 맛있나'가 아니라 '우리 가족이 들어갈 수 있나'에 답한다. 맛집 순위나 맛 평가는 하지 않는다.
    items(휠체어 진입 확인된 가게)만 추천한다. items가 비어 있으면 "근처에 휠체어 진입이 확인된 식당은 없어요"라고 솔직히 말하고,
    unverified 가게는 "정보가 없어 전화 확인이 필요한 곳"으로만 짧게 언급한다.
@@ -80,7 +81,7 @@ TOOL_SPECS = [
         "parameters": {"type": "object", "properties": {
             "food_kind": {"type": "string", "enum": list(T.FOOD_KINDS.keys())},
             "area": {"type": "string", "description": "동네·지역(예: 성산, 애월, 서귀포)"},
-            "place": {"type": "string", "description": "추천했던 무장애 장소 이름(그 근처에서 찾을 때)"},
+            "place": {"type": "string", "description": "근처의 기준이 되는 이름. 추천했던 나들이 장소나 식당·카페 이름(예: 서귀포흑돈)"},
             "wheelchair_only": {"type": "boolean"},
             "limit": {"type": "integer"}}}}},
     {"type": "function", "function": {
