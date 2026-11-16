@@ -422,7 +422,7 @@ def find_nearby_help(place, kinds=("약국", "병·의원", "응급실")):
         top = med[med["kind"] == k].nsmallest(2 if k != "응급실" else 1, "km")
         out[k] = [{"name": t["name"], "km": round(t["km"], 1), "address": t["address"],
                    "phone": "" if pd.isna(t["phone"]) else str(t["phone"]), "detail": "" if pd.isna(t["detail"]) else t["detail"],
-                   "source": t["source"]} for _, t in top.iterrows()]
+                   "source": t["source"], "lat": float(t["lat"]), "lon": float(t["lon"])} for _, t in top.iterrows()]
     out["장애인 화장실"] = nearby_toilets(lat, lon, "accessible")
     out["기저귀 교환대"] = nearby_toilets(lat, lon, "diaper", limit=1)
     return {"place": place, "help": out, "note": "직선거리 기준이에요. 응급 시에는 119에 먼저 연락하세요."

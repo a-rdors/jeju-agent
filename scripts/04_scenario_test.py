@@ -128,6 +128,10 @@ SCENARIOS = [
      "check": lambda o: (bool(results_of(o, "search_food")) and bool(results_of(o, "search_food")[-1]["items"])
                          and all(i["floor_note"] in ("1층", "층 정보 없음") for i in results_of(o, "search_food")[-1]["items"][:3]),
                          f"{[(i['name'], i['floor_note']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
+    {"id": 18, "q": ["휠체어 타는 아빠랑 성산에서 횟집 갔다가 근처 카페도 가고 싶어"],
+     "expect": "(사용자 발견) 한 질문에 식당 두 종류 → 식당 찾기를 두 번(횟집·카페) 하고 둘 다 결과가 있음",
+     "check": lambda o: (len(results_of(o, "search_food")) >= 2 and all(r["items"] for r in results_of(o, "search_food")[:2]),
+                         f"찾기 {len(results_of(o, 'search_food'))}회: {[r['food_kind'] for r in results_of(o, 'search_food')]}")},
     {"id": 13, "q": ["어르신 모시고 갈 만한 곳", "다른 곳은 없어?"],
      "expect": "두 번째 질문에서 앞서 보여준 장소를 빼고 새로 추천",
      "check": lambda o: (bool(top(o)) and bool(results_of(o, "recommend_places")[-1] and [a for n, a, _ in o["tool_results"] if n == "recommend_places"][-1].get("exclude")),

@@ -18,7 +18,7 @@ st.set_page_config(page_title="제주 같이나들이", page_icon=":material/acc
 # ---------- 상태 ----------
 S = st.session_state
 for k, v in {"history": [], "chat": [], "ask": None, "results": None, "user_type": "other",
-             "selected": None, "big": False, "food": None, "when": "오늘",
+             "selected": None, "big": False, "foods": [], "help": None, "when": "오늘",
              "location": None, "shown": [], "itinerary": [], "diet": []}.items():  # location: (위도, 경도). 지도 화면에서 위치 권한 허용 시 채운다
     S.setdefault(k, v)
 
@@ -60,21 +60,29 @@ def send(text, user_type=None):
             except Exception:
                 out = A.rule_mode(text, known)
                 out["text"] = "(AI 연결이 안 돼서 기본 모드로 찾았어요) " + out["text"]
+    # 이번 질문에서 나온 결과는 전부 보여주고(예: 횟집과 카페를 한 번에 찾은 경우), 다음 질문에서 새로 바꾼다
+    turn_foods, turn_places, turn_plan, turn_help = [], None, False, None
     for name, args, res in out["tool_results"]:
         if name == "get_weather" and args.get("when"):
             S.when = args["when"]
-        if name == "search_food":  # 최근 결과 하나만 크게 보여준다
-            S.food, S.results = res, None
+        if name == "search_food":
+            turn_foods.append(res)
             S.diet = args.get("diet_needs") or S.diet
-        if name == "plan_outing" and res.get("stops"):  # 일정 제안: 일정 칸을 채우고 다른 결과는 접는다
-            S.itinerary, S.food, S.results = res["stops"], None, None
+        if name == "plan_outing" and res.get("stops"):  # 일정 제안: 일정 칸을 채운다
+            S.itinerary, turn_plan = res["stops"], True
             S.diet = args.get("diet_needs") or S.diet
+        if name == "find_nearby_help" and "help" in res:
+            turn_help = res
         if name == "recommend_places":
-            S.results, S.food = res, None
+            turn_places = res
             S.selected = res["results"][0]["place"]
             S.shown = list(dict.fromkeys(S.shown + [r["place"] for r in res["results"]]))
             if args.get("user_type"):
                 S.user_type = args["user_type"]
+    if turn_foods or turn_places or turn_plan:
+        S.foods, S.results = turn_foods, turn_places
+    if turn_foods or turn_places or turn_plan or turn_help:
+        S.help = turn_help
     S.ask = out["ask"]
     S.chat.append({"role": "assistant", "text": out["text"], "trace": out.get("trace", [])})
     S.history.append({"role": "assistant", "content": out["text"]})
@@ -83,9 +91,10 @@ def send(text, user_type=None):
 def reset():
     for k in ("history", "chat"):
         S[k] = []
-    for k in ("ask", "results", "selected", "food"):
+    for k in ("ask", "results", "selected"):
         S[k] = None
-    S.shown, S.itinerary, S.diet = [], [], []
+    S.shown, S.itinerary, S.diet, S.foods, S.help = [], [], [], [], None
+    S.user_type, S.when = "other", "오늘"
 
 
 def add_stop(stop):
@@ -96,7 +105,6 @@ def add_stop(stop):
 
 def remove_stop(name):
     S.itinerary = [x for x in S.itinerary if x["name"] != name]
-    S.user_type, S.when = "other", "오늘"
 
 
 # ---------- 머리말 ----------
@@ -144,8 +152,7 @@ if prompt:
     st.rerun()
 
 # ---------- 식당 결과 ----------
-if S.food:
-    f = S.food
+for fi, f in enumerate(S.foods):
     cond = " · ".join(f.get("diet_labels") or [])
     st.subheader(f"{f['around']} 근처 {cond or (f['food_kind'] or '식당')}", divider="gray")
     if f.get("anchor_not_found"):
@@ -170,17 +177,34 @@ if S.food:
                 st.caption(" · ".join(w.split(": ", 1)[-1] for w in it["why"]) + " (추정)")
             with st.container(horizontal=True):
                 st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
-                               icon=":material/directions:", type="primary", key=f"food_nav_{i}")
+                               icon=":material/directions:", type="primary", key=f"food_nav_{fi}_{i}")
                 if it["phone"]:
-                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"food_tel_{i}")
+                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"food_tel_{fi}_{i}")
                 if it.get("place_url"):
-                    st.link_button("카카오맵 정보", it["place_url"], icon=":material/info:", key=f"food_info_{i}")
-                st.button("+ 일정", type="tertiary", key=f"food_add_{i}", on_click=add_stop, args=(T.food_stop(it),),
+                    st.link_button("카카오맵 정보", it["place_url"], icon=":material/info:", key=f"food_info_{fi}_{i}")
+                st.button("+ 일정", type="tertiary", key=f"food_add_{fi}_{i}", on_click=add_stop, args=(T.food_stop(it),),
                           help="하루 일정에 담기")
-    with st.expander("전화로 이것만 물어보세요", icon=":material/call:", expanded=bool(f.get("diet_needs"))):
-        for q in T.call_questions(S.user_type, f.get("diet_needs")):
-            st.markdown(f"- {q}")
     st.caption(f["note"])
+if S.foods:
+    with st.expander("전화로 이것만 물어보세요", icon=":material/call:", expanded=bool(S.diet)):
+        for q in T.call_questions(S.user_type, S.diet):
+            st.markdown(f"- {q}")
+
+# ---------- 근처 약국·병원·화장실(대화로 물었을 때) ----------
+if S.help:
+    st.subheader(f"{S.help['place']} 근처 약국·병원·화장실", divider="gray")
+    icons = {"약국": ":material/local_pharmacy:", "병·의원": ":material/local_hospital:", "응급실": ":material/emergency:",
+             "장애인 화장실": ":material/wc:", "기저귀 교환대": ":material/baby_changing_station:"}
+    for kind, items in S.help["help"].items():
+        for j, it in enumerate(items):
+            with st.container(border=True, horizontal=True, vertical_alignment="center"):
+                st.markdown(f"**{kind}** · {it['name']} ({it['km']}km)  \n{it.get('address', '')}", width="stretch")
+                if it.get("lat"):
+                    st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
+                                   icon=icons.get(kind, ":material/directions:"), key=f"help_nav_{kind}_{j}")
+                if it.get("phone"):
+                    st.link_button("전화", f"tel:{it['phone']}", icon=":material/call:", key=f"help_tel_{kind}_{j}")
+    st.caption(S.help["note"])
 
 # ---------- 추천 장소 ----------
 if S.results:
