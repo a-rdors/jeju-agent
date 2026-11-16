@@ -48,7 +48,7 @@ def grounded(out):
                 allowed |= {i["name"] for i in items}
     mentioned = {p for p in PLACES if p in text}
     if any(name == "search_food" for name, _, _ in out["tool_results"]):  # 가게 이름 검사는 식당 찾기를 했을 때만
-        mentioned |= {f for f in FOOD_NAMES if len(f) >= 3 and f in text}
+        mentioned |= {f for f in FOOD_NAMES if len(f) >= 4 and f in text}  # 3글자 이하는 일반 단어와 겹침(예: 카페라서)
     bad = sorted(m for m in mentioned if not any(m in a or a in m for a in allowed if a))
     return (not bad), bad
 
@@ -104,18 +104,28 @@ SCENARIOS = [
      "check": lambda o: (bool(results_of(o, "search_food")) and results_of(o, "search_food")[-1]["around"] == "서귀포흑돈"
                          and all((i["km"] or 99) <= 5 for i in results_of(o, "search_food")[-1]["items"]),
                          f"기준 {results_of(o, 'search_food')[-1]['around']}, 카페 {[i['name'] for i in results_of(o, 'search_food')[-1]['items']]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
+    {"id": 12, "q": ["이번에 제주도 왔는데 제주시로 왔어. 근데 할머니가 이가 안좋으셔서 마땅히 갈 식당이 없는데 어디갈까?"],
+     "expect": "(사용자 발견) 씹기 불편한 어르신 → 부드러운 음식 식당",
+     "check": lambda o: (bool(results_of(o, "search_food")) and results_of(o, "search_food")[-1]["food_kind"] == "부드러운 음식"
+                         and bool(results_of(o, "search_food")[-1]["items"] or results_of(o, "search_food")[-1]["unverified"]),
+                         f"종류 {results_of(o, 'search_food')[-1]['food_kind']}, {[i['name'] for i in results_of(o, 'search_food')[-1]['items']][:3]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
+    {"id": 13, "q": ["어르신 모시고 갈 만한 곳", "다른 곳은 없어?"],
+     "expect": "두 번째 질문에서 앞서 보여준 장소를 빼고 새로 추천",
+     "check": lambda o: (bool(top(o)) and bool(results_of(o, "recommend_places")[-1] and [a for n, a, _ in o["tool_results"] if n == "recommend_places"][-1].get("exclude")),
+                         f"새 추천 {[r['place'] for r in top(o)]}" if top(o) else "추천 없음")},
 ]
 
 
 def run_one(sc):
-    history, known, last_place, out = [], None, None, None
+    history, known, last_place, shown, out = [], None, None, [], None
     for q in sc["q"]:
         history.append({"role": "user", "content": q})
-        out = A.run(history, known, last_place)
+        out = A.run(history, known, last_place, None, shown)
         for name, a, res in out["tool_results"]:
             if name == "recommend_places":
                 known = a.get("user_type") or known
                 last_place = res["results"][0]["place"]
+                shown = list(dict.fromkeys(shown + [r["place"] for r in res["results"]]))
         history.append({"role": "assistant", "content": out["text"]})
     ok_cond, detail = sc["check"](out)
     ok_ground, bad = grounded(out)

@@ -19,7 +19,7 @@ st.set_page_config(page_title="제주 같이나들이", page_icon=":material/acc
 S = st.session_state
 for k, v in {"history": [], "chat": [], "ask": None, "results": None, "user_type": "other",
              "selected": None, "big": False, "food": None, "when": "오늘",
-             "location": None}.items():  # location: (위도, 경도). 지도 화면에서 위치 권한 허용 시 채운다
+             "location": None, "shown": []}.items():  # location: (위도, 경도). 지도 화면에서 위치 권한 허용 시 채운다
     S.setdefault(k, v)
 
 TYPES = [  # (버튼 글자, 아이콘, 이동 유형, 보낼 문장)
@@ -55,7 +55,7 @@ def send(text, user_type=None):
         else:
             known = S.user_type if S.user_type != "other" else None
             try:
-                out = (A.run(S.history, known, S.selected, S.location) if A.available()
+                out = (A.run(S.history, known, S.selected, S.location, S.shown) if A.available()
                        else A.rule_mode(text, known))
             except Exception:
                 out = A.rule_mode(text, known)
@@ -68,6 +68,7 @@ def send(text, user_type=None):
         if name == "recommend_places":
             S.results, S.food = res, None
             S.selected = res["results"][0]["place"]
+            S.shown = list(dict.fromkeys(S.shown + [r["place"] for r in res["results"]]))
             if args.get("user_type"):
                 S.user_type = args["user_type"]
     S.ask = out["ask"]
@@ -80,6 +81,7 @@ def reset():
         S[k] = []
     for k in ("ask", "results", "selected", "food"):
         S[k] = None
+    S.shown = []
     S.user_type, S.when = "other", "오늘"
 
 
@@ -149,9 +151,12 @@ if S.food:
                 if it["phone"]:
                     st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:")
     if f.get("unverified"):
-        with st.expander("접근성 정보가 없는 근처 가게 (전화 확인 필요)", icon=":material/help:"):
+        soft = f.get("food_kind") == "부드러운 음식"
+        with st.expander("입구·좌석 정보가 없는 근처 가게 (전화 확인 필요)", icon=":material/help:", expanded=soft):
             for it in f["unverified"]:
-                st.markdown(f"- {it['name']} · {it['food_type']} · {it['km']}km")
+                st.markdown(f"- **{it['name']}** · {it['food_type']} · {it['km']}km")
+                st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
+                               icon=":material/directions:", key=f"unv_{it['name']}")
     with st.expander("전화로 이것만 물어보세요", icon=":material/call:"):
         for q in T.call_questions(S.user_type):
             st.markdown(f"- {q}")

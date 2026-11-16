@@ -28,9 +28,12 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 4. 추천 답변은 짧게: 1등 장소 이름, 왜 맞는지 한두 문장, 조심할 점 한 문장. 나머지는 화면 카드가 보여준다.
 5. 쉬운 말을 쓴다. "기준 초과" 같은 말 대신 "가파른 구간이 있어요"처럼 말한다.
 6. 확인되지 않은 정보는 "확인이 안 돼요, 가기 전에 전화해 보세요"라고 말한다. 안전을 보장하는 말("안전해요")은 하지 않는다.
+10. '다른 곳', '또 없어?'라고 하면 '이미 보여준 장소'를 exclude에 넣어 다시 recommend_places를 부른다.
 7. '거기', '그곳', '그 근처'는 '직전 추천 장소'를 뜻한다. 다시 묻지 말고 그 장소 이름으로 도구를 부른다.
    사용자가 특정 장소의 길·화장실·쉼터를 물으면 get_place_detail, 약국·병원·응급은 find_nearby_help를 쓴다.
-8. 식당·맛집·카페·음식(해산물, 흑돼지, 국수 등)을 물으면 recommend_places가 아니라 search_food를 쓴다.
+8. 이가 안 좋다·씹기 힘들다·틀니·소화가 어렵다 → food_kind '부드러운 음식'. 어르신은 휠체어가 아니면 wheelchair_only를 쓰지 않는다.
+   이때는 접근성 확인 가게(items)가 적으므로 unverified 가게도 "입구·좌석은 전화로 확인"이라는 말과 함께 소개해도 된다.
+   식당·맛집·카페·음식(해산물, 흑돼지, 국수 등)을 물으면 recommend_places가 아니라 search_food를 쓴다.
    어떤 장소나 가게 '근처'를 물으면 place에 그 이름을 그대로 넣는다(식당 이름도 된다). 동네를 말하면 area를 넣는다.
    결과에 anchor_not_found가 있으면 위치를 못 찾았다고 솔직히 말하고 동네 이름을 물어본다. 다른 지역 결과를 지어내지 않는다.
    이 서비스는 '어디가 맛있나'가 아니라 '우리 가족이 들어갈 수 있나'에 답한다. 맛집 순위나 맛 평가는 하지 않는다.
@@ -55,7 +58,8 @@ TOOL_SPECS = [
             "theme": {"type": "string", "enum": ["바다", "마을", "자연·숲", "역사·문화", "실내", "시장"]},
             "need_toilet": {"type": "boolean"},
             "max_minutes": {"type": "integer"},
-            "limit": {"type": "integer"}},
+            "limit": {"type": "integer"},
+            "exclude": {"type": "array", "items": {"type": "string"}, "description": "이미 보여준 장소(다른 곳을 원할 때)"}},
             "required": ["user_type"]}}},
     {"type": "function", "function": {
         "name": "get_place_detail",
@@ -67,14 +71,6 @@ TOOL_SPECS = [
         "name": "find_nearby_help",
         "description": "장소에서 가장 가까운 약국·병의원·응급실.",
         "parameters": {"type": "object", "properties": {"place": {"type": "string"}}, "required": ["place"]}}},
-    {"type": "function", "function": {
-        "name": "check_nearby_places",
-        "description": "장소 주변 식당·카페·숙소와 휠체어 진입 여부, 2025년 영업 확인 결과.",
-        "parameters": {"type": "object", "properties": {
-            "place": {"type": "string"},
-            "category": {"type": "string", "enum": ["음식점", "카페/편의점", "숙박 시설"]},
-            "wheelchair_only": {"type": "boolean"}},
-            "required": ["place"]}}},
     {"type": "function", "function": {
         "name": "search_food",
         "description": "식당·카페 찾기. 휠체어 진입이 확인된 가게를 먼저, 부족하면 근처 일반 가게(휠체어 정보 없음)로 채운다.",
@@ -103,7 +99,6 @@ TOOL_FUNCS = {
     "recommend_places": T.recommend_places,
     "get_place_detail": T.get_place_detail,
     "find_nearby_help": T.find_nearby_help,
-    "check_nearby_places": T.check_nearby_places,
     "search_food": T.search_food,
     "get_weather": T.get_weather,
 }
@@ -130,7 +125,7 @@ def detect_user_type(history):
     return next((k for k, p in TYPE_WORDS if re.search(p, text)), None)
 
 
-def run(history, known_user_type=None, last_place=None, user_location=None):
+def run(history, known_user_type=None, last_place=None, user_location=None, shown_places=None):
     """user_location: (위도, 경도). 화면(지도)에서 위치 권한을 허용하면 넘겨받는다."""
     """history: [{"role": "user"/"assistant", "content": str}, ...]
     반환: {"text": 답변, "ask": {question, options} 또는 None, "tool_results": [(이름, 인자, 결과)], "trace": [...]}"""
@@ -144,6 +139,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None):
         system += f"\n\n이미 확인된 이동 유형: {known_user_type}. 다시 묻지 말고 이 값을 쓴다."
     if last_place:
         system += f"\n직전 추천 장소: {last_place}"
+    if shown_places:
+        system += "\n이미 보여준 장소: " + ", ".join(shown_places)
     tool_results, trace = [], []
     last_q = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
     food_q = re.search(r"식당|맛집|밥|카페|먹|음식|해산물|흑돼지|국수", last_q)
@@ -187,6 +184,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None):
             trace.append({"tool": name, "args": args})
             if name == "ask_user":
                 return {"text": args.get("question", ""), "ask": args, "tool_results": tool_results, "trace": trace}
+            if name == "recommend_places" and shown_places and re.search(r"다른|또|말고|새로운", last_q) and not args.get("exclude"):
+                args["exclude"] = list(shown_places)  # '다른 곳' 요청인데 모델이 제외 목록을 빠뜨린 경우
             if name in ("recommend_places", "search_food") and said_area and not args.get("area") and not args.get("place"):
                 args["area"] = said_area  # 사용자가 말한 동네를 모델이 빠뜨린 경우 코드가 채운다
             if (name in ("recommend_places", "search_food") and user_location and not said_area

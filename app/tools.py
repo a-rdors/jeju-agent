@@ -141,7 +141,7 @@ def access_summary(r, user_type="other"):
 
 
 def recommend_places(user_type="other", area=None, theme=None, need_toilet=False, max_minutes=None, limit=3,
-                     origin_lat=None, origin_lon=None):
+                     origin_lat=None, origin_lon=None, exclude=None):
     """조건에 맞는 장소를 점수로 정렬해 추천한다. origin_lat/lon(현재 위치)이 있으면 동네 이름보다 우선한다."""
     d = load()
     p = d["places"].copy()
@@ -150,6 +150,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
         loc = {"area": "현재 위치", "sigungu": None, "lat": float(origin_lat), "lon": float(origin_lon)}
     else:
         loc = find_area(area)
+    if exclude:  # '다른 곳'을 원할 때 이미 보여준 장소는 뺀다
+        p = p[~p["place"].isin(list(exclude))]
     rows = []
     for _, r in p.iterrows():
         score, why, warn = 0.0, [], []
@@ -365,7 +367,11 @@ FOOD_KINDS = {
     "한식·백반": (["백반/한정식", "국/탕/찌개류", "기타 한식 음식점"], r"식당|밥|정식"),
     "카페": (["카페", "빵/도넛", "아이스크림/빙수"], r"카페|커피|베이커리"),
     "분식·간단히": (["김밥/만두/분식", "토스트/샌드위치/샐러드", "버거"], r"김밥|분식"),
+    # 이가 불편한 어르신용. 업종(국수)과 가게 이름(죽·순두부·해장국 등)으로 찾는다. '죽림횟집'처럼 이름 중간의 '죽'은 제외
+    "부드러운 음식": (["국수/칼국수"],
+                  r"죽$|죽집|본죽|전복죽|팥죽|참죽|죽전문|순두부|두부|해장국|국밥|몸국|곰탕|설렁탕|백숙|수제비|우동|칼국수|보말"),
 }
+SOFT_NAME_ONLY = "부드러운 음식"  # 이 종류는 업종이 달라도 이름이 맞으면 포함
 
 
 def _food_match(kind, food_type, name):
@@ -373,6 +379,8 @@ def _food_match(kind, food_type, name):
     if not kind or kind not in FOOD_KINDS:
         return True
     types, pat = FOOD_KINDS[kind]
+    if kind == SOFT_NAME_ONLY:
+        return (isinstance(food_type, str) and food_type in types) or bool(re.search(pat, str(name)))
     if isinstance(food_type, str) and food_type:
         return food_type in types
     return bool(re.search(pat, str(name)))
@@ -443,7 +451,7 @@ def search_food(food_kind=None, area=None, place=None, wheelchair_only=False, li
     return {
         "food_kind": food_kind, "around": center[2] if center else (city or "제주 전체"),
         "items": acc[: int(limit)],
-        "unverified": others[:3],
+        "unverified": others[: (6 if food_kind == SOFT_NAME_ONLY else 3)],
         "with_access_info": len(acc[: int(limit)]),
         "note": "휠체어 진입은 2021년 무장애 조사 결과예요. 가기 전 전화로 한 번 더 확인해 주세요.",
     }
@@ -453,7 +461,8 @@ CALL_QUESTIONS = {
     "manual_wheelchair": ["입구에 턱이나 계단이 있나요?", "휠체어가 들어갈 만큼 문이 넓은가요?", "장애인 화장실이 있나요?", "가까운 곳에 주차할 수 있나요?"],
     "electric_wheelchair": ["입구에 턱이나 계단이 있나요?", "전동 휠체어가 들어갈 만큼 통로가 넓은가요?", "장애인 화장실이 있나요?"],
     "stroller": ["유모차를 끌고 들어갈 수 있나요?", "기저귀 갈 곳이나 수유실이 있나요?", "아기 의자가 있나요?"],
-    "senior": ["입구에 계단이 많은가요?", "의자에 앉는 자리가 있나요(좌식만 있는지)?", "화장실이 가까운가요?"],
+    "senior": ["입구에 계단이 많은가요?", "의자에 앉는 자리가 있나요(좌식만 있는지)?", "화장실이 가까운가요?",
+               "죽이나 부드러운 메뉴가 있나요?", "음식을 잘게 잘라 주실 수 있나요?"],
     "other": ["입구에 턱이나 계단이 있나요?", "화장실이 있나요?"],
 }
 
