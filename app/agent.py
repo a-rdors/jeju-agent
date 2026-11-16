@@ -15,17 +15,38 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
 MAX_STEPS = 6
 
-SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·어르신과 함께 제주 나들이를 준비하는 가족을 돕는다.
+SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·어르신·임산부와 함께 제주 나들이를 준비하는 가족을 돕는다.
 
 원칙
 0. 너는 일반 여행 안내가 아니다. "어디 갈까"가 아니라 "이 가족이 거기 갈 수 있을까, 무엇을 조심해야 할까"에 답한다.
    접근성 근거(경사, 턱, 계단, 화장실, 주차, 쉼터)가 없는 추천은 하지 않는다.
 1. 사용자가 가장 편해야 한다. 숫자(경사 몇 도, 몇 km)를 묻지 않는다. 일상어를 네가 해석한다.
 2. ask_user는 이동 유형(누가 가는지)을 전혀 알 수 없을 때만 딱 한 번 쓴다.
-   문장에 휠체어·전동·유모차·아기·할머니·부모님·어르신·무릎 같은 단서가 있거나 '이미 확인된 이동 유형'이 있으면 절대 묻지 않는다.
+   문장에 휠체어·전동·유모차·아기·할머니·부모님·어르신·무릎·임산부·임신 같은 단서가 있거나 '이미 확인된 이동 유형'이 있으면 절대 묻지 않는다.
    분위기·지역·동행인·날짜는 묻지 않는다. 모르면 조건 없이 바로 찾는다.
 3. 장소를 추천하려면 반드시 recommend_places를 먼저 호출한다. 도구 결과에 없는 장소·시설·사실은 절대 말하지 않는다.
-4. 추천 답변은 짧게: 1등 장소 이름, 왜 맞는지 한두 문장, 조심할 점 한 문장. 나머지는 화면 카드가 보여준다.
+4. 답변은 아래 형식만 쓴다(자세한 내용은 화면 카드가 보여준다). 인사말·이모지·목록 기호·제목은 쓰지 않는다. 최대 4줄.
+   [장소] 1순위 장소 하나만 쓴다(다른 후보는 화면의 '다른 곳 보기'에 있다).
+          1줄: **장소 이름** — 판정(verdict 그대로)
+          2줄: 이 가족에게 맞는 이유 한 문장
+          3줄: 조심할 점: 한 문장 (watch_out·tips·확인 안 된 항목에서)
+          4줄: 결과의 rain_alt가 있을 때만 "비 오면: rain_alt 이름". rain_alt가 없으면 이 줄을 쓰지 않는다(다른 추천 장소로 대신 채우지 않는다)
+   [식당] 종류마다 1순위 가게 하나만 쓴다(나머지는 화면 카드에 있다). 라벨은 '조심할 점'이 아니라 반드시 '확인할 점:'.
+          1줄: **가게 이름** — 업종 · 층(floor_note)
+          2줄: 추천 이유(추정): why를 쉬운 말로
+          3줄: 확인할 점: 전화로 물어볼 것 한 가지
+          (식당을 두 종류 찾았으면 종류마다 이 3줄을 반복한다)
+   [병원·약국·화장실] 약국·병원·산부인과·응급실·화장실을 물으면 find_nearby_help를 쓰고 이 형식으로 답한다.
+          1줄: 가장 가까운 곳들 이름과 거리
+          2줄: 응급 상황에는 119에 먼저 연락하세요.
+   [일정] plan_outing을 썼으면 장소 형식이 아니라 반드시 이 형식.
+          1줄: **A → B → C**
+          2줄: 각 곳을 고른 이유를 한 문장으로
+          3줄: 일정표를 내려받을 수 있어요.
+   [되묻기] ask_user만 쓰고 글은 질문 한 줄.
+   [범위 밖] 제주 밖 지역, 숙소 추천, 맛 평가·순위, 의학적 판단, 예약 대행: 1줄로 못 하는 이유, 1줄로 대신 할 수 있는 것.
+          범위 밖 요청에는 도구를 부르지 않고 장소·가게를 추천하지 않는다.
+   해산물 알레르기(no_seafood)일 때는 food_kind에 '해산물'을 넣지 않는다.
 5. 쉬운 말을 쓴다. "기준 초과" 같은 말 대신 "가파른 구간이 있어요"처럼 말한다.
 6. 확인되지 않은 정보는 "확인이 안 돼요, 가기 전에 전화해 보세요"라고 말한다. 안전을 보장하는 말("안전해요")은 하지 않는다.
 10. '다른 곳', '또 없어?'라고 하면 '이미 보여준 장소'를 exclude에 넣어 다시 recommend_places를 부른다.
@@ -34,7 +55,8 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 8. 식당·카페는 search_food를 쓴다. 제주 전체 식당이 대상이다(휠체어 진입은 배지일 뿐 필터가 아니다).
    휠체어 이용자 가족이면 prefer_wheelchair=true. wheelchair_only는 "휠체어로 들어갈 수 있는 곳만"이라고 할 때만.
    식사 조건(diet_needs, 여러 개 가능): 이가 안 좋다·씹기 힘들다·틀니 → soft / 소화·속·위장이 안 좋다 → gentle /
-   매운 걸 못 먹는다 → mild / 해산물 알레르기 → no_seafood / 혈압·짜게 먹으면 안 된다 → low_salt / 아이·애기와 식사 → kids.
+   매운 걸 못 먹는다 → mild / 해산물 알레르기 → no_seafood / 혈압·짜게 먹으면 안 된다 → low_salt / 아이·애기와 식사 → kids /
+   임산부·임신 중 → no_raw(날음식·술 피하기, 사용자가 원하지 않는다고 하면 빼기).
    어떤 장소나 가게 '근처'를 물으면 place에 그 이름을 그대로 넣는다(식당 이름도 된다). 동네를 말하면 area.
    결과에 anchor_not_found가 있으면 위치를 못 찾았다고 솔직히 말하고 동네 이름을 물어본다.
    맛 평가·순위·의학적 조언은 하지 않는다. why(업종·가게 이름으로 추정한 근거)를 쉬운 말로 전하고,
@@ -52,7 +74,7 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
     장소에 rain_alt(비 오면 대신 갈 실내 장소)가 있으면 한 줄로 알려준다.
 
 이동 유형 해석: '휠체어'라고만 하면 종류를 묻지 말고 manual_wheelchair로 정한다(수동이 경사에 더 조심스러운 기준).
-'전동' -> electric_wheelchair, '유모차/아기' -> stroller, '부모님/할머니/어르신/무릎' -> senior.
+'전동' -> electric_wheelchair, '유모차/아기' -> stroller, '부모님/할머니/어르신/무릎' -> senior, '임산부/임신/만삭' -> pregnant.
 theme은 사용자가 분위기(바다, 마을, 숲, 꽃, 역사, 시장 등)를 직접 말했을 때만 넣는다. 비·실내·박물관·미술관 -> 실내. '산책'만으로는 theme을 넣지 않는다.
 '잠깐/가볍게' -> max_minutes 30, '반나절' -> 제한 없음. 화장실을 언급하면 need_toilet true."""
 
@@ -139,6 +161,76 @@ def available():
 WEATHER_WORDS = r"오늘|내일|모레|주말|토요일|일요일|[월화수목금]요일|비가|비 오|비오|날씨|바람"
 
 
+def plan_text(plan, multi_day=False):
+    """일정 답변은 코드가 직접 만든다(형식이 항상 같도록)."""
+    stops = plan.get("stops") or []
+    if not stops:
+        return "조건에 맞는 일정을 만들지 못했어요. 동네나 분위기를 바꿔 다시 말씀해 주세요."
+    lines = ["**" + " → ".join(st["name"] for st in stops) + "**"]
+    reasons = []
+    for st in stops:
+        if st["kind"] == "place":
+            reasons.append(f"{st['name']}: {st['verdict']}")
+        else:
+            why = " · ".join(w.split(": ", 1)[-1] for w in st.get("why", []))
+            fl = st.get("floor_note", "")
+            reasons.append(f"{st['name']}: {st.get('food_type', '')}" + (f" · {fl}" if fl else "") + (f" · {why}" if why else ""))
+    lines.append(" / ".join(reasons))
+    alt = next((st["rain_alt"] for st in stops if st.get("rain_alt")), None)
+    if alt:
+        lines.append(f"비 오면: {alt['name']}")
+    lines.append("일정표를 내려받을 수 있어요.")
+    if multi_day:
+        lines.append("다른 날 갈 곳은 결과 카드의 + 일정으로 담아 일정표에 모을 수 있어요.")
+    return "\n".join(lines)
+
+
+def normalize_answer(text, tool_results, last_q=""):
+    """AI 답변의 형식을 코드로 한 번 더 맞춘다.
+    - 일정을 짰으면 일정 형식으로 다시 만든다
+    - 장소·식당 답변의 '다만 …' 줄은 '조심할 점:'으로 통일한다
+    - 병원·약국·화장실 결과가 있으면 119 안내로 끝낸다"""
+    import re
+    plans = [res for name, _, res in tool_results if name == "plan_outing"]
+    if plans and plans[-1].get("stops"):
+        multi = bool(re.search(r"\d\s*박|박\s*\d\s*일|며칠|여러\s*날|일차", last_q))
+        return plan_text(plans[-1], multi)
+    lines = text.splitlines()
+    out = []
+    for ln in lines:
+        stripped = ln.strip()
+        if re.match(r"^(다만|단,|단 |주의할 점:|유의할 점:)", stripped):
+            ln = "조심할 점: " + re.sub(r"^(다만|단,|단|주의할 점:|유의할 점:)\s*", "", stripped)
+        out.append(ln)
+    text = "\n".join(out)
+    names = {name for name, _, _ in tool_results}
+    if "search_food" in names and "recommend_places" not in names:  # 식당 답변은 '확인할 점'으로 통일
+        text = text.replace("조심할 점:", "확인할 점:")
+        fixed = []
+        for ln in text.splitlines():  # '확인이 안 돼요 …' 같은 줄도 '확인할 점:'으로
+            if "확인할 점" not in text and re.match(r"^\s*확인이 안 돼", ln):
+                ln = "확인할 점: " + re.sub(r"^\s*확인이 안 돼요?[,.]?\s*(가기 전에 전화해 보세요[:.]?)?\s*", "", ln)
+            fixed.append(ln)
+        text = "\n".join(fixed)
+        if "확인할 점" not in text:
+            f = [res for name, _, res in tool_results if name == "search_food"][-1]
+            qs = f.get("call_questions") or ["입구에 턱이나 계단이 있나요?"]
+            text = text.rstrip() + f"\n확인할 점: 전화로 \"{qs[0]}\"라고 물어보세요."
+    if "recommend_places" in names and "조심할 점" not in text:
+        rec = [res for name, _, res in tool_results if name == "recommend_places"][-1]
+        top = (rec.get("results") or [{}])[0]
+        miss = [c["item"] for c in top.get("checks", []) if not c.get("known")]
+        note = (top.get("watch_out") or [None])[0] or (
+            f"{', '.join(miss[:2])}은(는) 확인이 안 돼요. 가기 전에 전화해 보세요." if miss else "현장 상황은 가기 전에 한 번 확인해 보세요.")
+        body = text.rstrip().splitlines()
+        insert_at = next((i for i, l in enumerate(body) if l.startswith("비 오면")), len(body))
+        body.insert(insert_at, "조심할 점: " + note)
+        text = "\n".join(body)
+    if any(name == "find_nearby_help" for name, _, _ in tool_results) and "119" not in text:
+        text = text.rstrip() + "\n응급 상황에는 119에 먼저 연락하세요."
+    return text
+
+
 def detect_user_type(history):
     """대화에 이동 유형 단서가 있으면 코드로 먼저 정한다(불필요한 되묻기 방지)."""
     import re
@@ -168,7 +260,7 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
     vague = re.fullmatch(r"\s*(어디|뭐|추천|갈\s*만한|놀러|가볼|좋은)[^가-힣]*.{0,15}", last_q) is not None
     if not known_user_type and not food_q and not last_place and vague:
         # 단서가 전혀 없는 짧은 질문이면 AI에 맡기지 않고 버튼으로 바로 묻는다(항상 같은 동작)
-        ask = {"question": "누구와 함께 가시나요?", "options": ["휠체어", "전동 휠체어", "유모차", "어르신"]}
+        ask = {"question": "누구와 함께 가시나요?", "options": ["휠체어", "전동 휠체어", "유모차", "어르신", "임산부"]}
         return {"text": ask["question"], "ask": ask, "tool_results": [], "trace": [{"tool": "ask_user", "args": ask}]}
     named = T.match_place(next((w for w in re.findall(r"[가-힣]{3,}", last_q) if T.match_place(w)), None))
     if named:
@@ -185,6 +277,13 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         if a:
             said_place = a
             break
+    if food_q and not re.search(r"구경|산책|바다\s*보|관광|가\s*볼|놀러|가볼", last_q):
+        system += "\n이번 질문은 식당·카페 질문이다. recommend_places가 아니라 search_food를 쓴다."
+    outside = re.search(r"서울|부산|경기|인천|대구|대전|광주|울산|세종|강원|충청|전라|경상|전주|여수|경주|강릉|속초", last_q)
+    if outside and not re.search(r"제주|서귀포", last_q):
+        # 제주 밖 지역: AI에 맡기지 않고 항상 같은 답(제주 장소를 엉뚱하게 추천하지 않게)
+        return {"text": "제주 지역만 안내할 수 있어요.\n제주로 오시면 함께 가실 분에 맞춰 갈 만한 곳과 식당을 찾아드릴게요.",
+                "ask": None, "tool_results": [], "trace": []}
     if re.search(r"\d\s*박|박\s*\d\s*일|며칠|여러\s*날|일차|일정\s*표", last_q):
         # 여러 날 요청: 날짜별 시간표를 만들지 않는다는 결정을 이번 답변에 강하게 적용
         system += ("\n이번 질문은 여러 날 일정 요청이다. 첫 나들이 하나만 plan_outing으로 제안한다. "
@@ -210,7 +309,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         resp = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOL_SPECS)
         msg = resp.choices[0].message
         if not msg.tool_calls:
-            return {"text": msg.content or "", "ask": None, "tool_results": tool_results, "trace": trace}
+            text = normalize_answer(msg.content or "", tool_results, last_q)
+            return {"text": text, "ask": None, "tool_results": tool_results, "trace": trace}
         messages.append({"role": "assistant", "content": msg.content or "",
                          "tool_calls": [c.model_dump() for c in msg.tool_calls]})
         for call in msg.tool_calls:
@@ -228,6 +328,12 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                     and (not args.get("area") or said_place.startswith(str(args.get("area"))))):
                 args["place"] = said_place  # '서귀포흑돈 근처'를 '서귀포 전체'로 잘못 찾지 않게
                 args.pop("area", None)
+            if name == "find_nearby_help" and known_user_type and "user_type" not in args:
+                args["user_type"] = known_user_type  # 임산부면 산부인과도 함께
+            if name == "search_food":
+                args["limit"] = max(3, int(args.get("limit") or 5))  # 화면 카드가 비지 않게 최소 3곳
+                if known_user_type in ("manual_wheelchair", "electric_wheelchair") and "prefer_wheelchair" not in args:
+                    args["prefer_wheelchair"] = True
             if name == "search_food" and known_user_type in T.MOBILITY_TYPES and "avoid_upstairs" not in args:
                 args["avoid_upstairs"] = True  # 휠체어·유모차·어르신이면 1층 가게를 앞으로
             if name in ("recommend_places", "search_food", "plan_outing") and said_area and not args.get("area") and not args.get("place"):
@@ -248,6 +354,7 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
 
 # ---------- 인터넷·AI가 없을 때 쓰는 규칙 기반 모드 ----------
 TYPE_WORDS = [("electric_wheelchair", "전동"), ("manual_wheelchair", "휠체어"),
+              ("pregnant", "임산부|임신|임부|만삭|출산\\s*예정|태교"),
               ("stroller", "유모차|아기|애기|아가|아이|영유아|신생아|돌쟁이|아기띠"),
               ("senior", "어르신|부모님|할머니|할아버지|어머니|아버지|노인|무릎|보행기|지팡이|거동|오래 못 걸|걷기 힘|허리")]
 THEME_WORDS = [("바다", "바다|해변|해안|포구"), ("마을", "마을|골목"), ("자연·숲", "숲|자연|꽃|산책"), ("역사·문화", "역사|문화|유적")]
@@ -259,7 +366,7 @@ def rule_mode(text, user_type=None):
         user_type = next((k for k, p in TYPE_WORDS if re.search(p, text)), None)
     if not user_type:
         return {"text": "누구와 함께 가시나요?", "ask": {"question": "누구와 함께 가시나요?",
-                "options": ["휠체어", "전동 휠체어", "유모차", "어르신"]}, "tool_results": [],
+                "options": ["휠체어", "전동 휠체어", "유모차", "어르신", "임산부"]}, "tool_results": [],
                 "trace": [{"tool": "ask_user", "args": {}}]}
     theme = next((k for k, p in THEME_WORDS if re.search(p, text)), None)
     area = None

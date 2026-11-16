@@ -40,6 +40,10 @@ def grounded(out):
         for key in ("results", "items", "unverified", "stops"):
             for it in res.get(key, []) if isinstance(res, dict) else []:
                 allowed.add(it.get("place") or it.get("name"))
+                if isinstance(it.get("rain_alt"), dict):  # 코드가 계산한 '비 오면 대신 갈 곳'
+                    allowed.add(it["rain_alt"]["name"])
+                if it.get("food_type"):  # 업종 이름(예: 백반/한정식)은 가게 이름이 아님
+                    allowed.add(it["food_type"])
         if isinstance(res, dict) and res.get("place"):
             allowed.add(res["place"])
         if isinstance(res, dict) and res.get("around"):  # 근처 검색의 기준(사용자가 말한 가게·동네)
@@ -48,6 +52,9 @@ def grounded(out):
             for items in res["help"].values():
                 allowed |= {i["name"] for i in items}
     mentioned = {p for p in PLACES if p in text}
+    for res in [r for _, _, r in out["tool_results"] if isinstance(r, dict)]:
+        if isinstance(res.get("rain_alt"), dict):
+            allowed.add(res["rain_alt"]["name"])
     if any(name == "search_food" for name, _, _ in out["tool_results"]):  # 가게 이름 검사는 식당 찾기를 했을 때만
         mentioned |= {f for f in FOOD_NAMES if len(f) >= 4 and f in text}  # 3글자 이하는 일반 단어와 겹침(예: 카페라서)
     bad = sorted(m for m in mentioned if not any(m in a or a in m for a in allowed if a))

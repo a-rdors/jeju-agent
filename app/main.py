@@ -26,14 +26,35 @@ TYPES = [  # (버튼 글자, 아이콘, 이동 유형, 보낼 문장)
     ("휠체어", ":material/accessible:", "manual_wheelchair", "휠체어 타는 가족과 나들이 갈 곳 추천해 줘"),
     ("유모차", ":material/child_friendly:", "stroller", "유모차 끌고 갈 만한 곳 추천해 줘"),
     ("어르신", ":material/elderly:", "senior", "부모님 모시고 가볍게 다녀올 곳 추천해 줘"),
+    ("임산부", ":material/pregnant_woman:", "pregnant", "임산부와 무리 없이 다녀올 곳 추천해 줘"),
 ]
-EXAMPLES = ["비 오는 날 실내로 갈 곳", "바다 보면서 천천히 걷고 싶어", "숲길 산책하고 싶어", "근처 해산물 식당"]
+EXAMPLES = ["휠체어 타는 아빠랑 바다 보러 가고 싶어", "비 오는 날 아기랑 실내로 갈 곳",
+            "할머니가 이가 안 좋으셔서 제주시에서 밥 먹을 곳", "임산부랑 서귀포에서 반나절 일정 짜줘"]
 STEP_NAMES = {
-    "recommend_places": "조건에 맞는 장소 찾기", "get_weather": "날씨 확인",
-    "search_food": "들어갈 수 있는 식당 찾기", "get_place_detail": "코스 살펴보기",
-    "find_nearby_help": "가까운 병원·약국 찾기", "check_nearby_places": "주변 가게 확인",
-    "ask_user": "필요한 것 여쭤보기",
+    "recommend_places": "갈 만한 장소 찾기", "get_weather": "날씨 확인", "search_food": "식당·카페 찾기",
+    "get_place_detail": "코스·시설 살펴보기", "find_nearby_help": "가까운 병원·약국·화장실 찾기",
+    "plan_outing": "반나절 일정 짜기", "ask_user": "필요한 것 여쭤보기",
 }
+ARG_SHOW = ("user_type", "area", "place", "theme", "food_kind", "diet_needs", "when", "need_toilet", "with_cafe")
+
+
+def step_summary(args):
+    """'확인한 것'에 보일 쉬운 말 요약(내부 값 대신)."""
+    out = []
+    for k in ARG_SHOW:
+        v = args.get(k)
+        if v in (None, "", False, []):
+            continue
+        if k == "user_type":
+            v = T.USER_TYPES.get(v, v)
+        elif k == "diet_needs":
+            v = ", ".join(T.DIET_NEEDS[x]["label"] for x in v if x in T.DIET_NEEDS)
+        elif k == "need_toilet":
+            v = "화장실 필요"
+        elif k == "with_cafe":
+            v = "카페 포함"
+        out.append(str(v))
+    return " · ".join(out)
 SLOPE_BADGE = {"완만한 편": ("green", ":material/check_circle:"), "보통": ("orange", ":material/info:"),
                "가파른 편": ("red", ":material/warning:"), "기록 없음": ("gray", ":material/help:")}
 
@@ -111,7 +132,7 @@ def remove_stop(name):
 with st.container(horizontal=True, vertical_alignment="center"):
     st.title(":material/accessible_forward: 제주 같이나들이", width="stretch")
     st.toggle("큰 글씨", key="big", help="글자를 크게 키워요")
-st.caption("휠체어·유모차·어르신과 함께 갈 수 있는 제주 나들이를, 공공데이터 근거로 찾아드려요.")
+st.caption("휠체어·유모차·어르신·임산부와 함께 갈 수 있는지, 무엇을 조심할지 공공데이터 근거로 알려드려요.")
 
 # ---------- 첫 화면 ----------
 if not S.chat:
@@ -136,7 +157,7 @@ for m in S.chat[-6:]:
             with st.status("확인한 것", type="compact", state="complete"):
                 for t in m["trace"]:
                     with st.status(STEP_NAMES.get(t["tool"], t["tool"]), type="step", state="complete"):
-                        st.caption(", ".join(f"{k}: {v}" for k, v in t["args"].items() if v not in (None, "", False)))
+                        st.caption(step_summary(t["args"]) or "조건 없이")
         st.markdown(m["text"])
 
 if S.ask:
@@ -151,96 +172,43 @@ if prompt:
     send(prompt)
     st.rerun()
 
-# ---------- 식당 결과 ----------
-for fi, f in enumerate(S.foods):
-    cond = " · ".join(f.get("diet_labels") or [])
-    st.subheader(f"{f['around']} 근처 {cond or (f['food_kind'] or '식당')}", divider="gray")
-    if f.get("anchor_not_found"):
-        st.info(f["note"], icon=":material/info:")
-    elif not f["items"]:
-        st.info("조건에 맞는 식당을 찾지 못했어요. 조건을 줄이거나 동네를 바꿔 보세요.", icon=":material/info:")
-    for i, it in enumerate(f["items"]):
-        with st.container(border=True):
-            st.markdown(f"**{it['name']}**  \n{it['food_type']}" + (f" · {it['km']}km" if it["km"] is not None else ""))
-            with st.container(horizontal=True):
-                if it["wheelchair_entry"]:
-                    st.badge("휠체어 진입 확인", icon=":material/accessible:", color="green", help=it["access_info"])
-                fn = it.get("floor_note", "")
-                if fn:
-                    st.badge(fn, icon=":material/stairs:",
-                             color="green" if fn == "1층" else ("gray" if fn == "층 정보 없음" else "orange"))
-                if it.get("baby_chair"):
-                    st.badge("아기 의자 있음", icon=":material/child_care:", color="green")
-                for w in it.get("why", []):
-                    st.badge(w.split(":")[0], icon=":material/restaurant:", color="blue")
-            if it.get("why"):
-                st.caption(" · ".join(w.split(": ", 1)[-1] for w in it["why"]) + " (추정)")
-            with st.container(horizontal=True):
-                st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
-                               icon=":material/directions:", type="primary", key=f"food_nav_{fi}_{i}")
-                if it["phone"]:
-                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"food_tel_{fi}_{i}")
-                if it.get("place_url"):
-                    st.link_button("카카오맵 정보", it["place_url"], icon=":material/info:", key=f"food_info_{fi}_{i}")
-                st.button("+ 일정", type="tertiary", key=f"food_add_{fi}_{i}", on_click=add_stop, args=(T.food_stop(it),),
-                          help="하루 일정에 담기")
-    st.caption(f["note"])
-if S.foods:
-    with st.expander("전화로 이것만 물어보세요", icon=":material/call:", expanded=bool(S.diet)):
-        for q in T.call_questions(S.user_type, S.diet):
-            st.markdown(f"- {q}")
-
-# ---------- 근처 약국·병원·화장실(대화로 물었을 때) ----------
-if S.help:
-    st.subheader(f"{S.help['place']} 근처 약국·병원·화장실", divider="gray")
-    icons = {"약국": ":material/local_pharmacy:", "병·의원": ":material/local_hospital:", "응급실": ":material/emergency:",
-             "장애인 화장실": ":material/wc:", "기저귀 교환대": ":material/baby_changing_station:"}
-    for kind, items in S.help["help"].items():
-        for j, it in enumerate(items):
-            with st.container(border=True, horizontal=True, vertical_alignment="center"):
-                st.markdown(f"**{kind}** · {it['name']} ({it['km']}km)  \n{it.get('address', '')}", width="stretch")
-                if it.get("lat"):
-                    st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
-                                   icon=icons.get(kind, ":material/directions:"), key=f"help_nav_{kind}_{j}")
-                if it.get("phone"):
-                    st.link_button("전화", f"tel:{it['phone']}", icon=":material/call:", key=f"help_tel_{kind}_{j}")
-    st.caption(S.help["note"])
-
 # ---------- 추천 장소 ----------
 if S.results:
     res = S.results["results"]
     top = next((r for r in res if r["place"] == S.selected), res[0])
     color, icon = SLOPE_BADGE.get(top["slope_level"], ("gray", ":material/help:"))
 
-    st.subheader("추천 장소", divider="gray")
+    st.subheader(":material/place: 추천 장소", divider="gray")
     with st.container(border=True):
         v_icon = {"green": ":material/check_circle:", "orange": ":material/group:", "gray": ":material/help:"}
         st.badge(top["verdict"], icon=v_icon.get(top["verdict_color"], ":material/help:"), color=top["verdict_color"])
         st.markdown(f"### {top['place']}")
-        st.caption(f"{top['where']} · {top['verdict_reason']}")
+        st.caption(" · ".join(x for x in (top["where"], f"{top['distance_km']}km 거리" if top["distance_km"] is not None else "") if x))
         if top.get("image"):
-            st.image(top["image"], width=360, alt=f"{top['place']} 사진(한국관광공사)")
-        if top.get("overview"):
-            st.caption(top["overview"][:140] + ("…" if len(top["overview"]) > 140 else ""))
+            st.image(top["image"], width=320, alt=f"{top['place']} 사진(한국관광공사)")
         with st.container(horizontal=True):
             if top["minutes"]:  # 코스(제주도 조사) 장소
                 st.badge(f"경사 {top['slope_level']}", icon=icon, color=color)
                 st.badge(f"약 {top['minutes']}분 · {top['course_m']:,}m", icon=":material/schedule:", color="gray")
             else:  # 시설(관광공사) 장소
                 st.badge("시설 방문", icon=":material/museum:", color="gray")
-            if top["distance_km"] is not None:
-                st.badge(f"{top['distance_km']}km 거리", icon=":material/place:", color="gray")
             if top["accessible_toilet"]:
                 st.badge("장애인 화장실", icon=":material/wc:", color="green")
             if top["accessible_parking"] == "yes":
                 st.badge("장애인 주차", icon=":material/local_parking:", color="green")
             if top["companion_advised"]:
                 st.badge("동행인과 함께 권장", icon=":material/group:", color="orange")
-        st.markdown(f"**{top['slope_say']}**")
-        for g in top["good_points"]:
-            st.markdown(f":material/check: {g}")
-        for w in top["watch_out"]:
-            st.markdown(f":material/warning: {w}")
+        st.markdown(f"**{top['verdict_reason']}**")
+        if top["good_points"]:
+            st.markdown("추천 이유: " + " · ".join(top["good_points"]))
+        cautions = list(top["watch_out"]) + ([top["slope_say"]] if top["minutes"] and top["slope_say"] else [])
+        if cautions:
+            st.markdown("조심할 점: " + " · ".join(cautions))
+        if top.get("rain_alt"):
+            st.markdown(f"비 오면: {top['rain_alt']['name']} ({top['rain_alt']['km']}km, {top['rain_alt']['verdict']})")
+        if top.get("overview"):
+            with st.expander("장소 소개", icon=":material/info:"):
+                st.write(top["overview"])
         with st.container(horizontal=True):
             st.link_button("카카오맵 길안내", T.kakao_route_link(top["place"], top["lat"], top["lon"]),
                            icon=":material/directions:", type="primary")
@@ -300,12 +268,14 @@ if S.results:
                 extra = " · 기저귀 교환대" if t_["diaper"] else ""
                 st.markdown(f"- {t_['name']} ({int(t_['km'] * 1000)}m){extra} · {t_['open']}")
     with tab_help:
-        help_ = T.find_nearby_help(top["place"])
+        help_ = T.find_nearby_help(top["place"], user_type=S.user_type)
         for kind, items in help_["help"].items():
-            for it in items:
-                st.markdown(f"**{kind}** · {it['name']} ({it['km']}km)  \n{it.get('address', '')}")
-                if it["phone"]:
-                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:")
+            for j, it in enumerate(items):
+                with st.container(border=True, horizontal=True, vertical_alignment="center"):
+                    st.markdown(f"**{it['name']}** — {kind}  \n{it['km']}km · {it.get('address', '')}", width="stretch")
+                    if it.get("phone"):
+                        st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:",
+                                       key=f"tab_help_tel_{kind}_{j}")
         st.caption(help_["note"])
     with tab_food:
         near = T.search_food(place=top["place"], limit=6,
@@ -317,14 +287,72 @@ if S.results:
         st.caption("음식점 정보: 2025 상가 자료, 휠체어 배지: 2021 무장애 조사·한국관광공사, 전화번호: 카카오")
     with tab_call:
         st.markdown("가기 전에 전화로 이것만 물어보세요.")
-        for q in T.call_questions(S.user_type):
+        for q in T.call_questions(S.user_type, S.diet):
             st.markdown(f"- {q}")
 
     st.caption(f"자료: {detail['source']} · 기준 {detail['base_date']}. 현장과 다를 수 있어요.")
 
+
+# ---------- 식당 결과 ----------
+for fi, f in enumerate(S.foods):
+    cond = " · ".join(f.get("diet_labels") or [])
+    kind_label = {"카페": "카페"}.get(f["food_kind"], f["food_kind"] or "식당")
+    st.subheader(f":material/restaurant: {f['around']} 근처 {kind_label}" + (f" · {cond}" if cond else ""), divider="gray")
+    if f.get("anchor_not_found"):
+        st.info(f["note"], icon=":material/info:")
+    elif not f["items"]:
+        st.info("조건에 맞는 식당을 찾지 못했어요. 조건을 줄이거나 동네를 바꿔 보세요.", icon=":material/info:")
+    for i, it in enumerate(f["items"]):
+        with st.container(border=True):
+            st.markdown(f"**{it['name']}** — {it['food_type']}")
+            st.caption(" · ".join(x for x in (f"{it['km']}km" if it["km"] is not None else "", it.get("address", "")) if x))
+            with st.container(horizontal=True):
+                if it["wheelchair_entry"]:
+                    st.badge("휠체어 진입 확인", icon=":material/accessible:", color="green", help=it["access_info"])
+                fn = it.get("floor_note", "")
+                if fn:
+                    st.badge(fn, icon=":material/stairs:",
+                             color="green" if fn == "1층" else ("gray" if fn == "층 정보 없음" else "orange"))
+                if it.get("baby_chair"):
+                    st.badge("아기 의자 있음", icon=":material/child_care:", color="green")
+            if it.get("why"):
+                st.markdown("추천 이유(추정): " + " · ".join(w.split(": ", 1)[-1] for w in it["why"]))
+            with st.container(horizontal=True):
+                st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
+                               icon=":material/directions:", type="primary", key=f"food_nav_{fi}_{i}")
+                if it["phone"]:
+                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"food_tel_{fi}_{i}")
+                if it.get("place_url"):
+                    st.link_button("카카오맵 정보", it["place_url"], icon=":material/info:", key=f"food_info_{fi}_{i}")
+                st.button("+ 일정", type="tertiary", key=f"food_add_{fi}_{i}", on_click=add_stop, args=(T.food_stop(it),),
+                          help="하루 일정에 담기")
+    st.caption(f["note"])
+if S.foods:
+    with st.expander("전화로 이것만 물어보세요", icon=":material/call:", expanded=bool(S.diet)):
+        for q in T.call_questions(S.user_type, S.diet):
+            st.markdown(f"- {q}")
+
+# ---------- 근처 약국·병원·화장실(대화로 물었을 때) ----------
+if S.help:
+    st.subheader(f":material/local_hospital: {S.help['place']} 근처 약국·병원·화장실", divider="gray")
+    icons = {"약국": ":material/local_pharmacy:", "병·의원": ":material/local_hospital:", "응급실": ":material/emergency:",
+             "장애인 화장실": ":material/wc:", "기저귀 교환대": ":material/baby_changing_station:",
+             "산부인과": ":material/pregnant_woman:"}
+    for kind, items in S.help["help"].items():
+        for j, it in enumerate(items):
+            with st.container(border=True, horizontal=True, vertical_alignment="center"):
+                st.markdown(f"**{it['name']}** — {kind}  \n{it['km']}km · {it.get('address', '')}", width="stretch")
+                if it.get("lat"):
+                    st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
+                                   icon=icons.get(kind, ":material/directions:"), key=f"help_nav_{kind}_{j}")
+                if it.get("phone"):
+                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"help_tel_{kind}_{j}")
+    st.caption(S.help["note"])
+
+
 # ---------- 오늘 일정(담았을 때만 보임) ----------
 if S.itinerary:
-    st.subheader(f"오늘 일정 ({len(S.itinerary)}곳)", divider="gray")
+    st.subheader(f":material/route: 오늘 일정 ({len(S.itinerary)}곳)", divider="gray")
     legs = T.itinerary_legs(S.itinerary)
     for i, stop in enumerate(S.itinerary):
         if i:

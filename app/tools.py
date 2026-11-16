@@ -17,6 +17,7 @@ USER_TYPES = {
     "electric_wheelchair": "전동 휠체어",
     "stroller": "유모차",
     "senior": "어르신(보행)",
+    "pregnant": "임산부",
     "other": "기타",
 }
 # companion.csv의 이동유형 이름과 연결
@@ -32,6 +33,7 @@ SLOPE_PENALTY = {
     "stroller": {"완만한 편": 0, "보통": 1.2, "가파른 편": 3, "기록 없음": 1.2},
     "electric_wheelchair": {"완만한 편": 0, "보통": 0.5, "가파른 편": 2.5, "기록 없음": 1},
     "senior": {"완만한 편": 0, "보통": 1, "가파른 편": 2.5, "기록 없음": 1},
+    "pregnant": {"완만한 편": 0, "보통": 1, "가파른 편": 2.5, "기록 없음": 1},
     "other": {"완만한 편": 0, "보통": 0.5, "가파른 편": 1.5, "기록 없음": 0.5},
 }
 WALK_M_PER_MIN = 50  # 시속 3km 가정(휠체어·유모차 동행 산책 속도로 잡은 설계 가정)
@@ -127,7 +129,7 @@ def access_summary(r, user_type="other"):
     if grade == "기록 없음":
         verdict, color = "확인이 더 필요해요", "gray"
         reason = "이 코스는 경사 기록이 없어요."
-    elif grade == "가파른 편" or (wheels and (stairs >= 2 or (step or 0) >= 10)) or (user_type == "senior" and (stairs >= 2 or long_walk)):
+    elif grade == "가파른 편" or (wheels and (stairs >= 2 or (step or 0) >= 10)) or (user_type in ("senior", "pregnant") and (stairs >= 2 or long_walk)):
         verdict, color = "동행인 도움이 있으면 갈 만해요", "orange"
         parts = []
         if grade == "가파른 편":
@@ -136,7 +138,7 @@ def access_summary(r, user_type="other"):
             parts.append(f"계단 {stairs}곳")
         if wheels and (step or 0) >= 10:
             parts.append(f"턱 {step:g}cm")
-        if user_type == "senior" and long_walk:
+        if user_type in ("senior", "pregnant") and long_walk:
             parts.append("쉴 곳이 적은 긴 코스")
         reason = ", ".join(parts) + "이(가) 있어요."
     else:
@@ -278,6 +280,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             **access_summary(r, user_type),
         })
     rows.sort(key=lambda x: (x["score"], x["place"]))
+    if rows:  # 1순위 장소에만 '비 오면 대신 갈 실내 장소'(바깥 장소일 때)
+        rows[0]["rain_alt"] = rain_alternative(rows[0]["place"], user_type, exclude=[r["place"] for r in rows[:3]])
     return {
         "user_type": USER_TYPES[user_type],
         "area_understood": loc["area"] if loc else None,
@@ -349,6 +353,7 @@ def get_place_detail(place, user_type="other"):
             "all_points": [{"at_m": 0, "label": "입구", "text": _txt(r.get("entry_access")), "flags": [],
                             "lat": float(r["start_lat"]), "lon": float(r["start_lon"])}],
             "toilets_near": toilets, "tel": _txt(r.get("tel")), "base_date": r["base_date"],
+            "rain_alt": rain_alternative(place, user_type),
             "data_kind": "시설(관광공사)",
         }
     pts = d["points"][(d["points"]["place"] == place)].copy()
@@ -390,6 +395,7 @@ def get_place_detail(place, user_type="other"):
         "key_points": important[:12],
         "all_points": steps,
         "toilets_near": toilets,
+        "rain_alt": rain_alternative(place, user_type),
         "base_date": r["base_date"],
         "data_kind": "코스(제주도 조사)",
     }
@@ -413,7 +419,7 @@ def nearby_toilets(lat, lon, need="accessible", limit=2, max_km=3.0):
              "lat": float(r["lat"]), "lon": float(r["lon"])} for _, r in t.iterrows()]
 
 
-def find_nearby_help(place, kinds=("약국", "병·의원", "응급실")):
+def find_nearby_help(place, kinds=("약국", "병·의원", "응급실"), user_type=None):
     """장소 출발점에서 가장 가까운 약국·병의원·응급실."""
     d = load()
     anchor = resolve_anchor(place)
@@ -430,6 +436,12 @@ def find_nearby_help(place, kinds=("약국", "병·의원", "응급실")):
         out[k] = [{"name": t["name"], "km": round(t["km"], 1), "address": t["address"],
                    "phone": "" if pd.isna(t["phone"]) else str(t["phone"]), "detail": "" if pd.isna(t["detail"]) else t["detail"],
                    "source": t["source"], "lat": float(t["lat"]), "lon": float(t["lon"])} for _, t in top.iterrows()]
+    if user_type == "pregnant":  # 임산부: 가까운 산부인과
+        ob = d["medical"][d["medical"]["detail"].fillna("").str.contains("산부인과")].copy()
+        ob["km"] = [km(lat, lon, a, b) for a, b in zip(ob["lat"], ob["lon"])]
+        out["산부인과"] = [{"name": t["name"], "km": round(t["km"], 1), "address": t["address"], "phone": "",
+                          "detail": t["detail"], "source": t["source"], "lat": float(t["lat"]), "lon": float(t["lon"])}
+                         for _, t in ob.nsmallest(1, "km").iterrows()]
     out["장애인 화장실"] = nearby_toilets(lat, lon, "accessible")
     out["기저귀 교환대"] = nearby_toilets(lat, lon, "diaper", limit=1)
     return {"place": place, "help": out, "note": "직선거리 기준이에요. 응급 시에는 119에 먼저 연락하세요."
@@ -502,6 +514,11 @@ DIET_NEEDS = {
                  "types": {"백반/한정식", "국수/칼국수"}, "name": r"정식|한정식|백반|죽|두부",
                  "avoid": r"찌개|짬뽕|부대|김치찜|젓갈|게장",
                  "ask": ["간을 싱겁게 해 주실 수 있나요?", "국물을 덜 짜게 해 주실 수 있나요?"]},
+    "no_raw": {"label": "날음식 없는 식당", "say": "임신 중 등 날음식·술을 피하고 싶을 때",
+               "types": None, "name": None,
+               "avoid": r"회$|횟집|물회|육회|생고기|사시미|초밥|스시|게장|생선회|주점|포차|막걸리|호프",
+               "exclude_types": {"횟집", "일식 회/초밥", "요리 주점", "생맥주 전문", "복 요리 전문"},
+               "ask": ["날음식이 들어가지 않은 메뉴가 있나요?", "완전히 익힌 메뉴로 부탁드릴 수 있나요?"]},
     "kids": {"label": "아이와 먹기 좋은 곳", "say": "어린아이와 함께일 때",
              "types": {"경양식", "일식 카레/돈가스/덮밥", "피자", "버거", "파스타/스테이크", "국수/칼국수", "김밥/만두/분식"},
              "name": r"돈가스|돈까스|키즈|우동|국수|오므라이스|카레|김밥|피자",
@@ -610,6 +627,8 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
     - 2021 무장애 조사에서 휠체어 진입이 확인된 가게는 배지로 표시한다(prefer_wheelchair면 앞으로).
     메뉴 자료가 없으므로 업종·가게 이름으로 추정하며, 결과마다 전화 확인 질문을 함께 준다."""
     d = load()
+    if diet_needs and "no_seafood" in diet_needs and food_kind == "해산물":
+        food_kind = None  # 해산물 알레르기인데 '해산물' 종류를 같이 고르면 결과가 0이 된다
     center, anchor_missing, city = None, None, None
     if place:
         center = resolve_anchor(place)
@@ -704,6 +723,8 @@ CALL_QUESTIONS = {
     "manual_wheelchair": ["몇 층인가요? 엘리베이터가 있나요?", "입구에 턱이나 계단이 있나요?", "휠체어가 들어갈 만큼 문이 넓은가요?", "장애인 화장실이 있나요?", "가까운 곳에 주차할 수 있나요?"],
     "electric_wheelchair": ["몇 층인가요? 엘리베이터가 있나요?", "입구에 턱이나 계단이 있나요?", "전동 휠체어가 들어갈 만큼 통로가 넓은가요?", "장애인 화장실이 있나요?"],
     "stroller": ["몇 층인가요? 유모차로 올라갈 엘리베이터가 있나요?", "유모차를 끌고 들어갈 수 있나요?", "기저귀 갈 곳이나 수유실이 있나요?", "아기 의자가 있나요?"],
+    "pregnant": ["몇 층인가요? 엘리베이터가 있나요?", "등받이 있는 의자에 앉을 수 있나요(좌식만 있는지)?",
+                 "화장실이 가까운가요?", "임산부 주차구역이 있나요?"],
     "senior": ["몇 층인가요? 엘리베이터가 있나요?", "입구에 계단이 많은가요?", "의자에 앉는 자리가 있나요(좌식만 있는지)?", "화장실이 가까운가요?"],
     "other": ["입구에 턱이나 계단이 있나요?", "화장실이 있나요?"],
 }
@@ -825,7 +846,7 @@ def place_stop(place, user_type="other"):
             "entry_hint": pt["text"] if pt and d.get("data_kind") == "시설(관광공사)" else ""}
 
 
-MOBILITY_TYPES = ("manual_wheelchair", "electric_wheelchair", "stroller", "senior")
+MOBILITY_TYPES = ("manual_wheelchair", "electric_wheelchair", "stroller", "senior", "pregnant")
 
 
 def food_stop(item):
