@@ -36,7 +36,7 @@ def grounded(out):
     text = out["text"]
     allowed = set()
     for name, _, res in out["tool_results"]:
-        for key in ("results", "items", "unverified"):
+        for key in ("results", "items", "unverified", "stops"):
             for it in res.get(key, []) if isinstance(res, dict) else []:
                 allowed.add(it.get("place") or it.get("name"))
         if isinstance(res, dict) and res.get("place"):
@@ -114,6 +114,20 @@ SCENARIOS = [
      "check": lambda o: (bool(results_of(o, "search_food")) and bool(set(results_of(o, "search_food")[-1]["diet_needs"]) & {"kids", "mild"})
                          and bool(results_of(o, "search_food")[-1]["items"]),
                          f"조건 {results_of(o, 'search_food')[-1]['diet_needs']}, 기준 {results_of(o, 'search_food')[-1]['around']}" if results_of(o, "search_food") else "식당 도구 안 씀")},
+    {"id": 15, "q": ["휠체어 타는 아빠랑 서귀포에서 반나절 일정 짜줘. 아빠가 이가 안 좋으셔"],
+     "expect": "일정 요청 → 장소 1곳 + 근처 씹기 편한 식당",
+     "check": lambda o: (bool(results_of(o, "plan_outing")) and len(results_of(o, "plan_outing")[-1]["stops"]) >= 2
+                         and [a for n, a, _ in o["tool_results"] if n == "plan_outing"][-1].get("diet_needs") == ["soft"],
+                         f"일정 {[s_['name'] for s_ in results_of(o, 'plan_outing')[-1]['stops']]}" if results_of(o, "plan_outing") else "일정 도구 안 씀")},
+    {"id": 16, "q": ["애월 근처 국수집 알려줘. 엄마가 휠체어 타셔"],
+     "expect": "단순 식당 질문 → 일정 도구를 쓰지 않음",
+     "check": lambda o: (bool(results_of(o, "search_food")) and not results_of(o, "plan_outing"),
+                         f"도구 {[t['tool'] for t in o['trace']]}")},
+    {"id": 17, "q": ["휠체어 타는 할머니랑 애월에서 카페 가고 싶어"],
+     "expect": "(사용자 지적) 거동 불편 → 2층·지하 카페는 상위 3곳에서 빠짐",
+     "check": lambda o: (bool(results_of(o, "search_food")) and bool(results_of(o, "search_food")[-1]["items"])
+                         and all(i["floor_note"] in ("1층", "층 정보 없음") for i in results_of(o, "search_food")[-1]["items"][:3]),
+                         f"{[(i['name'], i['floor_note']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
     {"id": 13, "q": ["어르신 모시고 갈 만한 곳", "다른 곳은 없어?"],
      "expect": "두 번째 질문에서 앞서 보여준 장소를 빼고 새로 추천",
      "check": lambda o: (bool(top(o)) and bool(results_of(o, "recommend_places")[-1] and [a for n, a, _ in o["tool_results"] if n == "recommend_places"][-1].get("exclude")),

@@ -26,13 +26,14 @@ SLOPE_STD = math.degrees(math.atan(1 / 18))    # 약 3.18도
 SLOPE_RELAX = math.degrees(math.atan(1 / 12))  # 약 4.76도
 
 BOILER = re.compile(r"접근성정보\(\*계단\.\s*길 상태\.\s*경사\)\s*있음")
-DEG = re.compile(r"(\d+(?:\.\d+)?)\s*(?:도|º|°)?\s*(?:[~\-]\s*(\d+(?:\.\d+)?))?\s*(?:도|º|°)(?![가-힣])")
+# 각도 기호(°, º, ˚)는 뒤에 조사가 붙어도 각도. '도'는 '도로'와 헷갈리지 않게 뒤에 한글이 없을 때만
+DEG = re.compile(r"(\d+(?:\.\d+)?)\s*(?:도|º|°|˚)?\s*(?:[~\-]\s*(\d+(?:\.\d+)?))?\s*(?:[º°˚]|도(?![가-힣]))")
 CM = re.compile(r"(\d+(?:\.\d+)?)\s*(?:cm|CM|㎝|센티)")
 STAIR_N = [re.compile(r"계단\s*:?\s*(\d+)\s*(?:개|칸)"), re.compile(r"(\d+)\s*(?:개|칸)의?\s*계단")]
 BLOCKED = re.compile(r"(?:접근|진입|출입|이동|이용|접금)\s*(?:이\s*|은\s*)?(?:불가|어려|힘듦|힘들)|불가능|이용\s*불가|이용불가|진입불가|출입불가")
-HELP = re.compile(r"도움|동행인|이동\s*지원")
+HELP = re.compile(r"도움|동행|이동\s*지원")
 CAUTION = re.compile(r"주의|위험|미끄")
-SURFACES = ["자갈", "잔디", "흙", "모래", "판석", "비포장", "울퉁불퉁", "데크", "야자매트", "야자수 매트", "보도블럭", "돌길", "송이"]
+SURFACES = ["자갈", "잔디", "흙", "모래", "판석", "비포장", "울퉁불퉁", "데크", "테크", "야자매트", "야자수 매트", "보도블럭", "돌길", "송이"]
 NEG_AFTER = re.compile(r"^\s*(?:구역|칸|장|공간)?\s*[:：]?\s*(?:x|X|없|확인\s*X|확인x)")
 
 
@@ -121,7 +122,7 @@ def extract(text):
         "needs_help": "yes" if HELP.search(text) else "",
         "caution": "yes" if CAUTION.search(text) else "",
         "steep_word": "yes" if re.search(r"급경사|가파르|가파른|가팔", text) else "",
-        "surface": "/".join(s for s in SURFACES if s in text),
+        "surface": "/".join(s for s in SURFACES if s in text.replace("벽돌", "벽_돌")),  # '벽돌길'은 돌길 아님
         "accessible_toilet": "no" if ("화장실" in text and re.search(r"장애인\s*[xX]", text)) else has_positive(text, r"장애인\s*(?:남녀\s*구분\s*)?화장실|장애인\s*칸|장애인화장실\s*O|장애남녀"),
         "accessible_parking": has_positive(text, r"장애인\s*주차(?:구역|장|공간)?"),
     }

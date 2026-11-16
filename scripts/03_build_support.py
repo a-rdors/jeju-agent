@@ -207,6 +207,34 @@ def add_tour_places(app):
     return pd.concat([app, pd.DataFrame(rows)], ignore_index=True)
 
 
+FLOOR = re.compile(r"(지하\s*\d+\s*층|\d+\s*층)")
+
+
+def floor_of(addr):
+    m = FLOOR.search(str(addr))
+    return re.sub(r"\s", "", m.group(1)) if m else ""
+
+
+def attach_floor(food, rest):
+    """음식점 목록(인허가, 2025)의 주소에 적힌 층(예: '…, 2층')을 같은 이름·같은 읍면동 가게에 붙인다."""
+    op = rest[rest["영업상태명"].str.contains("영업", na=False)]
+    addr = op["도로명전체주소"].fillna("") + " " + op["소재지전체주소"].fillna("")
+    idx = {}
+    for name, a in zip(op["사업장명"], addr):
+        fl = floor_of(a)
+        if fl:
+            idx.setdefault(norm(name), []).append((a, fl))
+    out = []
+    for key, dong, address in zip(food["key"], food["dong"], food["address"]):
+        cands = idx.get(key, [])
+        town = re.sub(r"(\d)", "", str(dong))[:2]
+        hit = next((fl for a, fl in cands if town and town in a), None)
+        if hit is None and len(cands) == 1:
+            hit = cands[0][1]
+        out.append(hit or "")
+    return out
+
+
 def main():
     sangga = read(DATA / "제주특별자치도 상가(상권) 정보.csv")
     rest = read(DATA / "제주특별자치도음식점목록(통합).csv", low_memory=False)
@@ -225,7 +253,10 @@ def main():
                          "dong": food["행정동명"], "address": food["도로명주소"].fillna(food["지번주소"]),
                          "lat": food["위도"], "lon": food["경도"]})
     food["key"] = food["name"].map(norm)
+    food["floor"] = attach_floor(food, rest)
     food.drop(columns="key").to_csv(PROC / "food.csv", index=False, encoding="utf-8-sig")
+    print("층 정보", food["floor"].replace("", None).notna().sum(), "/", len(food),
+          food["floor"].value_counts().head(5).to_dict())
     first = food.drop_duplicates("key").set_index("key")
     checked["key"] = checked["name"].map(norm)
     checked = checked.join(first[["food_type", "lat", "lon"]], on="key").drop(columns="key")

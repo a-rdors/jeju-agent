@@ -596,7 +596,8 @@ def _diet_score(needs, food_type, name):
 
 
 def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_wheelchair=False,
-                wheelchair_only=False, limit=5, origin_lat=None, origin_lon=None):
+                wheelchair_only=False, limit=5, origin_lat=None, origin_lon=None, radius_km=None,
+                avoid_upstairs=False):
     """제주 식당·카페 찾기(2025 상가 자료 약 1만 9천 곳).
     - 식사 조건(diet_needs: soft, gentle, mild, no_seafood, low_salt, kids)으로 고르고
     - 2021 무장애 조사에서 휠체어 진입이 확인된 가게는 배지로 표시한다(prefer_wheelchair면 앞으로).
@@ -629,7 +630,7 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
     wheel_first = prefer_wheelchair or wheelchair_only
     if center:
         f = f.assign(km=[km(center[0], center[1], a, b) for a, b in zip(f["lat"], f["lon"])])
-        radius = 2 if place else 5
+        radius = radius_km or (2 if place else 5)
         near = f[f["km"] <= radius]
         if len(near) < limit:  # 가까운 곳이 너무 적으면 반경을 넓힌다
             near = f[f["km"] <= radius * 3]
@@ -650,13 +651,18 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
             continue
         dist = None if r["km"] is None or pd.isna(r["km"]) else float(r["km"])
         kind_name = bool(food_kind in FOOD_KINDS and re.search(FOOD_KINDS[food_kind][1], str(r["name"])))
+        floor = _txt(r.get("floor"))
+        upstairs = bool(floor) and floor != "1층"
         rank = (-ds[0] * 2 + (dist or 0) / 2 - (3 if (verified and wheel_first) else (0.5 if verified else 0))
-                - (2 if kind_name else 0))  # '흑돼지'를 찾으면 이름에 흑돼지가 들어간 가게를 앞으로
+                - (2 if kind_name else 0)  # '흑돼지'를 찾으면 이름에 흑돼지가 들어간 가게를 앞으로
+                + ((4 if upstairs else (1 if not floor else -0.5)) if avoid_upstairs else 0))  # 거동 불편: 1층 우선
         items.append({"name": r["name"], "food_type": r["food_type"], "km": None if dist is None else round(dist, 1),
                       "address": r["address"], "phone": "", "wheelchair_entry": verified,
                       "access_info": (f"관광공사 무장애 정보: {tr[1]}" if tr and tr[0]
                                       else ("휠체어 진입 확인(2021 무장애 조사)" if verified else "입구 정보 없음")),
                       "baby_chair": bool(tr and tr[2]),
+                      "floor": floor,
+                      "floor_note": ("1층" if floor == "1층" else (f"{floor} · 엘리베이터 확인 필요" if floor else "층 정보 없음")),
                       "why": ds[1], "open_status": "2025 상가 자료에 있음",
                       "lat": float(r["lat"]), "lon": float(r["lon"]), "_rank": rank})
     items.sort(key=lambda x: (x["_rank"], x["name"]))
@@ -688,10 +694,10 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
 
 
 CALL_QUESTIONS = {
-    "manual_wheelchair": ["입구에 턱이나 계단이 있나요?", "휠체어가 들어갈 만큼 문이 넓은가요?", "장애인 화장실이 있나요?", "가까운 곳에 주차할 수 있나요?"],
-    "electric_wheelchair": ["입구에 턱이나 계단이 있나요?", "전동 휠체어가 들어갈 만큼 통로가 넓은가요?", "장애인 화장실이 있나요?"],
-    "stroller": ["유모차를 끌고 들어갈 수 있나요?", "기저귀 갈 곳이나 수유실이 있나요?", "아기 의자가 있나요?"],
-    "senior": ["입구에 계단이 많은가요?", "의자에 앉는 자리가 있나요(좌식만 있는지)?", "화장실이 가까운가요?"],
+    "manual_wheelchair": ["몇 층인가요? 엘리베이터가 있나요?", "입구에 턱이나 계단이 있나요?", "휠체어가 들어갈 만큼 문이 넓은가요?", "장애인 화장실이 있나요?", "가까운 곳에 주차할 수 있나요?"],
+    "electric_wheelchair": ["몇 층인가요? 엘리베이터가 있나요?", "입구에 턱이나 계단이 있나요?", "전동 휠체어가 들어갈 만큼 통로가 넓은가요?", "장애인 화장실이 있나요?"],
+    "stroller": ["몇 층인가요? 유모차로 올라갈 엘리베이터가 있나요?", "유모차를 끌고 들어갈 수 있나요?", "기저귀 갈 곳이나 수유실이 있나요?", "아기 의자가 있나요?"],
+    "senior": ["몇 층인가요? 엘리베이터가 있나요?", "입구에 계단이 많은가요?", "의자에 앉는 자리가 있나요(좌식만 있는지)?", "화장실이 가까운가요?"],
     "other": ["입구에 턱이나 계단이 있나요?", "화장실이 있나요?"],
 }
 
@@ -792,3 +798,135 @@ def get_weather(place=None, area=None, when="오늘"):
 
 def kakao_route_link(name, lat, lon):
     return f"https://map.kakao.com/link/to/{name},{lat},{lon}"
+
+
+# ---------- 하루 나들이 일정 ----------
+def place_stop(place, user_type="other"):
+    """일정에 넣을 '장소' 한 곳(코스·시설 공통)."""
+    d = get_place_detail(place, user_type)
+    if "error" in d:
+        return None
+    pt = d["all_points"][0] if d.get("all_points") else None
+    pl = load()["places"]
+    r = pl[pl["place"] == d["place"]].iloc[0]
+    return {"kind": "place", "name": d["place"], "where": d["where"], "lat": float(r["start_lat"]),
+            "lon": float(r["start_lon"]), "verdict": d["verdict"], "verdict_reason": d["verdict_reason"],
+            "checks": d["checks"], "key_points": d.get("key_points", [])[:6], "toilets_near": d.get("toilets_near", []),
+            "minutes": d.get("minutes"), "tel": d.get("tel", ""), "source": d["source"],
+            "entry_hint": pt["text"] if pt and d.get("data_kind") == "시설(관광공사)" else ""}
+
+
+MOBILITY_TYPES = ("manual_wheelchair", "electric_wheelchair", "stroller", "senior")
+
+
+def food_stop(item):
+    """일정에 넣을 '식당·카페' 한 곳(search_food 결과 항목)."""
+    return {"kind": "food", "name": item["name"], "where": item.get("address", ""), "lat": item["lat"], "lon": item["lon"],
+            "food_type": item.get("food_type", ""), "why": item.get("why", []), "phone": item.get("phone", ""),
+            "wheelchair_entry": item.get("wheelchair_entry", False), "access_info": item.get("access_info", ""),
+            "baby_chair": item.get("baby_chair", False), "place_url": item.get("place_url", ""),
+            "floor_note": item.get("floor_note", "")}
+
+
+def plan_outing(user_type="other", area=None, theme=None, diet_needs=None, with_cafe=False, need_toilet=False,
+                origin_lat=None, origin_lon=None, exclude=None):
+    """반나절 나들이 일정: 장소 1곳 → 근처 식당 1곳(식사 조건 반영) → (원하면) 카페 1곳.
+    사용자가 '일정·코스·반나절·하루'를 원할 때만 쓴다."""
+    rec = recommend_places(user_type=user_type, area=area, theme=theme, need_toilet=need_toilet, limit=3,
+                           origin_lat=origin_lat, origin_lon=origin_lon, exclude=exclude)
+    if not rec["results"]:
+        return {"stops": [], "note": "조건에 맞는 장소를 찾지 못했어요."}
+    wheel = user_type in ("manual_wheelchair", "electric_wheelchair")
+    chosen, food = None, None
+    for cand in rec["results"]:  # 후보 중 근처(2km)에 식사할 곳이 있는 장소를 고른다
+        f = search_food(place=cand["place"], diet_needs=diet_needs, prefer_wheelchair=wheel, limit=1, radius_km=2,
+                        avoid_upstairs=user_type in MOBILITY_TYPES)
+        if f["items"]:
+            chosen, food = cand["place"], f
+            break
+    if chosen is None:  # 모두 외진 곳이면 1순위 장소에서 반경을 넓혀 찾는다
+        chosen = rec["results"][0]["place"]
+        food = search_food(place=chosen, diet_needs=diet_needs, prefer_wheelchair=wheel, limit=1, radius_km=8,
+                           avoid_upstairs=user_type in MOBILITY_TYPES)
+    first = place_stop(chosen, user_type)
+    stops = [first]
+    if food["items"]:
+        stops.append(food_stop(food["items"][0]))
+    if with_cafe:
+        cafe = search_food(food_kind="카페", place=stops[-1]["name"], prefer_wheelchair=wheel, limit=1,
+                           avoid_upstairs=user_type in MOBILITY_TYPES)
+        if cafe["items"]:
+            stops.append(food_stop(cafe["items"][0]))
+    return {"user_type": USER_TYPES.get(user_type, "기타"), "stops": stops, "legs": itinerary_legs(stops),
+            "note": "들르는 순서와 거리는 직선거리 기준 제안이에요. 실제 이동 시간은 길안내로 확인해 주세요."}
+
+
+def itinerary_legs(stops):
+    """들르는 곳 사이의 직선거리와 카카오맵 길안내 링크."""
+    legs = []
+    for a, b in zip(stops, stops[1:]):
+        legs.append({"from": a["name"], "to": b["name"], "km": round(km(a["lat"], a["lon"], b["lat"], b["lon"]), 1),
+                     "link": kakao_route_link(b["name"], b["lat"], b["lon"])})
+    return legs
+
+
+def itinerary_html(stops, user_type="other", diet_needs=None, when="오늘"):
+    """일정표(한 장짜리 HTML). 브라우저로 열어 인쇄하거나 PDF로 저장한다."""
+    import datetime as dt
+    from html import escape as e
+    if not stops:
+        return ""
+    wx = get_weather(place=stops[0]["name"] if stops[0]["kind"] == "place" else None,
+                     area=None if stops[0]["kind"] == "place" else "제주시", when=when)
+    help_ = find_nearby_help(stops[0]["name"]) if stops[0]["kind"] == "place" else {"help": {}}
+    legs = itinerary_legs(stops)
+    parts = []
+    for i, s in enumerate(stops, 1):
+        if i > 1:
+            lg = legs[i - 2]
+            parts.append(f'<div class="leg">↓ 약 {lg["km"]}km (직선) · <a href="{e(lg["link"])}">카카오맵 길안내</a></div>')
+        if s["kind"] == "place":
+            checks = "".join(f'<tr><td>{e(c["item"])}</td><td>{e(c["status"])}</td>'
+                             f'<td>{"확인됨" if c["known"] else "확인 안 됨"}</td></tr>' for c in s["checks"])
+            kp = "".join(f'<li>출발 후 약 {k["at_m"]}m · {e(k["label"])} ({e(", ".join(k["flags"]))})</li>'
+                         for k in s["key_points"])
+            toil = "".join(f'<li>{e(t["name"])} ({int(t["km"] * 1000)}m){" · 기저귀 교환대" if t["diaper"] else ""}</li>'
+                           for t in s["toilets_near"])
+            parts.append(f'''<section><h2>{i}. {e(s["name"])} <span class="v">{e(s["verdict"])}</span></h2>
+<p class="sub">{e(s["where"])} · {e(s["verdict_reason"])}</p>
+<table><tr><th>항목</th><th>내용</th><th>상태</th></tr>{checks}</table>
+{f"<h3>코스에서 확인할 곳</h3><ul>{kp}</ul>" if kp else ""}
+{f"<h3>가까운 장애인 화장실</h3><ul>{toil}</ul>" if toil else ""}
+<p class="src">자료: {e(s["source"])}</p></section>''')
+        else:
+            why = " · ".join(w.split(": ", 1)[-1] for w in s["why"])
+            badge = "휠체어 진입 확인" if s["wheelchair_entry"] else "입구 정보 없음(전화 확인)"
+            parts.append(f'''<section><h2>{i}. {e(s["name"])} <span class="v">{e(badge)}</span></h2>
+<p class="sub">{e(s["food_type"])} · {e(s.get("floor_note", ""))} · {e(s["where"])}</p>
+{f"<p>추천 이유(추정): {e(why)}</p>" if why else ""}
+<p>전화: {e(s["phone"]) or "번호 정보 없음"}{" · 아기 의자 있음" if s["baby_chair"] else ""}</p></section>''')
+    calls = call_questions(user_type, diet_needs)
+    help_li = "".join(f'<li>{e(k)}: {e(v[0]["name"])} ({v[0]["km"]}km){" · " + e(v[0]["phone"]) if v[0].get("phone") else ""}</li>'
+                      for k, v in help_.get("help", {}).items() if v and k in ("응급실", "약국", "병·의원"))
+    wx_line = (f'{e(wx["date"])} 날씨: 비 올 확률 {wx["rain_chance"]}% · 바람 {wx["wind_ms"]:.0f}m/s · {e(wx["temp"])}'
+               + ("".join(f"<br>⚠ {e(t)}" for t in wx["tips"]))) if wx.get("available") else "날씨는 출발 전 확인해 주세요."
+    return f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>제주 같이나들이 일정표</title>
+<style>
+@page {{ size: A4; margin: 14mm; }}
+body {{ font-family: "Malgun Gothic", "Noto Sans KR", sans-serif; color:#16202A; font-size:12pt; line-height:1.55; }}
+h1 {{ font-size:20pt; margin:0 0 4pt; }} h2 {{ font-size:14pt; margin:10pt 0 2pt; }} h3 {{ font-size:11.5pt; margin:8pt 0 2pt; }}
+.sub {{ color:#4a5563; margin:0 0 6pt; }} .v {{ font-size:10pt; background:#E3F1EC; color:#0B6B55; padding:1pt 6pt; border-radius:8pt; }}
+section {{ border:1.5pt solid #0B6B55; border-radius:8pt; padding:8pt 12pt; margin:6pt 0; break-inside:avoid; }}
+table {{ border-collapse:collapse; width:100%; font-size:10.5pt; }} th, td {{ border-bottom:1pt solid #D3DED9; padding:3pt 5pt; text-align:left; }}
+.leg {{ text-align:center; color:#0B6B55; font-weight:700; margin:4pt 0; }}
+.box {{ background:#F1F6F4; border-radius:8pt; padding:8pt 12pt; margin:8pt 0; break-inside:avoid; }}
+.src, .foot {{ color:#5d6676; font-size:9.5pt; }} a {{ color:#0B6B55; }}
+</style></head><body>
+<h1>제주 같이나들이 일정표</h1>
+<p class="sub">{dt.date.today().isoformat()} 작성 · 함께 가는 분: {e(USER_TYPES.get(user_type, "기타"))}</p>
+<div class="box">{wx_line}</div>
+{"".join(parts)}
+<div class="box"><h3>급할 때</h3><ul>{help_li}<li>응급 상황에는 119</li></ul></div>
+<div class="box"><h3>가기 전 전화로 확인할 것</h3><ul>{"".join(f"<li>{e(q)}</li>" for q in calls)}</ul></div>
+<p class="foot">거리는 직선거리예요. 무장애 정보는 제주특별자치도(2020~2021 조사)·한국관광공사, 식당은 2025 상가 자료·카카오 장소 정보, 날씨는 Open-Meteo 예보예요. 현장과 다를 수 있으니 방문 전 확인해 주세요.</p>
+</body></html>'''

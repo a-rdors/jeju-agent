@@ -43,6 +43,9 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 9. 날짜나 날씨를 말하면 시스템이 미리 날씨를 조회해 '참고 날씨'로 준다. 그 내용으로 판단한다.
    비 예보면 실내 장소를 함께 제안하고, 주의사항(tips)은 쉬운 말로 전달한다. 날씨 자체를 길게 설명하지 않는다.
 
+11. 사용자가 일정·코스·반나절·하루·동선·묶어 달라고 할 때만 plan_outing을 쓴다. 단순히 장소나 식당 하나를 물으면 쓰지 않고,
+    일정 이야기도 꺼내지 않는다. plan_outing 결과는 들르는 순서와 이유를 짧게 말하고 "일정표를 내려받을 수 있어요"라고 안내한다.
+
 이동 유형 해석: '휠체어'라고만 하면 종류를 묻지 말고 manual_wheelchair로 정한다(수동이 경사에 더 조심스러운 기준).
 '전동' -> electric_wheelchair, '유모차/아기' -> stroller, '부모님/할머니/어르신/무릎' -> senior.
 theme은 사용자가 분위기(바다, 마을, 숲, 꽃, 역사, 시장 등)를 직접 말했을 때만 넣는다. 비·실내·박물관·미술관 -> 실내. '산책'만으로는 theme을 넣지 않는다.
@@ -78,6 +81,7 @@ TOOL_SPECS = [
             "food_kind": {"type": "string", "enum": list(T.FOOD_KINDS.keys())},
             "diet_needs": {"type": "array", "items": {"type": "string", "enum": list(T.DIET_NEEDS.keys())}},
             "prefer_wheelchair": {"type": "boolean"},
+            "avoid_upstairs": {"type": "boolean", "description": "거동이 불편하면 true(1층 가게 우선)"},
             "area": {"type": "string", "description": "동네·지역(예: 성산, 애월, 서귀포)"},
             "place": {"type": "string", "description": "근처의 기준이 되는 이름. 추천했던 나들이 장소나 식당·카페 이름(예: 서귀포흑돈)"},
             "wheelchair_only": {"type": "boolean"},
@@ -88,6 +92,15 @@ TOOL_SPECS = [
         "parameters": {"type": "object", "properties": {
             "place": {"type": "string"}, "area": {"type": "string"},
             "when": {"type": "string", "description": "오늘, 내일, 모레, 주말, 토요일, 또는 YYYY-MM-DD"}}}}},
+    {"type": "function", "function": {
+        "name": "plan_outing",
+        "description": "반나절 나들이 일정(장소 1곳 → 근처 식당 1곳 → 원하면 카페). 사용자가 일정·코스·반나절·하루·동선을 원할 때만.",
+        "parameters": {"type": "object", "properties": {
+            "user_type": {"type": "string", "enum": list(T.USER_TYPES.keys())},
+            "area": {"type": "string"}, "theme": {"type": "string", "enum": ["바다", "마을", "자연·숲", "역사·문화", "실내", "시장"]},
+            "diet_needs": {"type": "array", "items": {"type": "string", "enum": list(T.DIET_NEEDS.keys())}},
+            "with_cafe": {"type": "boolean"}, "need_toilet": {"type": "boolean"}},
+            "required": ["user_type"]}}},
     {"type": "function", "function": {
         "name": "ask_user",
         "description": "꼭 필요한 정보가 없을 때 사용자에게 버튼으로 답할 수 있는 질문을 한다.",
@@ -103,6 +116,7 @@ TOOL_FUNCS = {
     "find_nearby_help": T.find_nearby_help,
     "search_food": T.search_food,
     "get_weather": T.get_weather,
+    "plan_outing": T.plan_outing,
 }
 
 
@@ -204,9 +218,11 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                     and (not args.get("area") or said_place.startswith(str(args.get("area"))))):
                 args["place"] = said_place  # '서귀포흑돈 근처'를 '서귀포 전체'로 잘못 찾지 않게
                 args.pop("area", None)
-            if name in ("recommend_places", "search_food") and said_area and not args.get("area") and not args.get("place"):
+            if name == "search_food" and known_user_type in T.MOBILITY_TYPES and "avoid_upstairs" not in args:
+                args["avoid_upstairs"] = True  # 휠체어·유모차·어르신이면 1층 가게를 앞으로
+            if name in ("recommend_places", "search_food", "plan_outing") and said_area and not args.get("area") and not args.get("place"):
                 args["area"] = said_area  # 사용자가 말한 동네를 모델이 빠뜨린 경우 코드가 채운다
-            if (name in ("recommend_places", "search_food") and user_location and not said_area
+            if (name in ("recommend_places", "search_food", "plan_outing") and user_location and not said_area
                     and not args.get("area") and not args.get("place")):
                 # 동네를 말하지 않았고 현재 위치가 있으면 '내 근처' 기준으로 찾는다
                 args["origin_lat"], args["origin_lon"] = user_location

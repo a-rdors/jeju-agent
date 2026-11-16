@@ -19,7 +19,7 @@ st.set_page_config(page_title="제주 같이나들이", page_icon=":material/acc
 S = st.session_state
 for k, v in {"history": [], "chat": [], "ask": None, "results": None, "user_type": "other",
              "selected": None, "big": False, "food": None, "when": "오늘",
-             "location": None, "shown": []}.items():  # location: (위도, 경도). 지도 화면에서 위치 권한 허용 시 채운다
+             "location": None, "shown": [], "itinerary": [], "diet": []}.items():  # location: (위도, 경도). 지도 화면에서 위치 권한 허용 시 채운다
     S.setdefault(k, v)
 
 TYPES = [  # (버튼 글자, 아이콘, 이동 유형, 보낼 문장)
@@ -65,6 +65,10 @@ def send(text, user_type=None):
             S.when = args["when"]
         if name == "search_food":  # 최근 결과 하나만 크게 보여준다
             S.food, S.results = res, None
+            S.diet = args.get("diet_needs") or S.diet
+        if name == "plan_outing" and res.get("stops"):  # 일정 제안: 일정 칸을 채우고 다른 결과는 접는다
+            S.itinerary, S.food, S.results = res["stops"], None, None
+            S.diet = args.get("diet_needs") or S.diet
         if name == "recommend_places":
             S.results, S.food = res, None
             S.selected = res["results"][0]["place"]
@@ -81,7 +85,17 @@ def reset():
         S[k] = []
     for k in ("ask", "results", "selected", "food"):
         S[k] = None
-    S.shown = []
+    S.shown, S.itinerary, S.diet = [], [], []
+
+
+def add_stop(stop):
+    """'+ 일정' 버튼: 같은 곳을 두 번 담지 않는다."""
+    if stop and all(x["name"] != stop["name"] for x in S.itinerary):
+        S.itinerary.append(stop)
+
+
+def remove_stop(name):
+    S.itinerary = [x for x in S.itinerary if x["name"] != name]
     S.user_type, S.when = "other", "오늘"
 
 
@@ -144,6 +158,10 @@ if S.food:
             with st.container(horizontal=True):
                 if it["wheelchair_entry"]:
                     st.badge("휠체어 진입 확인", icon=":material/accessible:", color="green", help=it["access_info"])
+                fn = it.get("floor_note", "")
+                if fn:
+                    st.badge(fn, icon=":material/stairs:",
+                             color="green" if fn == "1층" else ("gray" if fn == "층 정보 없음" else "orange"))
                 if it.get("baby_chair"):
                     st.badge("아기 의자 있음", icon=":material/child_care:", color="green")
                 for w in it.get("why", []):
@@ -157,6 +175,8 @@ if S.food:
                     st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"food_tel_{i}")
                 if it.get("place_url"):
                     st.link_button("카카오맵 정보", it["place_url"], icon=":material/info:", key=f"food_info_{i}")
+                st.button("+ 일정", type="tertiary", key=f"food_add_{i}", on_click=add_stop, args=(T.food_stop(it),),
+                          help="하루 일정에 담기")
     with st.expander("전화로 이것만 물어보세요", icon=":material/call:", expanded=bool(f.get("diet_needs"))):
         for q in T.call_questions(S.user_type, f.get("diet_needs")):
             st.markdown(f"- {q}")
@@ -196,6 +216,8 @@ if S.results:
         with st.container(horizontal=True):
             st.link_button("카카오맵 길안내", T.kakao_route_link(top["place"], top["lat"], top["lon"]),
                            icon=":material/directions:", type="primary")
+            st.button("+ 일정", type="tertiary", key="place_add", on_click=add_stop,
+                      args=(T.place_stop(top["place"], S.user_type),), help="하루 일정에 담기")
             others = [r for r in res if r["place"] != top["place"]]
             if others:
                 with st.popover("다른 곳 보기", icon=":material/swap_horiz:"):
@@ -264,6 +286,25 @@ if S.results:
             st.markdown(f"- {q}")
 
     st.caption(f"자료: {detail['source']} · 기준 {detail['base_date']}. 현장과 다를 수 있어요.")
+
+# ---------- 오늘 일정(담았을 때만 보임) ----------
+if S.itinerary:
+    st.subheader(f"오늘 일정 ({len(S.itinerary)}곳)", divider="gray")
+    legs = T.itinerary_legs(S.itinerary)
+    for i, stop in enumerate(S.itinerary):
+        if i:
+            st.caption(f"↓ 약 {legs[i - 1]['km']}km (직선)")
+        with st.container(border=True, horizontal=True, vertical_alignment="center"):
+            label = stop["verdict"] if stop["kind"] == "place" else stop.get("food_type", "")
+            st.markdown(f"**{i + 1}. {stop['name']}**  \n{label}", width="stretch")
+            st.link_button("길안내", T.kakao_route_link(stop["name"], stop["lat"], stop["lon"]),
+                           icon=":material/directions:", key=f"it_nav_{i}")
+            st.button("빼기", type="tertiary", key=f"it_del_{i}", on_click=remove_stop, args=(stop["name"],))
+    html_sheet = T.itinerary_html(S.itinerary, S.user_type, S.diet, S.when)
+    st.download_button("일정표 내려받기", data=html_sheet.encode("utf-8"), file_name="같이나들이_일정표.html",
+                       mime="text/html", icon=":material/print:", type="primary",
+                       help="내려받은 파일을 열어 인쇄하거나 PDF로 저장하세요")
+    st.caption("일정표: 들르는 순서·거리, 장소별 확인표, 가까운 장애인 화장실, 급할 때 연락처, 전화로 확인할 것")
 
 if S.chat:
     st.button("처음부터 다시", icon=":material/refresh:", type="tertiary", on_click=reset)
