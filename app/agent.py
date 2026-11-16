@@ -155,8 +155,20 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
     if named:
         system += f"\n사용자가 말한 장소: {named}. 이 장소에 갈 수 있는지 물으면 get_place_detail(place='{named}')로 확인한다."
 
-    said_area = next((w for w in re.findall(r"[가-힣]{2,4}", last_q.replace("쪽", " ").replace("근처", " "))
-                      if T.find_area(w)), None)
+    # 질문 속 가게·장소 이름을 동네 이름보다 먼저 찾는다('서귀포흑돈으로' → 가게 '서귀포흑돈', 동네 '서귀포' 아님)
+    tokens = [re.sub(r"(으로|에서|에는|에|로|이랑|랑|하고|까지|부터|근처|쪽|은|는|을|를|도)$", "", w)
+              for w in re.findall(r"[가-힣A-Za-z0-9]+", last_q)]
+    said_place = None
+    for tok in tokens:
+        if len(tok) < 3:
+            continue
+        a = T.match_place(tok) or (lambda r: r[2] if r and re.sub(r"\s", "", r[2]) == tok else None)(T.resolve_anchor(tok))
+        if a:
+            said_place = a
+            break
+    if said_place:
+        system += f"\n사용자가 말한 가게·장소: {said_place}. 그 근처를 물으면 place='{said_place}'로 찾는다."
+    said_area = next((w for w in tokens if w and (not said_place or w not in said_place) and T.find_area(w)), None)
     if re.search(WEATHER_WORDS, last_q):  # 날짜·날씨 질문이면 코드가 먼저 날씨를 확인한다
         when = next((w for w in ("내일", "모레", "주말", "토요일", "일요일") if w in last_q), "오늘")
         area = next((w for w in re.findall(r"[가-힣]{2,4}", last_q)
@@ -188,6 +200,10 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                 return {"text": args.get("question", ""), "ask": args, "tool_results": tool_results, "trace": trace}
             if name == "recommend_places" and shown_places and re.search(r"다른|또|말고|새로운", last_q) and not args.get("exclude"):
                 args["exclude"] = list(shown_places)  # '다른 곳' 요청인데 모델이 제외 목록을 빠뜨린 경우
+            if (name == "search_food" and said_place and not args.get("place")
+                    and (not args.get("area") or said_place.startswith(str(args.get("area"))))):
+                args["place"] = said_place  # '서귀포흑돈 근처'를 '서귀포 전체'로 잘못 찾지 않게
+                args.pop("area", None)
             if name in ("recommend_places", "search_food") and said_area and not args.get("area") and not args.get("place"):
                 args["area"] = said_area  # 사용자가 말한 동네를 모델이 빠뜨린 경우 코드가 채운다
             if (name in ("recommend_places", "search_food") and user_location and not said_area

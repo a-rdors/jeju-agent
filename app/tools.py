@@ -56,7 +56,20 @@ def load():
         "areas": rd("areas.csv"),
         "medical": rd("medical.csv"),
         "food": rd("food.csv"),
+        "toilets": rd("toilets.csv") if (PROC / "toilets.csv").exists() else pd.DataFrame(),
+        "tour": rd("tour_places.csv") if (PROC / "tour_places.csv").exists() else pd.DataFrame(),
     }
+
+
+TOUR_SURVEY = "관광공사 무장애 여행 정보"
+
+
+def is_tour(r):
+    return str(r.get("survey", "")) == TOUR_SURVEY
+
+
+def _txt(v):
+    return "" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v).strip()
 
 
 def km(lat1, lon1, lat2, lon2):
@@ -101,6 +114,8 @@ def access_summary(r, user_type="other"):
     """판정 한 줄 + 확인한 것/못 한 것 목록.
     판정은 Wheelmap처럼 3단계(갈 만해요/도움 있으면/확인 더 필요)로 단순화한 설계 규칙이다(안전 보장 아님)."""
     wheels = user_type in ("manual_wheelchair", "electric_wheelchair", "stroller")
+    if is_tour(r):
+        return _tour_summary(r, user_type)
     grade = r["slope_relative"]
     stairs = int(r["route_stairs_points"])
     step = None if pd.isna(r["route_step_max_cm"]) else float(r["route_step_max_cm"])
@@ -140,6 +155,36 @@ def access_summary(r, user_type="other"):
             "source": f"제주데이터허브 무장애여행 정보({r.get('survey', '')}, {r['base_date']} 기준)"}
 
 
+def _tour_summary(r, user_type="other"):
+    """관광공사 무장애 정보(시설 입구·화장실·대여 중심) 판정. 코스 경사 자료가 아님을 이유에 밝힌다."""
+    entry = _txt(r.get("entry_access"))
+    ok = _txt(r.get("entry_ok"))
+    toilet = r["accessible_toilet"] == "yes"
+    if ok == "yes":
+        verdict, color = "갈 만해요", "green"
+        reason = f"출입: {entry}" + (" · 장애인 화장실 있음" if toilet else "")
+    elif ok == "no":
+        verdict, color = "동행인 도움이 있으면 갈 만해요", "orange"
+        reason = f"출입 경로 확인 필요: {entry}"
+    else:
+        verdict, color = "확인이 더 필요해요", "gray"
+        reason = "출입 경로 정보가 없어요."
+    rent_w, rent_s = _txt(r.get("wheelchair_rental")), _txt(r.get("stroller_rental"))
+    nursing, elev = _txt(r.get("nursing_room")), _txt(r.get("elevator"))
+    checks = [
+        {"item": "출입 경로", "status": entry or "정보 없음", "known": bool(entry)},
+        {"item": "장애인 화장실", "status": "있음" if toilet else "확인 안 됨", "known": toilet},
+        {"item": "장애인 주차", "status": "있음" if r["accessible_parking"] == "yes" else "확인 안 됨",
+         "known": r["accessible_parking"] == "yes"},
+        {"item": "휠체어 대여", "status": rent_w or "정보 없음", "known": bool(rent_w)},
+        {"item": "유모차 대여", "status": rent_s or "정보 없음", "known": bool(rent_s)},
+        {"item": "수유실", "status": nursing or "정보 없음", "known": bool(nursing)},
+        {"item": "엘리베이터", "status": elev or "정보 없음", "known": bool(elev)},
+    ]
+    return {"verdict": verdict, "verdict_color": color, "verdict_reason": reason, "checks": checks,
+            "source": "한국관광공사 무장애 여행 정보(시설 입구·편의시설 기준, 코스 경사 조사는 아님)"}
+
+
 def recommend_places(user_type="other", area=None, theme=None, need_toilet=False, max_minutes=None, limit=3,
                      origin_lat=None, origin_lon=None, exclude=None):
     """조건에 맞는 장소를 점수로 정렬해 추천한다. origin_lat/lon(현재 위치)이 있으면 동네 이름보다 우선한다."""
@@ -156,7 +201,22 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
     for _, r in p.iterrows():
         score, why, warn = 0.0, [], []
         grade = r["slope_relative"]
-        score += SLOPE_PENALTY[user_type].get(grade, 1)
+        tour = is_tour(r)
+        wheels = user_type in ("manual_wheelchair", "electric_wheelchair", "stroller")
+        if tour:  # 코스 경사 대신 출입 경로로 점수
+            ok = _txt(r.get("entry_ok"))
+            score += 0 if ok == "yes" else ((2.5 if wheels else 1) if ok == "no" else (1.5 if wheels else 0.8))
+            if ok == "yes":
+                why.append("출입구까지 턱이 없거나 경사로가 있어요")
+            if user_type in ("manual_wheelchair", "electric_wheelchair") and _txt(r.get("wheelchair_rental")):
+                why.append("휠체어를 빌릴 수 있어요")
+            if user_type == "stroller":
+                if _txt(r.get("stroller_rental")):
+                    why.append("유모차를 빌릴 수 있어요")
+                if _txt(r.get("nursing_room")):
+                    why.append("수유실이 있어요")
+        else:
+            score += SLOPE_PENALTY[user_type].get(grade, 1)
         stairs = int(r["route_stairs_points"])
         blocked = int(r["route_blocked_points"])
         score += min(stairs, 3) * (0.8 if user_type in ("manual_wheelchair", "stroller") else 0.5)
@@ -168,7 +228,7 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             score += 3
         if toilet:
             score -= 0.5
-            why.append("코스 안에 장애인 화장실이 있어요")
+            why.append("장애인 화장실이 있어요")
         if theme:  # 사용자가 말한 분위기는 경사보다 먼저 맞춘다(안 맞으면 크게 감점)
             if isinstance(r["themes"], str) and theme in r["themes"]:
                 why.append(f"'{theme}' 분위기 장소예요")
@@ -180,8 +240,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             score += dist / 3  # 사용자가 말한 동네에서 10km 멀어지면 약 3점 감점
         elif loc and loc.get("sigungu") and r["sigungu"] != loc["sigungu"]:
             continue  # '서귀포', '제주시'처럼 시를 말하면 그 시 안에서만 찾는다
-        mins = minutes_for(r["course_m"])
-        if max_minutes and mins > max_minutes:
+        mins = None if tour else minutes_for(r["course_m"])
+        if max_minutes and mins and mins > max_minutes:
             score += 2
         if r["accessible_parking"] == "yes":
             why.append("장애인 주차구역이 있어요")
@@ -192,7 +252,9 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             "where": f"{r['sigungu']} {r['dong']}",
             "score": round(score, 2),
             "slope_level": grade,
-            "slope_say": SLOPE_WORDS.get(grade, ""),
+            "slope_say": (f"출입: {_txt(r.get('entry_access'))}" if tour and _txt(r.get("entry_access"))
+                          else ("출입 경로 정보가 없어요. 가기 전 확인해 주세요." if tour else SLOPE_WORDS.get(grade, ""))),
+            "data_kind": "시설(관광공사)" if tour else "코스(제주도 조사)",
             "route_slope_max_deg": None if pd.isna(r["route_slope_max_deg"]) else float(r["route_slope_max_deg"]),
             "course_m": int(r["course_m"]),
             "minutes": mins,
@@ -213,7 +275,7 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
         "user_type": USER_TYPES[user_type],
         "area_understood": loc["area"] if loc else None,
         "results": rows[: max(1, min(int(limit), 5))],
-        "note": "무장애 현장 정보는 2021년 조사 자료예요. 방문 전 확인을 권장해요.",
+        "note": "코스 정보는 제주도 2020~2021년 조사, 시설 정보는 한국관광공사 자료예요. 방문 전 확인을 권장해요.",
     }
 
 
@@ -271,6 +333,17 @@ def get_place_detail(place, user_type="other"):
     if pl.empty:
         return {"error": f"'{place}' 장소를 찾지 못했어요."}
     r = pl.iloc[0]
+    toilets = nearby_toilets(float(r["start_lat"]), float(r["start_lon"]), "accessible", limit=3, max_km=2)
+    if is_tour(r):
+        return {
+            "place": place, "where": f"{r['sigungu']} {r['dong']}", "course_m": 0, "minutes": None,
+            "slope_level": "기록 없음", "slope_say": "", "companion_advised": False,
+            **access_summary(r, user_type), "key_points": [],
+            "all_points": [{"at_m": 0, "label": "입구", "text": _txt(r.get("entry_access")), "flags": [],
+                            "lat": float(r["start_lat"]), "lon": float(r["start_lon"])}],
+            "toilets_near": toilets, "tel": _txt(r.get("tel")), "base_date": r["base_date"],
+            "data_kind": "시설(관광공사)",
+        }
     pts = d["points"][(d["points"]["place"] == place)].copy()
     pts["order"] = pd.to_numeric(pts["order"], errors="coerce")
     pts = pts.sort_values("order")
@@ -309,9 +382,28 @@ def get_place_detail(place, user_type="other"):
         **access_summary(r, user_type),
         "key_points": important[:12],
         "all_points": steps,
+        "toilets_near": toilets,
         "base_date": r["base_date"],
-        "source": "제주데이터허브 무장애여행 위치정보(제주특별자치도)",
+        "data_kind": "코스(제주도 조사)",
     }
+
+
+def nearby_toilets(lat, lon, need="accessible", limit=2, max_km=3.0):
+    """가까운 공중화장실. need: accessible(장애인용) / diaper(기저귀 교환대) / None(전체)."""
+    t = load()["toilets"]
+    if t.empty:
+        return []
+    t = t[t["lat"].notna()]
+    if need == "accessible":
+        t = t[t["accessible"].astype(str).str.lower() == "true"]
+    elif need == "diaper":
+        t = t[t["diaper"].astype(str).str.lower() == "true"]
+    t = t.assign(km=[km(lat, lon, a, b) for a, b in zip(t["lat"], t["lon"])])
+    t = t[t["km"] <= max_km].nsmallest(limit, "km")
+    return [{"name": r["name"], "km": round(r["km"], 2), "address": _txt(r["address"]),
+             "accessible_count": int(r["accessible_count"]), "diaper": str(r["diaper"]).lower() == "true",
+             "open": f"{_txt(r['open'])} {_txt(r['open_detail'])}".strip(), "phone": _txt(r["phone"]),
+             "lat": float(r["lat"]), "lon": float(r["lon"])} for _, r in t.iterrows()]
 
 
 def find_nearby_help(place, kinds=("약국", "병·의원", "응급실")):
@@ -331,7 +423,10 @@ def find_nearby_help(place, kinds=("약국", "병·의원", "응급실")):
         out[k] = [{"name": t["name"], "km": round(t["km"], 1), "address": t["address"],
                    "phone": "" if pd.isna(t["phone"]) else str(t["phone"]), "detail": "" if pd.isna(t["detail"]) else t["detail"],
                    "source": t["source"]} for _, t in top.iterrows()]
-    return {"place": place, "help": out, "note": "직선거리 기준이에요. 응급 시에는 119에 먼저 연락하세요."}
+    out["장애인 화장실"] = nearby_toilets(lat, lon, "accessible")
+    out["기저귀 교환대"] = nearby_toilets(lat, lon, "diaper", limit=1)
+    return {"place": place, "help": out, "note": "직선거리 기준이에요. 응급 시에는 119에 먼저 연락하세요."
+                                                 " 화장실은 공중화장실 정보(제주특별자치도)예요."}
 
 
 def check_nearby_places(place, category=None, wheelchair_only=False, limit=6):
@@ -420,6 +515,55 @@ def _wheelchair_names():
     return {_norm_name(x): str(p) for x, p in zip(yes["name"], yes["place"])}
 
 
+@lru_cache(maxsize=1)
+def _tour_restaurants():
+    """관광공사 무장애 정보가 있는 음식점: 이름 -> (입구 접근 가능 여부, 출입 문구, 아기 의자 문구)."""
+    t = load()["tour"]
+    if t.empty:
+        return {}
+    t = t[t["type"] == "음식점"].fillna("")
+    out = {}
+    for _, r in t.iterrows():
+        entry = f"{r['출입 경로']} {r['출입문']}".strip()
+        ok = bool(re.search(r"턱이 없|턱 없|단차가 없|단차 없|경사로|휠체어 접근 가능|평지", entry)) and not re.search(r"불가|어려", entry)
+        out[_norm_name(r["title"])] = (ok, entry, str(r["유아용 의자"]))
+    return out
+
+
+_KAKAO_CACHE = {}
+
+
+def kakao_place(name, lat, lon):
+    """카카오 키워드 검색으로 가게 전화번호·카카오맵 링크를 찾는다(키 없거나 실패하면 None)."""
+    import json
+    import os
+    import urllib.parse
+    import urllib.request
+    key = os.getenv("KAKAO_REST_KEY")
+    if not key:
+        try:
+            from dotenv import dotenv_values
+            key = dotenv_values(PROC.parents[1] / ".env").get("KAKAO_REST_KEY")
+        except Exception:
+            key = None
+    if not key:
+        return None
+    ck = (name, round(lat, 3), round(lon, 3))
+    if ck in _KAKAO_CACHE:
+        return _KAKAO_CACHE[ck]
+    url = "https://dapi.kakao.com/v2/local/search/keyword.json?" + urllib.parse.urlencode(
+        {"query": name, "x": lon, "y": lat, "radius": 300, "sort": "distance"})
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": "KakaoAK " + key}), timeout=4) as r:
+            docs = json.loads(r.read().decode("utf-8"))["documents"]
+        hit = next((d for d in docs if _norm_name(d["place_name"])[:3] == _norm_name(name)[:3]), None)
+        res = {"phone": hit["phone"], "place_url": hit["place_url"], "category": hit["category_name"]} if hit else None
+    except Exception:
+        res = None
+    _KAKAO_CACHE[ck] = res
+    return res
+
+
 def _kind_ok(kind, food_type, name):
     if not kind or kind not in FOOD_KINDS:
         return True
@@ -500,7 +644,8 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
         ds = _diet_score(diet_needs, r["food_type"], r["name"])
         if ds is None:
             continue
-        verified = _norm_name(r["name"]) in wc
+        tr = _tour_restaurants().get(_norm_name(r["name"]))
+        verified = _norm_name(r["name"]) in wc or bool(tr and tr[0])
         if wheelchair_only and not verified:
             continue
         dist = None if r["km"] is None or pd.isna(r["km"]) else float(r["km"])
@@ -509,7 +654,9 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
                 - (2 if kind_name else 0))  # '흑돼지'를 찾으면 이름에 흑돼지가 들어간 가게를 앞으로
         items.append({"name": r["name"], "food_type": r["food_type"], "km": None if dist is None else round(dist, 1),
                       "address": r["address"], "phone": "", "wheelchair_entry": verified,
-                      "access_info": "휠체어 진입 확인(2021 무장애 조사)" if verified else "입구 정보 없음",
+                      "access_info": (f"관광공사 무장애 정보: {tr[1]}" if tr and tr[0]
+                                      else ("휠체어 진입 확인(2021 무장애 조사)" if verified else "입구 정보 없음")),
+                      "baby_chair": bool(tr and tr[2]),
                       "why": ds[1], "open_status": "2025 상가 자료에 있음",
                       "lat": float(r["lat"]), "lon": float(r["lon"]), "_rank": rank})
     items.sort(key=lambda x: (x["_rank"], x["name"]))
@@ -523,6 +670,10 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
         out.append(it)
         if len(out) >= int(limit):
             break
+    for it in out:  # 카카오로 전화번호·장소 링크 보강(상가 자료에는 전화번호가 없음)
+        kp = kakao_place(it["name"], it["lat"], it["lon"])
+        if kp:
+            it["phone"], it["place_url"] = kp["phone"], kp["place_url"]
     asks = [q for k in (diet_needs or []) for q in DIET_NEEDS.get(k, {}).get("ask", [])]
     return {
         "food_kind": food_kind, "diet_needs": diet_needs or [],
@@ -532,7 +683,7 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
         "with_wheelchair_badge": sum(1 for i in out if i["wheelchair_entry"]),
         "call_questions": asks,
         "note": "메뉴는 업종과 가게 이름으로 추정했어요. 건강 상태에 맞는지는 가게에 전화로 꼭 확인해 주세요."
-                " 휠체어 배지는 2021년 무장애 조사 결과예요.",
+                " 휠체어 배지는 2021년 무장애 조사와 한국관광공사 무장애 정보, 전화번호는 카카오 장소 정보예요.",
     }
 
 

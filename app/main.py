@@ -143,7 +143,9 @@ if S.food:
             st.markdown(f"**{it['name']}**  \n{it['food_type']}" + (f" · {it['km']}km" if it["km"] is not None else ""))
             with st.container(horizontal=True):
                 if it["wheelchair_entry"]:
-                    st.badge("휠체어 진입 확인(2021)", icon=":material/accessible:", color="green")
+                    st.badge("휠체어 진입 확인", icon=":material/accessible:", color="green", help=it["access_info"])
+                if it.get("baby_chair"):
+                    st.badge("아기 의자 있음", icon=":material/child_care:", color="green")
                 for w in it.get("why", []):
                     st.badge(w.split(":")[0], icon=":material/restaurant:", color="blue")
             if it.get("why"):
@@ -153,6 +155,8 @@ if S.food:
                                icon=":material/directions:", type="primary", key=f"food_nav_{i}")
                 if it["phone"]:
                     st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"food_tel_{i}")
+                if it.get("place_url"):
+                    st.link_button("카카오맵 정보", it["place_url"], icon=":material/info:", key=f"food_info_{i}")
     with st.expander("전화로 이것만 물어보세요", icon=":material/call:", expanded=bool(f.get("diet_needs"))):
         for q in T.call_questions(S.user_type, f.get("diet_needs")):
             st.markdown(f"- {q}")
@@ -171,8 +175,11 @@ if S.results:
         st.markdown(f"### {top['place']}")
         st.caption(f"{top['where']} · {top['verdict_reason']}")
         with st.container(horizontal=True):
-            st.badge(f"경사 {top['slope_level']}", icon=icon, color=color)
-            st.badge(f"약 {top['minutes']}분 · {top['course_m']:,}m", icon=":material/schedule:", color="gray")
+            if top["minutes"]:  # 코스(제주도 조사) 장소
+                st.badge(f"경사 {top['slope_level']}", icon=icon, color=color)
+                st.badge(f"약 {top['minutes']}분 · {top['course_m']:,}m", icon=":material/schedule:", color="gray")
+            else:  # 시설(관광공사) 장소
+                st.badge("시설 방문", icon=":material/museum:", color="gray")
             if top["distance_km"] is not None:
                 st.badge(f"{top['distance_km']}km 거리", icon=":material/place:", color="gray")
             if top["accessible_toilet"]:
@@ -193,7 +200,7 @@ if S.results:
             if others:
                 with st.popover("다른 곳 보기", icon=":material/swap_horiz:"):
                     for r in others:
-                        if st.button(f"{r['place']} · 경사 {r['slope_level']}", key=f"pick_{r['place']}", width="stretch"):
+                        if st.button(f"{r['place']} · {r['verdict']}", key=f"pick_{r['place']}", width="stretch"):
                             S.selected = r["place"]
                             st.rerun()
 
@@ -208,7 +215,7 @@ if S.results:
 
     detail = T.get_place_detail(top["place"], S.user_type)
     tab_check, tab_course, tab_help, tab_food, tab_call = st.tabs(
-        ["확인한 것", "코스 따라가기", "병원·약국", "주변 식당", "전화 질문"])
+        ["확인한 것", "코스·위치", "병원·약국·화장실", "주변 식당", "전화 질문"])
     with tab_check:
         for c in detail["checks"]:
             mark = ":green-badge[확인됨]" if c["known"] else ":gray-badge[확인 안 됨]"
@@ -226,30 +233,37 @@ if S.results:
                 with st.container(border=True):
                     st.markdown(f"**출발 후 약 {s_['at_m']}m** · {s_['label']}")
                     st.markdown(" ".join(f":gray-badge[{f}]" for f in s_["flags"]))
+        elif detail.get("data_kind") == "시설(관광공사)":
+            st.caption("시설 입구 기준 정보예요. 코스를 따라 경사를 잰 자료는 아니에요.")
         else:
             st.caption("특별히 확인할 지점 기록이 없어요.")
+        if detail.get("toilets_near"):
+            st.markdown("**가까운 장애인 화장실**")
+            for t_ in detail["toilets_near"]:
+                extra = " · 기저귀 교환대" if t_["diaper"] else ""
+                st.markdown(f"- {t_['name']} ({int(t_['km'] * 1000)}m){extra} · {t_['open']}")
     with tab_help:
         help_ = T.find_nearby_help(top["place"])
         for kind, items in help_["help"].items():
             for it in items:
-                st.markdown(f"**{kind}** · {it['name']} ({it['km']}km)  \n{it['address']}")
+                st.markdown(f"**{kind}** · {it['name']} ({it['km']}km)  \n{it.get('address', '')}")
                 if it["phone"]:
                     st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:")
         st.caption(help_["note"])
     with tab_food:
-        near = T.check_nearby_places(top["place"], limit=8)
-        labels = {"영업 확인": ":green-badge[2025 영업 확인]", "확인 안 됨": ":gray-badge[영업 확인 안 됨]",
-                  "폐업 기록": ":red-badge[폐업 기록]"}
+        near = T.search_food(place=top["place"], limit=6,
+                             prefer_wheelchair=S.user_type in ("manual_wheelchair", "electric_wheelchair"))
         for it in near["items"]:
-            wc = " :green-badge[휠체어 진입]" if it["wheelchair_entry"] else ""
-            st.markdown(f"**{it['name']}** · {it['category']} · {it['km']}km {labels[it['open_status']]}{wc}")
-        st.caption(near["note"])
+            wc = " :green-badge[휠체어 진입 확인]" if it["wheelchair_entry"] else ""
+            tel = f" · {it['phone']}" if it["phone"] else ""
+            st.markdown(f"**{it['name']}** · {it['food_type']} · {it['km']}km{wc}{tel}")
+        st.caption("음식점 정보: 2025 상가 자료, 휠체어 배지: 2021 무장애 조사·한국관광공사, 전화번호: 카카오")
     with tab_call:
         st.markdown("가기 전에 전화로 이것만 물어보세요.")
         for q in T.call_questions(S.user_type):
             st.markdown(f"- {q}")
 
-    st.caption(f"자료: 제주데이터허브 무장애여행 정보(제주특별자치도, {detail['base_date']} 기준). 현장과 다를 수 있어요.")
+    st.caption(f"자료: {detail['source']} · 기준 {detail['base_date']}. 현장과 다를 수 있어요.")
 
 if S.chat:
     st.button("처음부터 다시", icon=":material/refresh:", type="tertiary", on_click=reset)

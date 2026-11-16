@@ -84,7 +84,7 @@ SCENARIOS = [
                          f"상위 {[(i['name'], i['wheelchair_entry']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
     {"id": 7, "q": ["무릎 안 좋으신 어머니랑 숲길 잠깐 걷고 싶어"],
      "expect": "어르신 기준 숲 장소, 짧은 코스",
-     "check": lambda o: (bool(top(o)) and "자연·숲" in top(o)[0]["themes"] and top(o)[0]["minutes"] <= 45,
+     "check": lambda o: (bool(top(o)) and "자연·숲" in top(o)[0]["themes"] and (top(o)[0]["minutes"] or 0) <= 45,
                          f"1순위 {top(o)[0]['place']} 약 {top(o)[0]['minutes']}분" if top(o) else "추천 없음")},
     {"id": 8, "q": ["휠체어로 갈 만한 데 추천해 줘", "거기 근처에 약국이나 병원 있어?"],
      "expect": "두 번째 질문에서 앞서 추천한 장소 기준으로 의료 찾기",
