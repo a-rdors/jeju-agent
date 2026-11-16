@@ -273,6 +273,7 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             "lon": float(r["start_lon"]),
             "base_date": r["base_date"],
             "phone": _txt(r.get("phone")), "place_url": _txt(r.get("place_url")),
+            "parking": parking_point(r["place"]),
             "overview": _txt(r.get("overview")), "image": _txt(r.get("image")), "homepage": _txt(r.get("homepage")),
             **access_summary(r, user_type),
         })
@@ -819,6 +820,8 @@ def place_stop(place, user_type="other"):
             "lon": float(r["start_lon"]), "verdict": d["verdict"], "verdict_reason": d["verdict_reason"],
             "checks": d["checks"], "key_points": d.get("key_points", [])[:6], "toilets_near": d.get("toilets_near", []),
             "minutes": d.get("minutes"), "tel": d.get("tel", ""), "source": d["source"],
+            "phone": _txt(r.get("phone")), "parking": parking_point(d["place"]),
+            "rain_alt": rain_alternative(d["place"], user_type),
             "entry_hint": pt["text"] if pt and d.get("data_kind") == "시설(관광공사)" else ""}
 
 
@@ -903,6 +906,8 @@ def itinerary_html(stops, user_type="other", diet_needs=None, when="오늘"):
 <table><tr><th>항목</th><th>내용</th><th>상태</th></tr>{checks}</table>
 {f"<h3>코스에서 확인할 곳</h3><ul>{kp}</ul>" if kp else ""}
 {f"<h3>가까운 장애인 화장실</h3><ul>{toil}</ul>" if toil else ""}
+{f'<p>장애인 주차: <a href="{e(s["parking"]["link"])}">{e(s["parking"]["label"])} 위치로 길안내</a></p>' if s.get("parking") else ""}
+{f'<p>비 오면 대신: <b>{e(s["rain_alt"]["name"])}</b> ({s["rain_alt"]["km"]}km, {e(s["rain_alt"]["verdict"])})</p>' if s.get("rain_alt") else ""}
 <p class="src">자료: {e(s["source"])}</p></section>''')
         else:
             why = " · ".join(w.split(": ", 1)[-1] for w in s["why"])
@@ -936,3 +941,36 @@ table {{ border-collapse:collapse; width:100%; font-size:10.5pt; }} th, td {{ bo
 <div class="box"><h3>가기 전 전화로 확인할 것</h3><ul>{"".join(f"<li>{e(q)}</li>" for q in calls)}</ul></div>
 <p class="foot">거리는 직선거리예요. 무장애 정보는 제주특별자치도(2020~2021 조사)·한국관광공사, 식당은 2025 상가 자료·카카오 장소 정보, 날씨는 Open-Meteo 예보예요. 현장과 다를 수 있으니 방문 전 확인해 주세요.</p>
 </body></html>'''
+
+
+# ---------- 장애인 주차구역 좌표 (Last 50m) ----------
+@lru_cache(maxsize=1)
+def _parking_points():
+    """제주도 조사 지점 중 '장애인 주차'가 확인된 첫 지점. 길안내를 장소 중심이 아니라 이 좌표로 찍는다."""
+    p = load()["points"]
+    p = p[p["accessible_parking"] == "yes"].copy()
+    p["order"] = pd.to_numeric(p["order"], errors="coerce")
+    p = p.sort_values(["place", "order"]).drop_duplicates("place")
+    return {r["place"]: {"lat": float(r["lat"]), "lon": float(r["lon"]), "label": str(r["label"]),
+                         "link": kakao_route_link(f"{r['place']} 장애인 주차", float(r["lat"]), float(r["lon"]))}
+            for _, r in p.iterrows()}
+
+
+def parking_point(place):
+    return _parking_points().get(place)
+
+
+# ---------- 비 올 때 대안 (Plan B) ----------
+def rain_alternative(place, user_type="other", exclude=None):
+    """바깥 장소라면 가까운 실내 장소 하나를 '비 오면 대신 갈 곳'으로 준다. 이미 실내면 None."""
+    pl = load()["places"]
+    row = pl[pl["place"] == place]
+    if row.empty or "실내" in str(row.iloc[0]["themes"]):
+        return None
+    r = row.iloc[0]
+    rec = recommend_places(user_type=user_type, theme="실내", limit=1, origin_lat=float(r["start_lat"]),
+                           origin_lon=float(r["start_lon"]), exclude=[place] + list(exclude or []))
+    if not rec["results"]:
+        return None
+    x = rec["results"][0]
+    return {"name": x["place"], "km": x["distance_km"], "verdict": x["verdict"], "lat": x["lat"], "lon": x["lon"]}

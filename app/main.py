@@ -244,6 +244,9 @@ if S.results:
         with st.container(horizontal=True):
             st.link_button("카카오맵 길안내", T.kakao_route_link(top["place"], top["lat"], top["lon"]),
                            icon=":material/directions:", type="primary")
+            if top.get("parking"):
+                st.link_button("장애인 주차구역 길안내", top["parking"]["link"], icon=":material/local_parking:",
+                               help=f"조사 지점: {top['parking']['label']}")
             if top.get("phone"):
                 st.link_button(f"전화 {top['phone']}", f"tel:{top['phone']}", icon=":material/call:")
             if top.get("homepage"):
@@ -328,7 +331,9 @@ if S.itinerary:
             st.caption(f"↓ 약 {legs[i - 1]['km']}km (직선)")
         with st.container(border=True, horizontal=True, vertical_alignment="center"):
             label = stop["verdict"] if stop["kind"] == "place" else stop.get("food_type", "")
-            st.markdown(f"**{i + 1}. {stop['name']}**  \n{label}", width="stretch")
+            alt = stop.get("rain_alt")
+            alt_line = f"  \n비 오면 대신: {alt['name']} ({alt['km']}km)" if alt else ""
+            st.markdown(f"**{i + 1}. {stop['name']}**  \n{label}{alt_line}", width="stretch")
             st.link_button("길안내", T.kakao_route_link(stop["name"], stop["lat"], stop["lon"]),
                            icon=":material/directions:", key=f"it_nav_{i}")
             st.button("빼기", type="tertiary", key=f"it_del_{i}", on_click=remove_stop, args=(stop["name"],))
