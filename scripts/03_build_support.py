@@ -160,7 +160,7 @@ def add_tour_places(app):
     제주도 조사 70곳은 '코스 경사' 자료, 관광공사는 '시설 입구·화장실·대여' 자료라 칸을 나눠 둔다."""
     path = PROC / "tour_places.csv"
     for col in ("entry_access", "entry_ok", "wheelchair_rental", "stroller_rental", "nursing_room", "elevator",
-                "tour_type", "tel"):
+                "tour_type", "tel", "overview", "image", "homepage"):
         app[col] = ""
     if not path.exists():
         return app
@@ -203,6 +203,8 @@ def add_tour_places(app):
             "wheelchair_rental": str(r["휠체어"]), "stroller_rental": str(r["유모차"]),
             "nursing_room": str(r["수유실"]), "elevator": str(r["엘리베이터"]),
             "tour_type": r["type"], "tel": str(r["tel"]),
+            "overview": str(r.get("overview", "")), "image": str(r.get("image", "")),
+            "homepage": (re.search(r"https?://[^\s\"'>]+", str(r.get("homepage", ""))) or [""])[0],
         })
     return pd.concat([app, pd.DataFrame(rows)], ignore_index=True)
 

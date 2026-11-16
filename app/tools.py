@@ -48,8 +48,12 @@ SLOPE_WORDS = {
 def load():
     def rd(name):
         return pd.read_csv(PROC / name, encoding="utf-8-sig")
+    places = rd("places_app.csv")
+    if (PROC / "place_contacts.csv").exists():  # 카카오에서 미리 찾은 장소 전화번호·링크
+        c = rd("place_contacts.csv")[["place", "phone", "place_url"]]
+        places = places.merge(c, on="place", how="left")
     return {
-        "places": rd("places_app.csv"),
+        "places": places,
         "points": rd("points.csv"),
         "nearby": rd("nearby_checked.csv"),
         "companion": rd("companion.csv"),
@@ -268,6 +272,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             "lat": float(r["start_lat"]),
             "lon": float(r["start_lon"]),
             "base_date": r["base_date"],
+            "phone": _txt(r.get("phone")), "place_url": _txt(r.get("place_url")),
+            "overview": _txt(r.get("overview")), "image": _txt(r.get("image")), "homepage": _txt(r.get("homepage")),
             **access_summary(r, user_type),
         })
     rows.sort(key=lambda x: (x["score"], x["place"]))

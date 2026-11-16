@@ -78,14 +78,38 @@ def fetch_tour():
         time.sleep(0.15)
     print("상세 새로 받음", new)
 
+    # 기본정보(전화·홈페이지·소개): 관광지·문화시설·음식점만
+    (RAW / "tour" / "common").mkdir(parents=True, exist_ok=True)
+    got = 0
+    for it in items:
+        if str(it.get("contenttypeid")) not in ("12", "14", "39"):
+            continue
+        path = RAW / "tour" / "common" / f"{it['contentid']}.json"
+        if path.exists():
+            continue
+        try:
+            _, d = tour_call("detailCommon2", contentId=it["contentid"])
+        except Exception as e:
+            print("기본정보 받기 중단:", type(e).__name__, "· 다음 실행 때 이어서 받음")
+            break
+        path.write_text(json.dumps(d[0] if d else {}, ensure_ascii=False), encoding="utf-8")
+        got += 1
+        time.sleep(0.15)
+    print("기본정보 새로 받음", got)
+
     rows = []
     for it in items:
         path = RAW / "tour" / "detail" / f"{it['contentid']}.json"
         d = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        cpath = RAW / "tour" / "common" / f"{it['contentid']}.json"
+        c = json.loads(cpath.read_text(encoding="utf-8")) if cpath.exists() else {}
         row = {"contentid": it["contentid"], "type": TYPE_NAMES.get(str(it.get("contenttypeid")), "기타"),
                "title": it.get("title", ""), "address": it.get("addr1", ""),
                "lat": float(it["mapy"]) if it.get("mapy") else None, "lon": float(it["mapx"]) if it.get("mapx") else None,
-               "tel": it.get("tel", ""), "image": it.get("firstimage", ""), "detail_loaded": bool(d)}
+               "tel": c.get("tel") or it.get("tel", ""), "tel_name": c.get("telname", ""),
+               "homepage": re.sub(r"<[^>]+>", " ", c.get("homepage", "") or "").strip(),
+               "overview": re.sub(r"<[^>]+>|\s+", " ", c.get("overview", "") or "").strip()[:400],
+               "image": it.get("firstimage", ""), "detail_loaded": bool(d)}
         for k, name in BF_FIELDS.items():
             row[name] = re.sub(r"\s+", " ", str(d.get(k) or "")).strip()
         rows.append(row)
@@ -141,6 +165,55 @@ def fetch_toilets():
           "기저귀", int(out["diaper"].sum()))
 
 
+def _norm(x):
+    return re.sub(r"\(.*?\)|\s|-|제주특별자치도|제주", "", str(x))
+
+
+def fetch_place_contacts():
+    """나들이 장소(places_app.csv)의 전화번호·카카오맵 링크를 카카오 키워드 검색으로 찾는다.
+    주차장·버스정류장처럼 엉뚱한 곳이 잡히지 않게 분류를 거르고, 이름이 겹칠 때만 채택한다.
+    03_build_support.py를 먼저 실행해 places_app.csv가 있어야 한다."""
+    places = pd.read_csv(PROC / "places_app.csv")
+    cache_path = RAW / "kakao_place_cache.json"
+    cache = json.loads(cache_path.read_text(encoding="utf-8")) if cache_path.exists() else {}
+    rows = []
+    for _, r in places.iterrows():
+        name = str(r["place"])
+        if name not in cache:
+            q = re.sub(r"\(.*?\)", "", name).split("-")[0].strip()
+            url = "https://dapi.kakao.com/v2/local/search/keyword.json?" + urllib.parse.urlencode(
+                {"query": q, "x": r["start_lon"], "y": r["start_lat"], "radius": 1500, "sort": "accuracy"})
+            req = urllib.request.Request(url, headers={"Authorization": "KakaoAK " + ENV["KAKAO_REST_KEY"]})
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    docs = json.loads(resp.read().decode("utf-8"))["documents"]
+            except Exception:
+                docs = None
+            cache[name] = docs
+            time.sleep(0.05)
+        docs = cache.get(name) or []
+        key = _norm(name)
+        hit = None
+        for d in docs:
+            if re.search(r"주차장|정류장|정류소|버스|편의점|화장실", d.get("category_name", "") + d["place_name"]):
+                continue
+            pk = _norm(d["place_name"])
+            if pk and (pk in key or key in pk or (len(key) >= 4 and key[:4] in pk)):
+                hit = d
+                break
+        rows.append({"place": name, "phone": (hit or {}).get("phone", ""), "place_url": (hit or {}).get("place_url", ""),
+                     "kakao_name": (hit or {}).get("place_name", "")})
+    cache_path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
+    out = pd.DataFrame(rows)
+    out.to_csv(PROC / "place_contacts.csv", index=False, encoding="utf-8-sig")
+    print("place_contacts.csv", len(out), "전화 있음", (out["phone"].fillna("") != "").sum(),
+          "카카오맵 링크", (out["place_url"].fillna("") != "").sum())
+
+
 if __name__ == "__main__":
-    fetch_toilets()
-    fetch_tour()
+    import sys
+    if "contacts" in sys.argv:  # 03 실행 후: python scripts/06_fetch_external.py contacts
+        fetch_place_contacts()
+    else:
+        fetch_toilets()
+        fetch_tour()

@@ -74,7 +74,9 @@ python -m venv .venv
 .venv\Scripts\python scripts/01_download_mujangae.py   # 공개 무장애 데이터 150개 파일
 .venv\Scripts\python scripts/02_build_access_table.py  # 문장 → 접근성 표 (2020 관광지 20곳은 data/raw/mujangae_extra)
 .venv\Scripts\python scripts/06_fetch_external.py     # 관광공사 무장애 정보·화장실 좌표 (키 필요)
-.venv\Scripts\python scripts/03_build_support.py       # 동네·의료·영업 확인·식당 표, 관광공사 장소 합치기
+.venv\Scripts\python scripts/03_build_support.py       # 동네·의료·영업 확인·식당 표
+.venv\Scripts\python scripts/06_fetch_external.py       # (키 필요) 관광공사 무장애 정보·공중화장실 좌표 → 다시 03 실행
+.venv\Scripts\python scripts/06_fetch_external.py contacts  # (키 필요) 장소 전화번호·카카오맵 링크, 관광공사 장소 합치기
 ```
 
 ## 테스트

@@ -218,6 +218,10 @@ if S.results:
         st.badge(top["verdict"], icon=v_icon.get(top["verdict_color"], ":material/help:"), color=top["verdict_color"])
         st.markdown(f"### {top['place']}")
         st.caption(f"{top['where']} · {top['verdict_reason']}")
+        if top.get("image"):
+            st.image(top["image"], width=360, alt=f"{top['place']} 사진(한국관광공사)")
+        if top.get("overview"):
+            st.caption(top["overview"][:140] + ("…" if len(top["overview"]) > 140 else ""))
         with st.container(horizontal=True):
             if top["minutes"]:  # 코스(제주도 조사) 장소
                 st.badge(f"경사 {top['slope_level']}", icon=icon, color=color)
@@ -240,6 +244,10 @@ if S.results:
         with st.container(horizontal=True):
             st.link_button("카카오맵 길안내", T.kakao_route_link(top["place"], top["lat"], top["lon"]),
                            icon=":material/directions:", type="primary")
+            if top.get("phone"):
+                st.link_button(f"전화 {top['phone']}", f"tel:{top['phone']}", icon=":material/call:")
+            if top.get("homepage"):
+                st.link_button("홈페이지", top["homepage"], icon=":material/language:")
             st.button("+ 일정", type="tertiary", key="place_add", on_click=add_stop,
                       args=(T.place_stop(top["place"], S.user_type),), help="하루 일정에 담기")
             others = [r for r in res if r["place"] != top["place"]]
