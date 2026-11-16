@@ -10,6 +10,7 @@
 """
 import datetime as dt
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -134,7 +135,8 @@ SCENARIOS = [
                          f"찾기 {len(results_of(o, 'search_food'))}회: {[r['food_kind'] for r in results_of(o, 'search_food')]}")},
     {"id": 19, "q": ["휠체어 타는 아빠랑 1박 2일로 제주 가는데 일정 짜줘"],
      "expect": "(사용자 결정) 여러 날 시간표를 지어내지 않고 첫 나들이만 제안, 전체 동선 제안도 안 함",
-     "check": lambda o: (bool(results_of(o, "plan_outing")) and not any(w in o["text"] for w in ("2일차", "둘째 날", "전체 동선", "1일차")),
+     "check": lambda o: (bool(results_of(o, "plan_outing")) and not any(w in o["text"] for w in ("2일차", "둘째 날", "전체 동선", "1일차"))
+                         and not re.search(r"(정리|짜|만들)[어아]?\s*드릴(게|까)", o["text"]) and "+ 일정" in o["text"],
                          f"일정 도구 {'O' if results_of(o, 'plan_outing') else 'X'}, 답변 앞부분: {o['text'][:40]}")},
     {"id": 13, "q": ["어르신 모시고 갈 만한 곳", "다른 곳은 없어?"],
      "expect": "두 번째 질문에서 앞서 보여준 장소를 빼고 새로 추천",

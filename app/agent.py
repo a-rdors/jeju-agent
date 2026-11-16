@@ -185,6 +185,11 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         if a:
             said_place = a
             break
+    if re.search(r"\d\s*박|박\s*\d\s*일|며칠|여러\s*날|일차|일정\s*표", last_q):
+        # 여러 날 요청: 날짜별 시간표를 만들지 않는다는 결정을 이번 답변에 강하게 적용
+        system += ("\n이번 질문은 여러 날 일정 요청이다. 첫 나들이 하나만 plan_outing으로 제안한다. "
+                   "여러 날·날짜별 일정표를 정리해 주겠다는 제안('정리해 드릴게요', '짜 드릴게요')을 절대 하지 않는다. "
+                   "답변 마지막 문장은 반드시 '다른 날 갈 곳은 결과 카드의 + 일정으로 담아 일정표에 모을 수 있어요.'로 끝낸다.")
     if said_place:
         system += f"\n사용자가 말한 가게·장소: {said_place}. 그 근처를 물으면 place='{said_place}'로 찾는다."
     said_area = next((w for w in tokens if w and (not said_place or w not in said_place) and T.find_area(w)), None)
