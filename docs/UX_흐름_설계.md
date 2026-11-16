@@ -6,7 +6,8 @@
 
 > 일반 여행 앱은 "어디 갈까"를 묻고, 같이나들이는 "우리 가족이 갈 수 있을까, 뭘 조심할까"에 답한다.
 
-모든 화면은 이 질문에 답하는 순서로 배치한다. 맛집·관광 정보는 접근성 판단을 돕는 경우에만 보여준다.
+모든 화면은 이 질문에 답하는 순서로 배치한다. 이동 접근성(경사·턱·계단)은 산책로·관광지 중심으로 판단한다.
+식당·카페는 제주 전체가 대상이고, 어르신·아이의 식사 불편(씹기, 소화, 매운 음식, 알레르기, 싱겁게)에 맞춰 고른다. 휠체어 진입 확인은 배지로 표시한다.
 
 ## 1. UX 원칙 (근거 포함, 중요한 순서)
 
@@ -56,9 +57,9 @@
 | `recommend_places(user_type, area, theme, need_toilet, max_minutes, origin_lat, origin_lon)` | `results[]`: place, where, verdict, verdict_color, verdict_reason, checks, slope_level, slope_say, minutes, course_m, distance_km, accessible_toilet, accessible_parking, companion_advised, good_points, watch_out, lat, lon, source |
 | `get_place_detail(place, user_type)` | all_points[](lat, lon, label, flags, at_m), key_points, verdict, checks |
 | `find_nearby_help(place)` | help: 약국/병·의원/응급실 [] (name, km, address, phone) |
-| `search_food(food_kind, area, place, origin_lat, origin_lon)` | items[](휠체어 진입 확인 가게만), unverified[] |
+| `search_food(food_kind, area, place, diet_needs, prefer_wheelchair, origin_lat, origin_lon)` | 제주 전체 식당 대상. items[]: name, food_type, km, wheelchair_entry(배지), why(식사 조건 추정 근거), lat, lon / diet_labels, call_questions, anchor_not_found |
 | `get_weather(place, area, when)` | rain_chance, wind_ms, temp, tips[] |
-| `call_questions(user_type)` | 전화로 물을 질문 목록 |
+| `call_questions(user_type, diet_needs)` | 전화로 물을 질문 목록(이동 유형 + 식사 조건) |
 | `kakao_route_link(name, lat, lon)` | 카카오맵 길안내 URL(키 불필요) |
 
 대화는 `agent.run(history, known_user_type, last_place, user_location)`. 반환: `text`(짧은 답), `ask`(버튼 질문), `tool_results`(위 함수 결과), `trace`(확인한 단계).
