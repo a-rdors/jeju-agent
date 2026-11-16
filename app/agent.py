@@ -31,14 +31,14 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 10. '다른 곳', '또 없어?'라고 하면 '이미 보여준 장소'를 exclude에 넣어 다시 recommend_places를 부른다.
 7. '거기', '그곳', '그 근처'는 '직전 추천 장소'를 뜻한다. 다시 묻지 말고 그 장소 이름으로 도구를 부른다.
    사용자가 특정 장소의 길·화장실·쉼터를 물으면 get_place_detail, 약국·병원·응급은 find_nearby_help를 쓴다.
-8. 이가 안 좋다·씹기 힘들다·틀니·소화가 어렵다 → food_kind '부드러운 음식'. 어르신은 휠체어가 아니면 wheelchair_only를 쓰지 않는다.
-   이때는 접근성 확인 가게(items)가 적으므로 unverified 가게도 "입구·좌석은 전화로 확인"이라는 말과 함께 소개해도 된다.
-   식당·맛집·카페·음식(해산물, 흑돼지, 국수 등)을 물으면 recommend_places가 아니라 search_food를 쓴다.
-   어떤 장소나 가게 '근처'를 물으면 place에 그 이름을 그대로 넣는다(식당 이름도 된다). 동네를 말하면 area를 넣는다.
-   결과에 anchor_not_found가 있으면 위치를 못 찾았다고 솔직히 말하고 동네 이름을 물어본다. 다른 지역 결과를 지어내지 않는다.
-   이 서비스는 '어디가 맛있나'가 아니라 '우리 가족이 들어갈 수 있나'에 답한다. 맛집 순위나 맛 평가는 하지 않는다.
-   items(휠체어 진입 확인된 가게)만 추천한다. items가 비어 있으면 "근처에 휠체어 진입이 확인된 식당은 없어요"라고 솔직히 말하고,
-   unverified 가게는 "정보가 없어 전화 확인이 필요한 곳"으로만 짧게 언급한다.
+8. 식당·카페는 search_food를 쓴다. 제주 전체 식당이 대상이다(휠체어 진입은 배지일 뿐 필터가 아니다).
+   휠체어 이용자 가족이면 prefer_wheelchair=true. wheelchair_only는 "휠체어로 들어갈 수 있는 곳만"이라고 할 때만.
+   식사 조건(diet_needs, 여러 개 가능): 이가 안 좋다·씹기 힘들다·틀니 → soft / 소화·속·위장이 안 좋다 → gentle /
+   매운 걸 못 먹는다 → mild / 해산물 알레르기 → no_seafood / 혈압·짜게 먹으면 안 된다 → low_salt / 아이·애기와 식사 → kids.
+   어떤 장소나 가게 '근처'를 물으면 place에 그 이름을 그대로 넣는다(식당 이름도 된다). 동네를 말하면 area.
+   결과에 anchor_not_found가 있으면 위치를 못 찾았다고 솔직히 말하고 동네 이름을 물어본다.
+   맛 평가·순위·의학적 조언은 하지 않는다. why(업종·가게 이름으로 추정한 근거)를 쉬운 말로 전하고,
+   메뉴와 건강 상태에 맞는지는 call_questions로 가게에 전화해 확인하라고 안내한다.
 
 9. 날짜나 날씨를 말하면 시스템이 미리 날씨를 조회해 '참고 날씨'로 준다. 그 내용으로 판단한다.
    비 예보면 실내 장소를 함께 제안하고, 주의사항(tips)은 쉬운 말로 전달한다. 날씨 자체를 길게 설명하지 않는다.
@@ -73,9 +73,11 @@ TOOL_SPECS = [
         "parameters": {"type": "object", "properties": {"place": {"type": "string"}}, "required": ["place"]}}},
     {"type": "function", "function": {
         "name": "search_food",
-        "description": "식당·카페 찾기. 휠체어 진입이 확인된 가게를 먼저, 부족하면 근처 일반 가게(휠체어 정보 없음)로 채운다.",
+        "description": "제주 식당·카페 찾기(약 1만 9천 곳). 식사 조건으로 고르고 휠체어 진입 확인 가게는 배지로 표시.",
         "parameters": {"type": "object", "properties": {
             "food_kind": {"type": "string", "enum": list(T.FOOD_KINDS.keys())},
+            "diet_needs": {"type": "array", "items": {"type": "string", "enum": list(T.DIET_NEEDS.keys())}},
+            "prefer_wheelchair": {"type": "boolean"},
             "area": {"type": "string", "description": "동네·지역(예: 성산, 애월, 서귀포)"},
             "place": {"type": "string", "description": "근처의 기준이 되는 이름. 추천했던 나들이 장소나 식당·카페 이름(예: 서귀포흑돈)"},
             "wheelchair_only": {"type": "boolean"},

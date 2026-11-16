@@ -132,33 +132,29 @@ if prompt:
 # ---------- 식당 결과 ----------
 if S.food:
     f = S.food
-    st.subheader(f"{f['around']} 근처, 들어갈 수 있는 식당", divider="gray")
-    if not f["items"]:
-        st.info("근처에 휠체어 진입이 확인된 식당은 없어요. 아래 가게는 정보가 없어 꼭 전화로 확인해 주세요.",
-                icon=":material/info:")
-    for it in f["items"]:
+    cond = " · ".join(f.get("diet_labels") or [])
+    st.subheader(f"{f['around']} 근처 {cond or (f['food_kind'] or '식당')}", divider="gray")
+    if f.get("anchor_not_found"):
+        st.info(f["note"], icon=":material/info:")
+    elif not f["items"]:
+        st.info("조건에 맞는 식당을 찾지 못했어요. 조건을 줄이거나 동네를 바꿔 보세요.", icon=":material/info:")
+    for i, it in enumerate(f["items"]):
         with st.container(border=True):
             st.markdown(f"**{it['name']}**  \n{it['food_type']}" + (f" · {it['km']}km" if it["km"] is not None else ""))
             with st.container(horizontal=True):
-                st.badge("휠체어 진입 확인(2021)", icon=":material/accessible:", color="green")
-                if it["accessible_toilet"]:
-                    st.badge("장애인 화장실", icon=":material/wc:", color="green")
-                if it["open_status"] == "영업 확인":
-                    st.badge("2025 영업 확인", icon=":material/storefront:", color="blue")
+                if it["wheelchair_entry"]:
+                    st.badge("휠체어 진입 확인(2021)", icon=":material/accessible:", color="green")
+                for w in it.get("why", []):
+                    st.badge(w.split(":")[0], icon=":material/restaurant:", color="blue")
+            if it.get("why"):
+                st.caption(" · ".join(w.split(": ", 1)[-1] for w in it["why"]) + " (추정)")
             with st.container(horizontal=True):
                 st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
-                               icon=":material/directions:", type="primary")
+                               icon=":material/directions:", type="primary", key=f"food_nav_{i}")
                 if it["phone"]:
-                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:")
-    if f.get("unverified"):
-        soft = f.get("food_kind") == "부드러운 음식"
-        with st.expander("입구·좌석 정보가 없는 근처 가게 (전화 확인 필요)", icon=":material/help:", expanded=soft):
-            for it in f["unverified"]:
-                st.markdown(f"- **{it['name']}** · {it['food_type']} · {it['km']}km")
-                st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
-                               icon=":material/directions:", key=f"unv_{it['name']}")
-    with st.expander("전화로 이것만 물어보세요", icon=":material/call:"):
-        for q in T.call_questions(S.user_type):
+                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"food_tel_{i}")
+    with st.expander("전화로 이것만 물어보세요", icon=":material/call:", expanded=bool(f.get("diet_needs"))):
+        for q in T.call_questions(S.user_type, f.get("diet_needs")):
             st.markdown(f"- {q}")
     st.caption(f["note"])
 

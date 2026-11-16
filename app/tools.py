@@ -367,93 +367,172 @@ FOOD_KINDS = {
     "한식·백반": (["백반/한정식", "국/탕/찌개류", "기타 한식 음식점"], r"식당|밥|정식"),
     "카페": (["카페", "빵/도넛", "아이스크림/빙수"], r"카페|커피|베이커리"),
     "분식·간단히": (["김밥/만두/분식", "토스트/샌드위치/샐러드", "버거"], r"김밥|분식"),
-    # 이가 불편한 어르신용. 업종(국수)과 가게 이름(죽·순두부·해장국 등)으로 찾는다. '죽림횟집'처럼 이름 중간의 '죽'은 제외
-    "부드러운 음식": (["국수/칼국수"],
-                  r"죽$|죽집|본죽|전복죽|팥죽|참죽|죽전문|순두부|두부|해장국|국밥|몸국|곰탕|설렁탕|백숙|수제비|우동|칼국수|보말"),
 }
-SOFT_NAME_ONLY = "부드러운 음식"  # 이 종류는 업종이 달라도 이름이 맞으면 포함
+SKIP_TYPES = {"일반 유흥 주점", "무도 유흥 주점", "생맥주 전문", "요리 주점", "구내식당"}  # 가족 식사 대상 아님
+
+# 식사 조건: 어르신·아이가 흔히 겪는 불편. 메뉴 자료가 없어 업종·가게 이름으로 '가능성이 높은 곳'을 고른다.
+# 의학적 판단이 아니며, 결과에는 항상 "메뉴는 가게에 확인" 안내를 붙인다.
+SPICY = r"매운|매콤|불닭|짬뽕|마라|떡볶이|부대|김치찜|닭발|낙지|쭈꾸미|주꾸미|불고기|화끈"
+SEAFOOD_TYPES = {"횟집", "일식 회/초밥", "해산물 구이/찜", "복 요리 전문"}
+SEAFOOD_NAME = r"해물|해산|회$|횟집|수산|갈치|고등어|전복|해녀|문어|조개|새우|성게|보말|물회|게장|오징어"
+DIET_NEEDS = {
+    "soft": {"label": "씹기 편한 음식", "say": "이가 불편하거나 씹기 어려울 때",
+             "types": {"국수/칼국수"},
+             "name": r"죽$|죽집|본죽|전복죽|팥죽|참죽|죽전문|순두부|두부|우동|수제비|칼국수|곰탕|설렁탕|백숙|몸국|국밥|계란찜|연두부",
+             "avoid": r"갈비|구이|족발|닭발|곱창|오징어|육포",
+             "ask": ["죽이나 부드러운 메뉴가 있나요?", "음식을 잘게 잘라 주시거나 더 익혀 주실 수 있나요?"]},
+    "gentle": {"label": "속 편한 음식", "say": "소화가 어렵거나 속이 불편할 때",
+               "types": {"국수/칼국수"},
+               "name": r"죽$|죽집|본죽|전복죽|팥죽|우동|백숙|곰탕|설렁탕|두부|칼국수|수제비|몸국",
+               "avoid": SPICY + r"|튀김|치킨|곱창|막창|삼겹|마라",
+               "ask": ["맵지 않고 기름지지 않은 메뉴가 있나요?"]},
+    "mild": {"label": "맵지 않은 음식", "say": "아이나 매운 음식을 못 드시는 분",
+             "types": {"경양식", "국수/칼국수", "일식 카레/돈가스/덮밥", "토스트/샌드위치/샐러드", "버거", "피자",
+                       "파스타/스테이크", "일식 면 요리", "백반/한정식"},
+             "name": r"돈가스|돈까스|우동|국수|죽|김밥|오므라이스|카레|덮밥|정식|생선구이",
+             "avoid": SPICY,
+             "ask": ["맵지 않은 메뉴가 있나요?", "아이용 의자나 식기가 있나요?"]},
+    "no_seafood": {"label": "해산물 없는 식당", "say": "해산물 알레르기가 있을 때",
+                   "types": None, "name": None, "avoid": SEAFOOD_NAME,
+                   "exclude_types": SEAFOOD_TYPES,
+                   "ask": ["해산물이 들어가지 않은 메뉴가 있나요?", "조리 도구를 따로 쓰실 수 있나요?"]},
+    "low_salt": {"label": "싱겁게 부탁하기 좋은 곳", "say": "짜게 드시면 안 될 때(고혈압 등)",
+                 "types": {"백반/한정식", "국수/칼국수"}, "name": r"정식|한정식|백반|죽|두부",
+                 "avoid": r"찌개|짬뽕|부대|김치찜|젓갈|게장",
+                 "ask": ["간을 싱겁게 해 주실 수 있나요?", "국물을 덜 짜게 해 주실 수 있나요?"]},
+    "kids": {"label": "아이와 먹기 좋은 곳", "say": "어린아이와 함께일 때",
+             "types": {"경양식", "일식 카레/돈가스/덮밥", "피자", "버거", "파스타/스테이크", "국수/칼국수", "김밥/만두/분식"},
+             "name": r"돈가스|돈까스|키즈|우동|국수|오므라이스|카레|김밥|피자",
+             "avoid": SPICY,
+             "ask": ["아이 의자가 있나요?", "맵지 않은 아이 메뉴가 있나요?", "유모차를 두고 앉을 자리가 있나요?"]},
+}
 
 
-def _food_match(kind, food_type, name):
-    """업종을 알면 업종으로만, 업종을 모르면(2021 조사 가게 일부) 가게 이름으로 판단한다."""
+def _norm_name(x):
+    return re.sub(r"\s|\(.*?\)|주식회사|\(주\)|본점$", "", str(x)).lower()
+
+
+@lru_cache(maxsize=1)
+def _wheelchair_names():
+    """2021 무장애 조사에서 휠체어 진입이 확인된 가게 이름(정규화). 2025 상가 가게에 배지로 붙인다."""
+    n = load()["nearby"]
+    yes = n[(n["wheelchair_entry"] == "yes") & (n["open_status"] != "폐업 기록")]
+    return {_norm_name(x): str(p) for x, p in zip(yes["name"], yes["place"])}
+
+
+def _kind_ok(kind, food_type, name):
     if not kind or kind not in FOOD_KINDS:
         return True
     types, pat = FOOD_KINDS[kind]
-    if kind == SOFT_NAME_ONLY:
-        return (isinstance(food_type, str) and food_type in types) or bool(re.search(pat, str(name)))
-    if isinstance(food_type, str) and food_type:
-        return food_type in types
-    return bool(re.search(pat, str(name)))
+    return (isinstance(food_type, str) and food_type in types) or (not isinstance(food_type, str) and bool(re.search(pat, str(name))))
 
 
-def search_food(food_kind=None, area=None, place=None, wheelchair_only=False, limit=5, origin_lat=None, origin_lon=None):
-    """식당·카페 찾기. 휠체어 진입 정보가 있는 가게(2021 무장애 조사)를 먼저, 부족하면 일반 가게(2025 상가)로 채운다."""
+def _diet_score(needs, food_type, name):
+    """식사 조건에 맞으면 (점수, 이유), 피해야 하면 None."""
+    score, why = 0, []
+    for k in needs or []:
+        rule = DIET_NEEDS.get(k)
+        if not rule:
+            continue
+        if rule.get("exclude_types") and food_type in rule["exclude_types"]:
+            return None
+        if rule.get("avoid") and re.search(rule["avoid"], str(name)):
+            return None
+        hit_name = rule.get("name") and re.search(rule["name"], str(name))
+        hit_type = rule.get("types") and food_type in rule["types"]
+        if hit_name:
+            score += 2
+            why.append(f"{rule['label']}: 가게 이름에 '{hit_name.group(0)}'")
+        elif hit_type:
+            score += 1
+            why.append(f"{rule['label']}: 업종이 {food_type}")
+        elif rule.get("types") or rule.get("name"):
+            return None  # 조건에 맞는 근거가 없으면 뺀다(해산물 제외처럼 '피하기'만 있는 조건은 통과)
+    return score, why
+
+
+def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_wheelchair=False,
+                wheelchair_only=False, limit=5, origin_lat=None, origin_lon=None):
+    """제주 식당·카페 찾기(2025 상가 자료 약 1만 9천 곳).
+    - 식사 조건(diet_needs: soft, gentle, mild, no_seafood, low_salt, kids)으로 고르고
+    - 2021 무장애 조사에서 휠체어 진입이 확인된 가게는 배지로 표시한다(prefer_wheelchair면 앞으로).
+    메뉴 자료가 없으므로 업종·가게 이름으로 추정하며, 결과마다 전화 확인 질문을 함께 준다."""
     d = load()
-    center = None
-    anchor_missing = None
+    center, anchor_missing, city = None, None, None
     if place:
         center = resolve_anchor(place)
         if center is None:
             anchor_missing = place
-    city = None
     if center is None and origin_lat is not None and origin_lon is not None:
         center = (float(origin_lat), float(origin_lon), "현재 위치")
     if center is None and area:
         loc = find_area(area)
         if loc and loc.get("lat") is not None:
             center = (loc["lat"], loc["lon"], loc["area"])
-        elif loc:  # '서귀포', '제주시'처럼 시 단위로 말한 경우
+        elif loc:
             city = loc["sigungu"]
-    radius = 3 if place else 6        # 일반 가게 반경(km)
-    access_radius = 5 if place else 10  # 휠체어 정보가 있는 가게는 귀해서 더 넓게
-
-    near = d["nearby"]
-    near = near[near["category"].isin(["음식점", "카페/편의점"]) & (near["open_status"] != "폐업 기록")]
-    near = near[[_food_match(food_kind, t, n) for t, n in zip(near["food_type"], near["name"])]]
-    near = near.drop_duplicates("name")
-    if city:
-        near = near[near["address"].fillna("").str.contains(city)]
-    acc = []
-    for _, r in near.iterrows():
-        if pd.isna(r.get("lat")):
-            continue
-        dist = km(center[0], center[1], r["lat"], r["lon"]) if center else None
-        if center and dist > access_radius:
-            continue
-        acc.append({"name": r["name"], "food_type": r["food_type"] if isinstance(r["food_type"], str) else r["category"],
-                    "km": None if dist is None else round(dist, 1), "phone": "" if pd.isna(r["phone"]) else str(r["phone"]),
-                    "address": r["address"], "wheelchair_entry": r["wheelchair_entry"] == "yes",
-                    "accessible_toilet": r["accessible_toilet"] == "yes", "open_status": r["open_status"],
-                    "access_info": "2021 무장애 조사", "lat": float(r["lat"]), "lon": float(r["lon"])})
-    if wheelchair_only:
-        acc = [a for a in acc if a["wheelchair_entry"]]
-    acc.sort(key=lambda a: (not a["wheelchair_entry"], a["open_status"] != "영업 확인", a["km"] or 0))
-
-    others = []
-    if len(acc) < limit and center and not wheelchair_only:
-        f = d["food"]
-        f = f[[_food_match(food_kind, t, n) for t, n in zip(f["food_type"], f["name"])]] if food_kind else f
-        f = f.assign(km=[km(center[0], center[1], a, b) for a, b in zip(f["lat"], f["lon"])])
-        f = f[f["km"] <= radius].nsmallest(limit * 2, "km")
-        seen = {a["name"] for a in acc}
-        for _, r in f.iterrows():
-            if r["name"] in seen:
-                continue
-            others.append({"name": r["name"], "food_type": r["food_type"], "km": round(r["km"], 1), "phone": "",
-                           "address": r["address"], "wheelchair_entry": None, "accessible_toilet": None,
-                           "open_status": "영업 중(2025 상가 자료)", "access_info": "휠체어 정보 없음",
-                           "lat": float(r["lat"]), "lon": float(r["lon"])})
-    # 같이나들이는 '갈 수 있는 곳'을 답한다: 접근성 확인된 가게만 주 결과, 나머지는 따로 분리
     if anchor_missing and center is None and not city:
-        return {"food_kind": food_kind, "around": anchor_missing, "items": [], "unverified": [],
-                "with_access_info": 0, "anchor_not_found": True,
+        return {"food_kind": food_kind, "diet_needs": diet_needs or [], "around": anchor_missing, "items": [],
+                "unverified": [], "anchor_not_found": True,
                 "note": f"'{anchor_missing}' 위치를 찾지 못했어요. 동네 이름(예: 서귀포 시내, 중문)으로 말해 주세요."}
+
+    f = d["food"]
+    f = f[~f["food_type"].isin(SKIP_TYPES)]
+    if city:
+        f = f[f["sigungu"] == city]
+    f = f[[_kind_ok(food_kind, t, n) for t, n in zip(f["food_type"], f["name"])]]
+    wc = _wheelchair_names()
+    wheel_first = prefer_wheelchair or wheelchair_only
+    if center:
+        f = f.assign(km=[km(center[0], center[1], a, b) for a, b in zip(f["lat"], f["lon"])])
+        radius = 2 if place else 5
+        near = f[f["km"] <= radius]
+        if len(near) < limit:  # 가까운 곳이 너무 적으면 반경을 넓힌다
+            near = f[f["km"] <= radius * 3]
+        if wheel_first:  # 휠체어 진입 확인 가게는 귀해서 반경을 두 배로
+            extra = f[(f["km"] <= radius * 2) & f["name"].map(lambda x: _norm_name(x) in wc)]
+            near = pd.concat([near, extra]).drop_duplicates(subset=["name", "lat"])
+        f = near
+    else:
+        f = f.assign(km=None)
+    items = []
+    for _, r in f.iterrows():
+        ds = _diet_score(diet_needs, r["food_type"], r["name"])
+        if ds is None:
+            continue
+        verified = _norm_name(r["name"]) in wc
+        if wheelchair_only and not verified:
+            continue
+        dist = None if r["km"] is None or pd.isna(r["km"]) else float(r["km"])
+        kind_name = bool(food_kind in FOOD_KINDS and re.search(FOOD_KINDS[food_kind][1], str(r["name"])))
+        rank = (-ds[0] * 2 + (dist or 0) / 2 - (3 if (verified and wheel_first) else (0.5 if verified else 0))
+                - (2 if kind_name else 0))  # '흑돼지'를 찾으면 이름에 흑돼지가 들어간 가게를 앞으로
+        items.append({"name": r["name"], "food_type": r["food_type"], "km": None if dist is None else round(dist, 1),
+                      "address": r["address"], "phone": "", "wheelchair_entry": verified,
+                      "access_info": "휠체어 진입 확인(2021 무장애 조사)" if verified else "입구 정보 없음",
+                      "why": ds[1], "open_status": "2025 상가 자료에 있음",
+                      "lat": float(r["lat"]), "lon": float(r["lon"]), "_rank": rank})
+    items.sort(key=lambda x: (x["_rank"], x["name"]))
+    seen, out = set(), []
+    for it in items:  # 같은 이름 체인점 중복 제거
+        k = _norm_name(it["name"])
+        if k in seen:
+            continue
+        seen.add(k)
+        it.pop("_rank")
+        out.append(it)
+        if len(out) >= int(limit):
+            break
+    asks = [q for k in (diet_needs or []) for q in DIET_NEEDS.get(k, {}).get("ask", [])]
     return {
-        "food_kind": food_kind, "around": center[2] if center else (city or "제주 전체"),
-        "items": acc[: int(limit)],
-        "unverified": others[: (6 if food_kind == SOFT_NAME_ONLY else 3)],
-        "with_access_info": len(acc[: int(limit)]),
-        "note": "휠체어 진입은 2021년 무장애 조사 결과예요. 가기 전 전화로 한 번 더 확인해 주세요.",
+        "food_kind": food_kind, "diet_needs": diet_needs or [],
+        "diet_labels": [DIET_NEEDS[k]["label"] for k in (diet_needs or []) if k in DIET_NEEDS],
+        "around": center[2] if center else (city or "제주 전체"),
+        "items": out, "unverified": [],
+        "with_wheelchair_badge": sum(1 for i in out if i["wheelchair_entry"]),
+        "call_questions": asks,
+        "note": "메뉴는 업종과 가게 이름으로 추정했어요. 건강 상태에 맞는지는 가게에 전화로 꼭 확인해 주세요."
+                " 휠체어 배지는 2021년 무장애 조사 결과예요.",
     }
 
 
@@ -461,15 +540,17 @@ CALL_QUESTIONS = {
     "manual_wheelchair": ["입구에 턱이나 계단이 있나요?", "휠체어가 들어갈 만큼 문이 넓은가요?", "장애인 화장실이 있나요?", "가까운 곳에 주차할 수 있나요?"],
     "electric_wheelchair": ["입구에 턱이나 계단이 있나요?", "전동 휠체어가 들어갈 만큼 통로가 넓은가요?", "장애인 화장실이 있나요?"],
     "stroller": ["유모차를 끌고 들어갈 수 있나요?", "기저귀 갈 곳이나 수유실이 있나요?", "아기 의자가 있나요?"],
-    "senior": ["입구에 계단이 많은가요?", "의자에 앉는 자리가 있나요(좌식만 있는지)?", "화장실이 가까운가요?",
-               "죽이나 부드러운 메뉴가 있나요?", "음식을 잘게 잘라 주실 수 있나요?"],
+    "senior": ["입구에 계단이 많은가요?", "의자에 앉는 자리가 있나요(좌식만 있는지)?", "화장실이 가까운가요?"],
     "other": ["입구에 턱이나 계단이 있나요?", "화장실이 있나요?"],
 }
 
 
-def call_questions(user_type="other"):
-    """가기 전 전화로 물어볼 질문(이동 유형별). 오래된 정보의 한계를 사용자가 직접 확인할 수 있게 돕는다."""
-    return CALL_QUESTIONS.get(user_type, CALL_QUESTIONS["other"])
+def call_questions(user_type="other", diet_needs=None):
+    """가기 전 전화로 물어볼 질문(이동 유형 + 식사 조건). 오래된 정보의 한계를 사용자가 직접 확인할 수 있게 돕는다."""
+    qs = list(CALL_QUESTIONS.get(user_type, CALL_QUESTIONS["other"]))
+    for k in diet_needs or []:
+        qs += [q for q in DIET_NEEDS.get(k, {}).get("ask", []) if q not in qs]
+    return qs
 
 
 # ---------- 날씨(외부: Open-Meteo, 키 불필요) ----------
