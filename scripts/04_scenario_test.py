@@ -41,6 +41,8 @@ def grounded(out):
                 allowed.add(it.get("place") or it.get("name"))
         if isinstance(res, dict) and res.get("place"):
             allowed.add(res["place"])
+        if isinstance(res, dict) and res.get("around"):  # 근처 검색의 기준(사용자가 말한 가게·동네)
+            allowed.add(res["around"])
         if isinstance(res, dict) and isinstance(res.get("help"), dict):
             for items in res["help"].values():
                 allowed |= {i["name"] for i in items}
@@ -96,6 +98,12 @@ SCENARIOS = [
      "expect": "내일 날씨 확인 후 바람 관련 판단",
      "check": lambda o: (bool(results_of(o, "get_weather")),
                          f"날씨 {results_of(o, 'get_weather')[-1].get('date')} 바람 {results_of(o, 'get_weather')[-1].get('wind_ms')}m/s" if results_of(o, "get_weather") else "날씨 안 봄")},
+    {"id": 11, "q": ["아들이 휠체어를 타는데 이번에 제주도를 놀러가. 서귀포쪽으로 갈거같은데 가자마자 흑돼지를 먹고싶은데 맛집좀 알려줘",
+                     "서귀포흑돈으로 갈거고 근처 카페좀 알려줘"],
+     "expect": "(사용자 발견 버그 회귀) 두 번째 질문에서 '서귀포흑돈' 근처 카페를 찾음",
+     "check": lambda o: (bool(results_of(o, "search_food")) and results_of(o, "search_food")[-1]["around"] == "서귀포흑돈"
+                         and all((i["km"] or 99) <= 5 for i in results_of(o, "search_food")[-1]["items"]),
+                         f"기준 {results_of(o, 'search_food')[-1]['around']}, 카페 {[i['name'] for i in results_of(o, 'search_food')[-1]['items']]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
 ]
 
 

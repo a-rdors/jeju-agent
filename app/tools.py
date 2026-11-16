@@ -238,21 +238,27 @@ def resolve_anchor(name):
     if pl:
         r = d["places"][d["places"]["place"] == pl].iloc[0]
         return (float(r["start_lat"]), float(r["start_lon"]), pl)
-    loc = find_area(name)
-    if loc:  # 동네 이름이면 동네 중심 좌표(가게 이름으로 해석하지 않는다)
-        return (loc["lat"], loc["lon"], loc["area"]) if loc.get("lat") is not None else None
     key = re.sub(r"\s", "", str(name))
-    for df in (d["nearby"], d["food"]):
-        if "lat" not in df.columns:
-            continue
-        names = df["name"].fillna("").str.replace(r"\s", "", regex=True)
-        hit = df[(names == key) & df["lat"].notna()]
-        if hit.empty and len(key) >= 4:  # 이름 일부 일치는 4글자 이상일 때만
-            hit = df[names.str.contains(re.escape(key)) & df["lat"].notna()]
-        if len(hit):
-            r = hit.iloc[0]
-            return (float(r["lat"]), float(r["lon"]), str(r["name"]))
-    return None
+    shops = [df for df in (d["nearby"], d["food"]) if "lat" in df.columns]
+
+    def shop_hit(exact):
+        for df in shops:
+            names = df["name"].fillna("").str.replace(r"\s", "", regex=True)
+            mask = (names == key) if exact else names.str.contains(re.escape(key))
+            hit = df[mask & df["lat"].notna()]
+            if len(hit):
+                r = hit.iloc[0]
+                return (float(r["lat"]), float(r["lon"]), str(r["name"]))
+        return None
+
+    # 1) 가게 이름 정확히 일치 → 2) 동네 이름 → 3) 가게 이름 일부(4글자 이상)
+    exact = shop_hit(True)
+    if exact:
+        return exact
+    loc = find_area(name)
+    if loc:
+        return (loc["lat"], loc["lon"], loc["area"]) if loc.get("lat") is not None else None
+    return shop_hit(False) if len(key) >= 4 else None
 
 
 def get_place_detail(place, user_type="other"):
