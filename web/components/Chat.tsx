@@ -226,8 +226,8 @@ export function ChatWindow({ s }: { s: State }) {
           </div>
         </div>
         <button type="button" className="tb-btn" onClick={() => { closeChat(); document.getElementById("chatfab")?.focus(); }}>
-          <Icon name="close" />
-          <span>닫기</span>
+          <Icon name={s.screen === "home" ? "close" : "right_panel_open"} />
+          <span>{s.screen === "home" ? "닫기" : "결과 보기"}</span>
         </button>
       </div>
       <div className="chatlog">

@@ -54,7 +54,7 @@ const LEGEND_DEF: [string, string, string][] = [
  * @param o.detail    get_place_detail 결과 (all_points 포함 — 코스·화장실·위험 표식)
  * @param o.food      search_food 결과 (items 배열)
  * @param o.help      find_nearby_help 결과 (help 오브젝트)
- * @param o.allPlaces 나들이 장소 70곳 — results 가 없을 때 초록 점으로 보여 준다
+ * @param o.allPlaces 나들이 장소 전체 — results 가 없을 때 초록 점으로 보여 준다
  */
 export function buildMapData(o: {
   results?: any[];
@@ -184,9 +184,10 @@ export function buildMapData(o: {
  */
 export function legendItems(d: MapData): [string, string][] {
   const kinds = new Set<string>(d.marks.map((m) => m.kind as string));
-  if (d.route.length > 0) kinds.add("route");
-  return LEGEND_DEF.filter(([k]) => kinds.has(k)).map(([, label, color]) => [
-    label,
+  if (d.route.length > 1) kinds.add("route"); // 점 하나는 선이 아니다(관광공사 장소는 입구 한 점뿐)
+  const dots = d.marks.filter((m) => m.kind === "dot").length;
+  return LEGEND_DEF.filter(([k]) => kinds.has(k)).map(([k, label, color]) => [
+    k === "dot" ? `${label} ${dots}곳` : label,
     color,
   ]);
 }

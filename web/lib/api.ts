@@ -45,7 +45,7 @@ export interface PlaceResult extends Access {
   slope_say: string;
   route_slope_max_deg: number | null;
   course_m: number;
-  minutes: number;
+  minutes: number | null;
   distance_km: number | null;
   accessible_toilet: boolean;
   accessible_parking: string;
@@ -83,7 +83,7 @@ export interface Detail extends Access {
   place: string;
   where: string;
   course_m: number;
-  minutes: number;
+  minutes: number | null;
   slope_level: string;
   slope_say: string;
   companion_advised: boolean;
