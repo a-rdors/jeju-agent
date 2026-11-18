@@ -8,6 +8,7 @@
 import datetime as dt
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -68,7 +69,8 @@ def main():
                          "condition_ok": False, "detail": f"오류: {type(e).__name__}: {e}", "grounded": False,
                          "ungrounded_names": [], "answer": ""})
     passed = sum(r["condition_ok"] and r["grounded"] for r in rows)
-    docs = ROOT / "docs"
+    docs = Path(os.environ.get("TEST_OUT_DIR") or ROOT / "docs")  # 결과 저장 위치(기본 docs/)
+    docs.mkdir(parents=True, exist_ok=True)
     (docs / "holdout_results.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     lines = ["# 확인용 시나리오 테스트 결과", "",
              f"실행: {dt.datetime.now():%Y-%m-%d %H:%M} · 모델: {A.MODEL} · 통과 {passed}/{len(rows)}", "",
