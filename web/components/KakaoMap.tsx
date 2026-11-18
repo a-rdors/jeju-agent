@@ -35,6 +35,8 @@ interface MapState {
   bounds: any;
   sig: string;
   psig: string;
+  /** 휴대폰에서 멀리 볼 때 초록 점을 묶는 클러스터러(카카오 clusterer 라이브러리) */
+  cluster?: any;
 }
 
 /** 현재 렌더 사이클의 최신 props (비동기 콜백용) */
@@ -106,7 +108,7 @@ function loadSdk(key: string): Promise<void> {
     window.__jejuKakao = new Promise<void>((ok, bad) => {
       const s = document.createElement("script");
       s.src =
-        "https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=" +
+        "https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&libraries=clusterer&appkey=" +
         encodeURIComponent(key);
       s.onerror = () => bad(new Error("Kakao Maps SDK 로드 실패"));
       s.onload = () => {
@@ -158,6 +160,28 @@ function fitMap(
   state.map.relayout();
   const [t, r, b, l] = pads(panelOpen, chatOpen);
   state.map.setBounds(state.bounds || state.jeju, t, r, b, l);
+  if (state.bounds) zoomInIfFits(state, state.bounds, [t, r, b, l]);
+}
+
+/**
+ * setBounds 는 확대 단계를 넉넉하게 잡아 짧은 코스가 작게 보일 때가 있다(특히 휴대폰).
+ * 한 단계 더 확대해도(가로·세로 2배) 보이는 칸 안에 들어가면 코스 가운데를 기준으로 한 단계 확대한다.
+ */
+function zoomInIfFits(state: MapState, bounds: any, [t, r, b, l]: number[]): void {
+  const k = window.kakao!.maps;
+  const map = state.map;
+  const level = map.getLevel();
+  if (level <= 2) return;
+  const proj = map.getProjection();
+  const sw = proj.containerPointFromCoords(bounds.getSouthWest());
+  const ne = proj.containerPointFromCoords(bounds.getNorthEast());
+  const w = Math.abs(ne.x - sw.x) * 2, h = Math.abs(sw.y - ne.y) * 2;
+  const el = map.getNode?.() as HTMLElement | undefined;
+  const W = el?.clientWidth || window.innerWidth, H = el?.clientHeight || window.innerHeight;
+  if (w > W - l - r || h > H - t - b) return;
+  const c = new k.LatLng((bounds.getSouthWest().getLat() + bounds.getNorthEast().getLat()) / 2,
+    (bounds.getSouthWest().getLng() + bounds.getNorthEast().getLng()) / 2);
+  map.setLevel(level - 1, { anchor: c });
 }
 
 /**
@@ -199,6 +223,27 @@ function drawMarkers(
   closeTip(state);
   state.layers.forEach((o) => o.setMap(null));
   state.layers = [];
+  state.cluster?.clear();
+  // 휴대폰은 섬 전체를 볼 때 점이 손가락보다 촘촘하다. 그때만 점을 묶어 숫자 원으로 보이고, 누르면 확대한다.
+  const clusterDots = small() && !!k.MarkerClusterer && data.marks.some((m) => m.kind === "dot");
+  if (clusterDots && !state.cluster) {
+    state.cluster = new k.MarkerClusterer({
+      map: state.map, averageCenter: true, minLevel: 9, gridSize: 56, minClusterSize: 3,
+      calculator: [10, 30], disableClickZoom: true,
+      styles: [0, 1, 2].map((i) => ({
+        width: `${36 + i * 6}px`, height: `${36 + i * 6}px`, lineHeight: `${32 + i * 6}px`,
+        background: "rgba(47,122,77,.88)", border: "2px solid #fff", borderRadius: "50%",
+        color: "#fff", textAlign: "center", fontWeight: "800", fontSize: "13px",
+        boxShadow: "0 1px 4px rgba(0,0,0,.35)",
+      })),
+    });
+    // 기본 확대는 아래 시트를 모르고 가운데에 맞춰 묶음이 시트 뒤로 숨는다. 지금 여백으로 직접 맞춘다.
+    k.event.addListener(state.cluster, "clusterclick", (c: any) => {
+      const [t, r, bt, l] = JSON.parse(state.psig || "[116,28,40,28]") as number[];
+      state.map.setBounds(c.getBounds(), t, r, bt, l);
+    });
+  }
+  const dotOverlays: any[] = [];
 
   const b = new k.LatLngBounds();
   let n = 0;
@@ -241,14 +286,16 @@ function drawMarkers(
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", `${m.name}, ${m.sub || ""}`);
 
+    const inCluster = clusterDots && m.kind === "dot";
     const overlay = new k.CustomOverlay({
-      map: state.map,
+      map: inCluster ? null : state.map,
       position: pos,
       content: el,
       yAnchor: 0.5,
       zIndex: ORDER[m.kind] + (m.big ? 10 : 0),
     });
     state.layers.push(overlay);
+    if (inCluster) dotOverlays.push(overlay);
 
     // 누르면 뜨는 말풍선. 나들이·추천 장소는 '장소 카드'(사진·이름·주소 + 자세히 살펴보기),
     // 식당·병원·확인할 지점 등은 짧은 설명.
@@ -341,6 +388,7 @@ function drawMarkers(
     }
   }
 
+  if (dotOverlays.length) state.cluster.addMarkers(dotOverlays);
   state.bounds = n > 0 ? b : null;
   fitMap(state, panelOpen, chatOpen);
 }

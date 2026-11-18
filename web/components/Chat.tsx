@@ -28,7 +28,7 @@ export function ChatFab({ s }: { s: State }) {
         aria-label={badge ? `${label}, 새 답 ${badge}개` : label} aria-expanded={s.chat_open} aria-controls="chatwin">
         {badge > 0 && <span className="fab-badge" aria-hidden="true">{badge}</span>}
       </button>
-      {!s.chat_open && !s.msgs.length && <div className="fab-hint" aria-hidden="true">하르방에게 물어보세요!</div>}
+      {!s.chat_open && !s.msgs.length && s.screen === "home" && <div className="fab-hint" aria-hidden="true">하르방에게 물어보세요!</div>}
     </>
   );
 }
@@ -161,8 +161,8 @@ export function ChatWindow({ s }: { s: State }) {
           </div>
         </div>
         <button type="button" className="tb-btn" onClick={() => { closeChat(); document.getElementById("chatfab")?.focus(); }}>
-          <Icon name="close" />
-          <span>닫기</span>
+          <Icon name={s.screen === "home" ? "close" : "right_panel_open"} />
+          <span>{s.screen === "home" ? "닫기" : "결과 보기"}</span>
         </button>
       </div>
       <div className="chatlog">

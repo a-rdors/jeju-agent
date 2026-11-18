@@ -15,8 +15,8 @@ import TopBar from "./TopBar";
 /** 지도 쓰는 법 한 줄(패널 대신 범례 아래에 둔다) */
 function mapHint(d: MapData): string {
   const kinds = new Set(d.marks.map((m) => m.kind));
-  if (kinds.has("dot")) return "초록 점을 누르면 그곳을 바로 살펴봐요";
-  if (kinds.has("place") && d.marks.filter((m) => m.kind === "place").length > 1) return "다른 번호를 누르면 그곳으로 바뀌어요";
+  if (kinds.has("dot")) return "초록 점을 누르면 그곳을 바로 살펴봐요||숫자 원은 눌러서 가까이, 초록 점은 눌러서 살펴봐요";
+  if (kinds.has("place") && d.marks.filter((m) => m.kind === "place").length > 1) return "패널의 번호 버튼을 누르면 그곳으로 바뀌어요";
   return "";
 }
 

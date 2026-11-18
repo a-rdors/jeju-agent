@@ -56,6 +56,19 @@
   transform: scale(1.4);
 }
 
+/* 손가락으로 누르는 화면: 보이는 점은 그대로 두고 누르는 범위만 넓힌다(약 37px) */
+@media (pointer: coarse) {
+  :global(.km-mk.dot) {
+    position: relative;
+  }
+  :global(.km-mk.dot::after) {
+    content: "";
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+  }
+}
+
 :global(.km-mk.caution),
 :global(.km-mk.toilet) {
   width: 22px;
@@ -198,3 +211,13 @@
   :global(.km-zoom) { display: none; }
 }
 :global(.km-cr) { display: block; margin-top: 2px; color: #6B7177; font-size: 11px; }
+
+/* 휴대폰: 확인할 지점(!)이 좁은 지도에서 덜 겹치게 조금 작게 */
+@media (max-width: 639.98px) {
+  :global(.km-mk.caution),
+  :global(.km-mk.toilet) {
+    width: 19px;
+    height: 19px;
+    font-size: 10px;
+  }
+}

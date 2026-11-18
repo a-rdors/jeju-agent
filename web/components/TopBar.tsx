@@ -37,7 +37,13 @@ export default function TopBar({ s, legend, hint }: { s: State; legend: [string,
               <li key={label}><i style={{ background: color }} aria-hidden="true" />{label}</li>
             ))}
           </ul>
-          {hint && <p>{hint}</p>}
+          {hint && (() => {
+            // "넓은 화면 문구||휴대폰 문구" 로 주면 화면 폭에 맞는 쪽만 보인다
+            const [wide, phone] = hint.split("||");
+            return phone
+              ? <p><span className="only-wide">{wide}</span><span className="only-phone">{phone}</span></p>
+              : <p>{wide}</p>;
+          })()}
         </div>
       )}
     </header>

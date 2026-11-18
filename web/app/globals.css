@@ -122,6 +122,11 @@ img { display: block; }
 .dash-scroll > * { flex-shrink: 0; }
 .tabpanel { display: flex; flex-direction: column; gap: .5rem; }
 .sheet-handle { display: none; }
+.only-phone { display: none; }
+@media (max-width: 639.98px) {
+  .only-phone { display: inline; }
+  .only-wide { display: none; }
+}
 .dash-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .dash-head b { font-size: .8rem; font-weight: 700; color: var(--gyul-text); background: var(--gyul-soft); padding: 2px 10px; border-radius: 999px; }
 .cond { display: contents; }
@@ -131,7 +136,8 @@ img { display: block; }
 }
 .cond li.gyul { background: var(--gyul); color: #2A1606; }
 /* 추천 후보(지도 번호와 같은 번호) */
-.cands { display: flex; flex-wrap: nowrap; gap: 6px; }
+/* 넓은 화면: 이름이 잘리지 않게 필요하면 두 줄로 */
+.cands { display: flex; flex-wrap: wrap; gap: 6px; }
 .cand {
   display: inline-flex; align-items: center; gap: 6px; min-height: 40px; min-width: 0; flex: 0 1 auto; padding: 3px 12px 3px 4px;
   border-radius: 999px; border: 1.5px solid var(--stone-2); background: var(--card); cursor: pointer;
@@ -290,6 +296,9 @@ img { display: block; }
 /* ---------- 탭 ---------- */
 .tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 2px; }
 .tabs::-webkit-scrollbar { display: none; }
+/* 큰 글씨: 탭을 3칸씩 두 줄로(오른쪽에서 잘리지 않게) */
+html.big .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow-x: visible; }
+html.big .tab { min-width: 0; padding: 0 6px; }
 .tab {
   flex: 1 0 auto; min-height: 42px; border-radius: 12px; font-weight: 600; font-size: .92rem; padding: 0 10px;
   white-space: nowrap; cursor: pointer; background: var(--card); border: 1.5px solid var(--stone-2); color: var(--ink);
@@ -410,6 +419,11 @@ img { display: block; }
   /* 낮은 화면: 장소 이름과 동네를 한 줄에, 칸 사이를 조금 좁게 */
   .tabpanel .place-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; }
   .dash-scroll, .tabpanel { gap: .4rem; }
+  /* 후보는 한 줄로 두고 옆으로 밀어 본다(두 줄이면 패널에 스크롤이 생긴다) */
+  .cands { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .cands::-webkit-scrollbar { display: none; }
+  .cand { flex: 0 0 auto; }
+  .src { margin-top: 0; }
 }
 /* 아주 낮은 화면(노트북 확대 등): 여백·글자를 조금 더 줄인다 */
 @media (min-width: 640px) and (max-height: 700px) {
@@ -436,9 +450,19 @@ img { display: block; }
   .tool .lbl { font-size: .62rem; }
   .legend { align-self: flex-start; min-width: 0; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 5px 9px; }
   .legend li { white-space: normal; }
-  /* 휴대폰은 후보 이름이 잘리지 않게 두 줄까지 */
-  .cands { flex-wrap: wrap; }
-  .cand span { max-width: 10em; }
+  /* 휴대폰: 후보는 한 줄로 두고 옆으로 밀어 본다(시트 높이를 아껴 판정 아래 칸까지 보이게) */
+  .cands { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 0 14px 2px; }
+  .cands::-webkit-scrollbar { display: none; }
+  .cand { flex: 0 0 auto; }
+  /* 휴대폰 처음 화면: 세 가지 버튼이 시트 안에 다 들어오게 조금 촘촘히 */
+  .hello h2 { font-size: 1.3rem; margin: 0 0 2px; }
+  .hello p { font-size: .88rem; line-height: 1.45; }
+  .choices { gap: .4rem; }
+  .choice-card { padding: 7px 10px; border-radius: 16px; }
+  .choice { gap: 10px; }
+  .choice .ic { flex-basis: 40px; width: 40px; height: 40px; }
+  .choice b { font-size: .98rem; }
+  .choice span { font-size: .8rem; line-height: 1.35; }
   .legend ul { display: flex; flex-wrap: wrap; gap: 2px 10px; }
   .legend p { margin: 0; }
 

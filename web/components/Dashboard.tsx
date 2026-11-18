@@ -201,7 +201,9 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
       <Verdict color={top.verdict_color} label={top.verdict} reason={top.verdict_reason} />
       <Tiles items={[
         ["경사", top.slope_level, top.slope_level === "완만한 편" ? "yes" : ""],
-        ["코스", `${top.minutes}분 · ${fmt(top.course_m)}m`, ""],
+        top.minutes != null && top.course_m > 0
+          ? ["코스", `${top.minutes}분 · ${fmt(top.course_m)}m`, ""]
+          : ["자료", "입구 정보", ""],
         ["장애인 화장실", top.accessible_toilet ? "있어요" : "확인 안 됨", top.accessible_toilet ? "yes" : "no"],
         ["장애인 주차", top.accessible_parking === "yes" ? "있어요" : "확인 안 됨", top.accessible_parking === "yes" ? "yes" : "no"],
       ]} />
@@ -231,7 +233,9 @@ function Course({ top, det, failed }: { top: PlaceResult; det?: Detail; failed: 
   if (!det) return failed ? <Caption>코스 정보를 불러오지 못했어요.</Caption> : <Loading />;
   return (
     <>
-      <PlaceHead name={top.place} where={`약 ${det.minutes}분 · ${fmt(det.course_m)}m · 경사 ${det.slope_level}`} />
+      <PlaceHead name={top.place} where={det.minutes != null && det.course_m > 0
+        ? `약 ${det.minutes}분 · ${fmt(det.course_m)}m · 경사 ${det.slope_level}`
+        : "코스 조사 없이 시설 입구·편의시설 정보만 있어요"} />
       <Sect>확인한 것</Sect>
       <Checks rows={det.checks ?? top.checks} />
       <Sect>코스 따라가기</Sect>
