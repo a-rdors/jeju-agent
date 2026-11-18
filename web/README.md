@@ -1,6 +1,6 @@
 # 제주 같이나들이 웹 (Next.js)
 
-Streamlit 화면(`app/main.py`)과 같은 동작을 하는 Next.js 16 화면이다. 지도·추천·대화는 모두 파이썬 API(`server/api.py`)를 부른다.
+제주 같이나들이 화면(Next.js 16)이다. 지도·추천·대화는 모두 파이썬 API(`server/api.py`)를 부른다.
 
 ## 실행
 
