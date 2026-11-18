@@ -589,6 +589,22 @@ export default function Dashboard({ s, userTypes }: { s: State; userTypes?: Reco
     scroller.current?.scrollTo({ top: 0 });
   }, [s.screen, s.tab, s.selected]);
 
+  // 패널(휴대폰 아래 시트)의 실제 높이를 --dash-h 로 알려 하르방 단추·말풍선이 끌어올리는 대로 따라오게 한다
+  useEffect(() => {
+    const root = document.documentElement;
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") {
+      root.style.setProperty("--dash-h", "0px");
+      return;
+    }
+    const ro = new ResizeObserver(() => root.style.setProperty("--dash-h", `${Math.round(el.getBoundingClientRect().height)}px`));
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.setProperty("--dash-h", "0px");
+    };
+  }, [s.panel_open]);
+
   if (!s.panel_open) return null;
 
   // 휴대폰 아래 시트: 손잡이를 끌어 올리면 크게, 내리면 작게, 더 내리면 숨긴다. 누르면 크게/작게.

@@ -333,3 +333,7 @@
   border-top-color: #fff;
   filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.12));
 }
+
+:global(.km-mk.help.emoji.big) {
+  border-radius: 10px;
+}

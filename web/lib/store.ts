@@ -244,6 +244,8 @@ function send(s0: State, p: Pending, out: ChatOut): State {
       items = asked.flatMap((k) => (s.help_only?.help?.[k] ?? []).map((it) => ({
         name: it.name, kind: k, lat: it.lat, lon: it.lon, phone: it.phone,
       }))).slice(0, 3);
+      const said = firstMentioned(out.text, items.map((it) => it.name));
+      s.focus = said ?? items[0]?.name ?? null; // 답에 나온 병원·약국을 지도에서도 크게
     }
   }
   if (s.food && names.includes("search_food")) {

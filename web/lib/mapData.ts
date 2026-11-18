@@ -70,7 +70,14 @@ export function buildMapData(o: {
   placeInfo?: PlaceDot[];
   /** 휠체어 이용자인지(화장실 이름을 '장애인 화장실'로) */
   wheel?: boolean;
+  /** 지금 고른 가게·병원(하르방이 추천했거나 사용자가 누른 곳). 이 표식만 크게 + 이름표 */
+  focus?: string | null;
 }): MapData {
+  const shopNames = [
+    ...((o.food?.items ?? []) as any[]).map((it) => it.name),
+    ...Object.values((o.help?.help ?? {}) as Record<string, any[]>).flat().map((it) => it.name),
+  ];
+  const pickedShop = !!o.focus && shopNames.includes(o.focus);
   // 장소 카드에 보일 주소·사진(나들이 장소 목록에서 이름으로 찾는다)
   const info = new Map((o.placeInfo ?? o.allPlaces ?? []).map((p) => [p.place, p]));
   // 원자료 주소는 '제주 제주시 …'처럼 시·도가 겹쳐 있어 '제주시 …'로 줄인다
@@ -92,7 +99,8 @@ export function buildMapData(o: {
         photos: info.get(r.place)?.photos ?? [],
         color: VERDICT_HEX[r.verdict_color as string] ?? "#5F6B73",
         big: r.place === o.selected,
-        pin: r.place === o.selected ? r.place : undefined,
+        // 이름표는 한 번에 하나: 식당·병원을 고른 동안은 장소 이름표를 숨긴다
+        pin: r.place === o.selected && !pickedShop ? r.place : undefined,
         fit: r.place === o.selected || !o.selected,
       });
     });
@@ -146,11 +154,11 @@ export function buildMapData(o: {
   // ── 식당 표식 ─────────────────────────────────────────────────────────────
   if (o.food) {
     const items: any[] = o.food.items ?? [];
-    items.forEach((it, i) => {
+    items.forEach((it) => {
       marks.push({
         kind: "food",
-        big: i === 0,
-        pin: i === 0 ? `추천 1 · ${it.name}` : undefined,
+        big: !!o.focus && it.name === o.focus,
+        pin: o.focus && it.name === o.focus ? it.name : undefined,
         lat: it.lat,
         lon: it.lon,
         text: "🍽️",
@@ -173,6 +181,8 @@ export function buildMapData(o: {
         if (it.lat == null) continue;
         marks.push({
           kind: "help",
+          big: !!o.focus && it.name === o.focus,
+          pin: o.focus && it.name === o.focus ? it.name : undefined,
           lat: it.lat,
           lon: it.lon,
           text: HELP_SHORT[kind] ?? "🏥",

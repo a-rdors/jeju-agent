@@ -34,6 +34,7 @@ function useMapData(s: State) {
     if (onResult && top) {
       return buildMapData({
         wheel: s.user_type.includes("wheelchair"),
+        focus: s.focus,
         results: s.results?.results ?? [],
         selected: top.place,
         placeInfo: places.data ?? [],
@@ -42,13 +43,13 @@ function useMapData(s: State) {
         help: s.tab === "병원·약국" && help.data && !isError(help.data) ? help.data : undefined,
       });
     }
-    if (s.screen === "food" && s.food) return buildMapData({ food: s.food, wheel: s.user_type.includes("wheelchair") });
+    if (s.screen === "food" && s.food) return buildMapData({ food: s.food, wheel: s.user_type.includes("wheelchair"), focus: s.focus });
     if (s.screen === "answer" && (s.detail_only || s.help_only)) {
-      return buildMapData({ detail: s.detail_only ?? undefined, help: s.help_only ?? undefined, wheel: s.user_type.includes("wheelchair") });
+      return buildMapData({ detail: s.detail_only ?? undefined, help: s.help_only ?? undefined, wheel: s.user_type.includes("wheelchair"), focus: s.focus });
     }
     return buildMapData({ allPlaces: places.data ?? [] });
   }, [onResult, top, s.results, s.tab, s.screen, s.food, s.detail_only, s.help_only, det.data, ownFood, food.data,
-    help.data, places.data, s.user_type]);
+    help.data, places.data, s.user_type, s.focus]);
 }
 
 export default function App() {

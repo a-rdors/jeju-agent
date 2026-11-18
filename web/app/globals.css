@@ -534,11 +534,19 @@ html.big .tab { min-width: 0; padding: 0 6px; }
   .dash-scroll { padding: 2px 14px calc(20px + var(--sab)); }
   .sheet-full .dash-scroll { padding-bottom: calc(88px + var(--sab)); }
 
-  .chatfab { right: calc(14px + var(--sar)); bottom: calc(var(--sheet-h) + 14px); width: 64px; height: 64px; }
-  .fab-hint { right: calc(90px + var(--sar)); bottom: calc(var(--sheet-h) + 26px); font-size: .86rem; }
-  .panel-closed .chatfab, .sheet-full .chatfab { bottom: calc(20px + var(--sab)); }
+  /* 하르방 단추·말풍선은 패널 윗변을 그대로 따라간다(끌어올리는 중에도). 화면 위쪽 끝에서는 멈춘다 */
+  .chatfab {
+    right: calc(14px + var(--sar)); width: 64px; height: 64px;
+    bottom: min(calc(var(--dash-h, var(--sheet-h)) + 14px), calc(100dvh - 150px - var(--sat)));
+    transition: bottom .12s linear;
+  }
+  .fab-hint {
+    right: calc(90px + var(--sar)); font-size: .86rem;
+    bottom: min(calc(var(--dash-h, var(--sheet-h)) + 26px), calc(100dvh - 138px - var(--sat)));
+    transition: bottom .12s linear;
+  }
+  .panel-closed .chatfab { bottom: calc(20px + var(--sab)); }
   .panel-closed .fab-hint { bottom: calc(32px + var(--sab)); }
-  .sheet-full .fab-hint { display: none; }
   .searching { top: calc(66px + var(--sat)); left: calc(8px + var(--sal)); }
 
   .chatwin { top: 0; left: 0; right: 0; bottom: 0; width: auto; height: 100dvh; border-radius: 0; }
