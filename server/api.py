@@ -11,9 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
-from collections import deque
-
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -184,50 +182,7 @@ class ChatRequest(BaseModel):
     shown_places: Optional[list] = None
 
 
-# ---------- AI 호출 제한(배포용: OpenAI 크레딧 보호) ----------
-# 한도를 넘으면 오류 대신 AI 없는 기본 모드(rule_mode)로 답한다. 서버 인스턴스마다 따로 센다.
-CHAT_LIMIT_PER_10MIN = int(os.getenv("CHAT_LIMIT_PER_10MIN", "30"))   # 한 사용자(IP)당 10분
-CHAT_LIMIT_PER_HOUR = int(os.getenv("CHAT_LIMIT_PER_HOUR", "600"))    # 서버 전체 1시간
-MAX_TEXT = 500          # 질문 한 번 최대 글자
-MAX_HISTORY = 16        # AI에 넘기는 최근 대화 수
-MAX_HISTORY_TEXT = 1500  # 대화 한 개 최대 글자
-_client_hits: dict = {}
-_global_hits: deque = deque()
-
-
-def _client_id(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.headers.get("x-real-ip") or (request.client.host if request.client else "?")
-
-
-def _allow_ai(cid: str) -> bool:
-    now = time.time()
-    while _global_hits and now - _global_hits[0] > 3600:
-        _global_hits.popleft()
-    q = _client_hits.setdefault(cid, deque())
-    while q and now - q[0] > 600:
-        q.popleft()
-    if len(q) >= CHAT_LIMIT_PER_10MIN or len(_global_hits) >= CHAT_LIMIT_PER_HOUR:
-        return False
-    q.append(now)
-    _global_hits.append(now)
-    if len(_client_hits) > 5000:  # 오래 안 온 사용자 기록 정리
-        for k in [k for k, v in _client_hits.items() if not v or now - v[-1] > 600]:
-            _client_hits.pop(k, None)
-    return True
-
-
-def _trim_history(history: list) -> list:
-    out = []
-    for h in (history or [])[-MAX_HISTORY:]:
-        if isinstance(h, dict) and isinstance(h.get("content"), str) and len(h["content"]) > MAX_HISTORY_TEXT:
-            h = {**h, "content": h["content"][:MAX_HISTORY_TEXT]}
-        out.append(h)
-    return out
-
-
+# ---------- 입력 정리 ----------
 def _location(loc) -> Optional[tuple]:
     """[위도, 경도] 두 숫자이고 제주 근처일 때만 쓴다."""
     try:
@@ -240,9 +195,8 @@ def _location(loc) -> Optional[tuple]:
 
 
 @app.post("/api/chat")
-def chat(req: ChatRequest, request: Request):
+def chat(req: ChatRequest):
     fallback = False
-    req.text = (req.text or "")[:MAX_TEXT]
     if req.user_type:
         out = A.rule_mode(req.text, req.user_type)
     else:
@@ -250,12 +204,8 @@ def chat(req: ChatRequest, request: Request):
         location = _location(req.location) if req.location else None
         shown = list(req.shown_places) if req.shown_places else None
         try:
-            if A.available() and not _allow_ai(_client_id(request)):
-                out = A.rule_mode(req.text, known)
-                out["text"] = "(질문이 많아 잠시 기본 모드로 찾았어요) " + out["text"]
-                fallback = True
-            elif A.available():
-                out = A.run(_trim_history(req.history), known, req.last_place, location, shown)
+            if A.available():
+                out = A.run(req.history, known, req.last_place, location, shown)
             else:
                 out = A.rule_mode(req.text, known)
         except Exception:

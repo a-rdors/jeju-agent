@@ -158,7 +158,7 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 | 경로 | 내용 |
 |---|---|
 | `web/` | 화면(Next.js): 전체 화면 카카오맵, 오른쪽 대시보드, 하르방 챗봇 |
-| `server/api.py` | API 서버(FastAPI): 화면 요청을 받아 도구·Agent 호출, AI 호출 제한 |
+| `server/api.py` | API 서버(FastAPI): 화면 요청을 받아 도구·Agent 호출 |
 | `api/index.py`, `vercel.json` | Vercel 배포 설정(9-1장) |
 | `app/agent.py` | Agent 반복, 시스템 프롬프트, 코드 보정 |
 | `app/tools.py` | 도구와 판단 로직 전부, 일정표 HTML |
@@ -230,7 +230,7 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 
 | 프로젝트 | Root Directory | 하는 일 | 환경 변수 |
 |---|---|---|---|
-| 서버(예: `jeju-gachi-api`) | 저장소 맨 위(비워 둠) | `api/index.py` → `server/api.py`(FastAPI) | `OPENAI_API_KEY`, `KAKAO_REST_KEY`, `KAKAO_JS_KEY` (선택: `OPENAI_MODEL`, `CHAT_LIMIT_PER_10MIN`, `CHAT_LIMIT_PER_HOUR`) |
+| 서버(예: `jeju-gachi-api`) | 저장소 맨 위(비워 둠) | `api/index.py` → `server/api.py`(FastAPI) | `OPENAI_API_KEY`, `KAKAO_REST_KEY`, `KAKAO_JS_KEY` (선택: `OPENAI_MODEL`) |
 | 화면(예: `jeju-gachi`) | `web` | Next.js 화면. `/api/...` 요청을 서버로 넘김 | `API_ORIGIN` = 서버 주소(예: `https://jeju-gachi-api.vercel.app`) |
 
 순서
@@ -239,7 +239,6 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 3. 카카오 개발자 앱(JavaScript 키 발급한 앱)의 사이트 도메인에 화면 주소(`https://...vercel.app`)를 추가한다.
 
 설정 파일: `vercel.json`(서버: 함수 최대 60초, web·docs·scripts·data/raw 제외), `api/index.py`(입구).
-AI 호출 제한: 한 사용자 10분 30회, 서버 전체 1시간 600회. 넘으면 오류 대신 AI 없는 기본 모드로 답한다. 질문은 500자, 대화는 최근 16개까지만 AI에 넘긴다.
 심사 기간에는 `main`에 바로 push하지 않는다(사이트가 바로 바뀜). 문제가 생기면 Vercel의 Instant Rollback으로 이전 배포로 되돌린다.
 
 ## 10. 한계와 향후 계획
