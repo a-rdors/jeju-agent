@@ -8,8 +8,8 @@ import { Avatar, LinkButton, Svg } from "./bits";
 import Icon from "./Icon";
 import Markdown from "./Markdown";
 
-const EXAMPLES = ["비 오는 날 실내로 갈 곳", "바다 보면서 천천히 걷고 싶어", "숲길 산책하고 싶어", "근처 해산물 식당"];
-const GREETING = "안녕하세요, 하르방 도우미예요. 누구와 어디로 가고 싶은지 편하게 말해 주세요. 찾은 곳은 지도에 바로 보여 드릴게요.";
+const EXAMPLES = ["휠체어 타는 아빠랑 바다 보러", "유모차로 비 오는 날 실내", "할머니 드시기 편한 식당", "근처 장애인 화장실"];
+const GREETING = "안녕하세요, 하르방 도우미예요. 누구와 가는지 말해 주시면 **그분이 갈 수 있는 곳**만 골라 드려요.";
 // 기다리는 동안 보여 줄 말. 질문 종류에 맞춰 고른다(응급실을 물었는데 '경사 계산 중'이 뜨지 않게).
 const LOADING_STEPS = {
   help: ["가까운 병원·약국을 찾고 있어요", "응급실 위치를 확인하고 있어요", "장애인 화장실을 찾고 있어요"],
@@ -93,7 +93,7 @@ const LINE_MARKS: [RegExp, string, string, string][] = [
   [/^(응급 상황에는|응급 시에는)/, "🚨", "sos", ""],
 ];
 
-function AnswerView({ text }: { text: string }) {
+function AnswerView({ text, phone }: { text: string; phone?: string }) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
   return (
     <div className="ans">
@@ -111,6 +111,21 @@ function AnswerView({ text }: { text: string }) {
         if (mk) {
           const [re, icon, cls, label] = mk;
           const body = cls === "sos" ? ln : ln.replace(re, "");
+          if (cls === "check") {
+            // 확인할 점: 전화번호가 있으면 누르면 바로 전화, 없으면 상자 없이 글자만(눌리는 것처럼 보이지 않게)
+            return phone ? (
+              <a key={i} className="ans-row check call" href={`tel:${phone}`}>
+                <span className="ic" aria-hidden="true">{icon}</span>
+                <span className="grow"><span className="sr-only">{label}: </span>{body}</span>
+                <span className="go">전화 ›</span>
+              </a>
+            ) : (
+              <div key={i} className="ans-row check plain">
+                <span className="ic" aria-hidden="true">{icon}</span>
+                <span><span className="sr-only">{label}: </span>{body}</span>
+              </div>
+            );
+          }
           return (
             <div key={i} className={`ans-row ${cls}`}>
               <span className="ic" aria-hidden="true">{icon}</span>
@@ -139,14 +154,14 @@ function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
       <Avatar />
       <div className="botb">
         <div className="md">
-          {animate ? <Typewriter text={m.text} onDone={typingDone} /> : <AnswerView text={m.text} />}
+          {animate ? <Typewriter text={m.text} onDone={typingDone} /> : <AnswerView text={m.text} phone={m.items?.[0]?.phone} />}
         </div>
         {!animate && (m.items ?? []).length > 0 && (
           <ul className="mitems">
             {(m.items ?? []).map((it) => (
               <li key={it.name}>
-                <div className="mi-name"><b>{it.name}</b><small>{it.kind}</small></div>
-                <div className="mi-acts">
+                <div className="mi-name"><b>{it.name}</b><small>{[it.kind, it.phone].filter(Boolean).join(" · ")}</small></div>
+                <div className="acts">
                   <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
                   {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화</LinkButton>}
                   <button type="button" className="btn btn-secondary" onClick={() => focusItem(it.name, true)} aria-label={`${it.name} 지도에서 보기`}>
@@ -226,8 +241,8 @@ export function ChatWindow({ s }: { s: State }) {
           </div>
         </div>
         <button type="button" className="tb-btn" onClick={() => { closeChat(); document.getElementById("chatfab")?.focus(); }}>
-          <Icon name={s.screen === "home" ? "close" : "right_panel_open"} />
-          <span>{s.screen === "home" ? "닫기" : "결과 보기"}</span>
+          <Icon name="close" />
+          <span>닫기</span>
         </button>
       </div>
       <div className="chatlog">

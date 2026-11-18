@@ -28,7 +28,7 @@ export function VerdictWithEvidence({
   );
 }
 
-function EvidenceList({ ev }: { ev: Evidence }) {
+export function EvidenceList({ ev }: { ev: Evidence }) {
   const [all, setAll] = useState(false);
   // 코스는 판정에 쓴 지점만 먼저, 시설은 항목이 적어 전부 보여 준다
   const first = ev.kind === "course" ? ev.items.filter((i) => i.used) : ev.items;

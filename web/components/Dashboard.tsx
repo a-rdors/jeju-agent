@@ -1,27 +1,32 @@
 "use client";
 // 오른쪽 대시보드(휴대폰은 아래 시트). 시작 / 결과(한눈에·코스·식당·병원·약국) / 식당 / 장소·병원 답.
-import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { NOT_CAUTION, VERDICT_HEX } from "@/lib/mapData";
 import { ART, ICON, dataUri } from "@/lib/art";
 import { USER_TYPES, isError, kakaoRouteLink, urls } from "@/lib/api";
-import type { BusStop, Detail, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
+import type { Detail, Evidence, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
   TABS, conditionTexts, focusItem, go, pick, setSheet, setTab, toResult, togglePanel, topPlace,
   type State, type Tab,
 } from "@/lib/store";
 import {
-  Caption, Checks, Info, LinkButton, Loading, Notes, PlaceHead, Sect, Shop, Src, Svg, Tiles, Timeline,
-  Verdict, WeatherBox,
+  Caption, Checks, Info, LinkButton, Loading, PlaceHead, Sect, Shop, Src, Svg, Timeline,
 } from "./bits";
-import { VerdictWithEvidence } from "./Evidence";
+import { EvidenceList, VerdictWithEvidence } from "./Evidence";
 import Icon from "./Icon";
 
 // (버튼 글자, 아이콘, 이동 유형, 보낼 문장, 설명, 아이콘 배경)
 const TYPES: [string, string, string, string, string, string][] = [
-  ["휠체어와 함께", "wheel", "manual_wheelchair", "휠체어 타는 가족과 나들이 갈 곳 추천해 줘", "경사·턱·장애인 화장실을 먼저 봐요", "#E3F1E7"],
-  ["유모차와 함께", "stroller", "stroller", "유모차 끌고 갈 만한 곳 추천해 줘", "계단 없는 길, 쉬어 갈 곳을 봐요", "#FDE9D6"],
-  ["어르신과 함께", "senior", "senior", "부모님 모시고 가볍게 다녀올 곳 추천해 줘", "짧고 완만한 길, 앉을 곳을 봐요", "#E2EDF7"],
+  ["휠체어 타는 가족", "wheel", "manual_wheelchair", "휠체어 타는 가족과 나들이 갈 곳 추천해 줘", "턱 없는 입구 · 장애인 화장실", "#E3F1E7"],
+  ["아기와 유모차", "stroller", "stroller", "유모차 끌고 갈 만한 곳 추천해 줘", "계단 없는 길 · 수유실", "#FDE9D6"],
+  ["걷기 힘든 어르신", "senior", "senior", "부모님 모시고 가볍게 다녀올 곳 추천해 줘", "짧고 완만한 길 · 쉴 곳", "#E2EDF7"],
+  ["임신 중인 가족", "pregnant", "pregnant", "임신 중이라 무리 없이 다녀올 곳 추천해 줘", "평평한 길 · 가까운 병원", "#F6E6EF"],
+];
+
+// 시작 화면 '어디쯤 가세요?' (보이는 글자, 질문에 붙일 동네 말). 고르지 않으면 제주 전체
+const AREAS: [string, string][] = [
+  ["상관없어요", ""], ["제주시", "제주시"], ["애월·한림", "애월"], ["중문·서귀포", "서귀포"], ["성산·구좌", "성산"],
 ];
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
@@ -45,18 +50,25 @@ function MapButton({ name }: { name: string }) {
   );
 }
 
+/** 길안내·전화·지도: 같은 크기로 한 줄(길안내만 주황) */
+function Acts({ name, lat, lon, phone, map = true }: { name: string; lat: number; lon: number; phone?: string; map?: boolean }) {
+  return (
+    <div className="acts">
+      <LinkButton href={kakaoRouteLink(name, lat, lon)} icon="directions" kind="primary">길안내</LinkButton>
+      {phone && <LinkButton href={`tel:${phone}`} icon="call">전화</LinkButton>}
+      {map && <MapButton name={name} />}
+    </div>
+  );
+}
+
 function ShopCard({ it, focus }: { it: Food["items"][number]; focus?: string | null }) {
   const tags: [string, string][] = it.wheelchair_entry ? [["휠체어 진입 확인(2021)", "wc"]] : [];
   tags.push(...(it.why ?? []).map((w): [string, string] => [w.split(":")[0] + " (추정)", ""]));
-  const meta = it.food_type + (it.km !== null && it.km !== undefined ? ` · ${it.km}km` : "");
+  const meta = [it.food_type, it.km !== null && it.km !== undefined ? `${it.km}km` : "", it.phone ?? ""].filter(Boolean).join(" · ");
   return (
     <FocusCard name={it.name} focus={focus}>
       <Shop name={it.name} meta={meta} tags={tags} />
-      <div className="row">
-        <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
-        {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>}
-        <MapButton name={it.name} />
-      </div>
+      <Acts name={it.name} lat={it.lat} lon={it.lon} phone={it.phone} />
     </FocusCard>
   );
 }
@@ -87,30 +99,15 @@ function HelpList({ h, focus }: { h: Help; focus?: string | null }) {
         {Object.entries(h.help ?? {}).filter(([kind]) => HELP_ONLY.has(kind)).flatMap(([kind, items]) =>
           items.map((it, i) => (
             <FocusCard key={`${kind}-${i}`} name={it.name} focus={focus}>
-              <Shop name={it.name} meta={[kind, it.km !== null && it.km !== undefined ? `${it.km}km` : "", it.address].filter(Boolean).join(" · ")}
+              <Shop name={it.name} meta={[kind, it.km !== null && it.km !== undefined ? `${it.km}km` : "", it.phone, it.address].filter(Boolean).join(" · ")}
                 tags={it.status ? [[it.status, "wc"]] : []} />
-              <div className="row">
-                <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
-                {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>}
-                <MapButton name={it.name} />
-              </div>
+              <Acts name={it.name} lat={it.lat} lon={it.lon} phone={it.phone} />
             </FocusCard>
           )),
         )}
       </ul>
-      <Src>거리는 직선거리예요. 급할 때는 119에 먼저 전화하세요. 전화번호는 카카오 장소 정보로 찾았어요.</Src>
+      <Src>직선거리 기준 · 응급 시 119</Src>
     </>
-  );
-}
-
-/** 개요 카드의 한 줄: 출발점에서 가까운 정류소 */
-function BusLine({ stops }: { stops?: BusStop[] }) {
-  if (!stops?.length) return null;
-  return (
-    <div className="busline">
-      <Icon name="bus" />
-      <span><b>가까운 정류소</b> {stops.map((b) => `${b.name} ${fmt(b.m)}m`).join(" · ")}</span>
-    </div>
   );
 }
 
@@ -127,14 +124,24 @@ function BackButton({ s }: { s: State }) {
 
 // ---------- 시작 ----------
 function PanelHome() {
+  const [area, setArea] = useState("");
   return (
     <>
       <div className="hero-art">
         <Svg src={ART.heroBanner} className="scene" alt="한라산과 바다를 배경으로 선 돌하르방과 귤" />
       </div>
       <div className="hello">
-        <h2>우리 가족이 갈 수 있을까?</h2>
-        <p>경사·턱·화장실을 미리 확인해 드려요.</p>
+        <h2>함께 가도 괜찮을지,<br />먼저 알려 드려요</h2>
+        <p>입구·길·화장실부터 식당·병원까지 확인해요.</p>
+      </div>
+      <div className="where">
+        <p><b>어디쯤 가세요?</b> <span>고르지 않아도 돼요</span></p>
+        <div className="where-chips" role="radiogroup" aria-label="어디쯤 가세요">
+          {AREAS.map(([label, word]) => (
+            <button key={label} type="button" role="radio" aria-checked={area === word} className="wchip"
+              onClick={() => setArea(word)}>{label}</button>
+          ))}
+        </div>
       </div>
       <ul className="choices">
         {TYPES.map(([label, icon, ut, text, desc, bg]) => (
@@ -148,7 +155,7 @@ function PanelHome() {
                 <span>{desc}</span>
               </div>
             </div>
-            <button type="button" className="btn btn-primary" onClick={() => go(text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
+            <button type="button" className="btn btn-primary" onClick={() => go(area ? `${area} 쪽 ${text}` : text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
               <span>찾기</span>
               <Icon name="arrow_forward" />
             </button>
@@ -161,68 +168,125 @@ function PanelHome() {
 
 const ICON_URI: Record<string, string> = Object.fromEntries(Object.entries(ICON).map(([k, v]) => [k, dataUri(v)]));
 
-// ---------- 결과: 한눈에 ----------
-function WeatherLine({ place, when }: { place: string; when: string }) {
+// ---------- 결과: 한눈에 (요약 목록형) ----------
+// 색은 뜻별로 네 가지만: 초록=가능·있음, 주황=조심, 파랑=날씨, 회색=참고
+function WeatherLine({ place, when, alt }: { place: string; when: string; alt?: string }) {
   const w = useApi<Weather>(urls.weather(place, when));
   const wx = w.data ?? {};
   if (!wx.available) return null; // 예보 값이 비어 있으면 날씨 줄만 빼고 보여 준다
-  const rain = wx.rain_chance === null || wx.rain_chance === undefined ? "확인 안 됨" : `${wx.rain_chance}%`;
-  const wind = wx.wind_ms === null || wx.wind_ms === undefined ? "확인 안 됨" : `${wx.wind_ms.toFixed(0)}m/s`;
   const md = /^\d{4}-(\d{2})-(\d{2})$/.exec(wx.date ?? "");
   const day = md ? `${Number(md[1])}/${Number(md[2])}` : wx.date;
-  const line = `${day} 비 올 확률 ${rain} · 바람 ${wind} · ${wx.temp}`;
-  return <WeatherBox line={line} tips={wx.tips ?? []} />;
+  const rainy = (wx.rain_chance ?? 0) >= 50;
+  const rain = wx.rain_chance === null || wx.rain_chance === undefined ? "" : `비 ${wx.rain_chance}%`;
+  return (
+    <div className="line info">
+      <span className="ic" aria-hidden="true">{rainy ? "☔" : "🌤️"}</span>
+      <span>
+        {[day, rain, wx.temp].filter(Boolean).join(" · ")}
+        {rainy && alt && <> · 실내라면 <b>{alt}</b></>}
+      </span>
+    </div>
+  );
 }
 
 /** 코스 조사 자료가 있는 곳인지(관광공사 시설 자료는 경사·코스 길이가 없다) */
 const hasCourse = (p: { minutes?: number | null; course_m?: number | null }) => !!p.minutes && !!p.course_m;
 
-/** 관광공사 출입 경로 문장을 칸에 맞게 짧게 */
+/** 관광공사 출입 경로 문장을 짧게 */
 const entryShort = (st: string) =>
-  /턱이 없|턱 없|단차 없/.test(st) ? "턱 없음" : /경사로/.test(st) ? "경사로 있음" : /계단|턱이 있|단차/.test(st) ? "턱·계단 있음" : "있어요";
+  /턱이 없|턱 없|단차 없/.test(st) ? "턱 없음" : /경사로/.test(st) ? "경사로 있음" : /계단|턱이 있|단차/.test(st) ? "턱·계단 있음" : "정보 있음";
 
-/** 자료가 있는 칸만 보여 준다('기록 없음', 'null분' 칸을 만들지 않는다) */
-function overviewTiles(top: PlaceResult): [string, string, string][] {
-  const t: [string, string, string][] = [];
-  if (top.slope_level && top.slope_level !== "기록 없음") {
-    t.push(["경사", top.slope_level, top.slope_level === "완만한 편" ? "yes" : ""]);
-  }
-  if (hasCourse(top)) t.push(["코스", `약 ${top.minutes}분 · ${fmt(top.course_m)}m`, ""]);
+type Fact = [string, string, boolean];
+const EXTRA_ICON: [RegExp, string][] = [
+  [/휠체어를 빌릴/, "🦽"], [/유모차를 빌릴/, "👶"], [/수유실/, "🍼"], [/쉬어 갈 곳/, "🪑"], [/분위기/, "🌿"],
+];
+
+/** 한 줄씩 훑어 읽는 시설 목록(같은 말을 칸과 목록에 두 번 쓰지 않는다) */
+function overviewFacts(top: PlaceResult): Fact[] {
+  const f: Fact[] = [];
   const entry = (top.checks ?? []).find((c) => c.item.includes("출입"));
-  if (!hasCourse(top) && entry) t.push(["출입구", entry.known ? entryShort(entry.status) : "확인 안 됨", entry.known ? "yes" : "no"]);
-  t.push(["장애인 화장실", top.accessible_toilet ? "있어요" : "확인 안 됨", top.accessible_toilet ? "yes" : "no"]);
-  t.push(["장애인 주차", top.accessible_parking === "yes" ? "있어요" : "확인 안 됨", top.accessible_parking === "yes" ? "yes" : "no"]);
-  return t;
+  if (hasCourse(top)) {
+    const known = !!top.slope_level && top.slope_level !== "기록 없음";
+    f.push(["↗️", known ? `길 경사 ${top.slope_level}` : "길 경사 기록 없음", top.slope_level === "완만한 편"]);
+    f.push(["⏱️", `코스 약 ${top.minutes}분 · ${fmt(top.course_m)}m`, true]);
+  } else if (entry) {
+    f.push(["♿", entry.known ? `입구 ${entryShort(entry.status)}` : "입구 정보 없음", entry.known]);
+  }
+  f.push(["🚻", top.accessible_toilet ? "장애인 화장실 있음" : "장애인 화장실 확인 안 됨", !!top.accessible_toilet]);
+  f.push(["🅿️", top.accessible_parking === "yes" ? "장애인 주차 있음" : "장애인 주차 확인 안 됨", top.accessible_parking === "yes"]);
+  for (const g of top.good_points ?? []) {
+    const ic = EXTRA_ICON.find(([re]) => re.test(g));
+    if (ic) f.push([ic[1], g, true]);
+  }
+  if (!hasCourse(top)) f.push(["↗️", "길 경사 조사 자료 없음", false]);
+  return f;
+}
+
+const VERDICT_CLS: Record<string, string> = { green: "ok", orange: "warn", red: "warn", gray: "gray" };
+
+/** 판정 알약 + 근거 보기(판정 뒤 공공데이터 조사 원문) */
+function VerdictPill({ color, label, evidence }: { color: string; label: string; evidence?: Evidence | null }) {
+  const [open, setOpen] = useState(false);
+  const has = !!evidence && evidence.items.length > 0;
+  return (
+    <>
+      <div className="vrow">
+        <span className={`vpill ${VERDICT_CLS[color] ?? "gray"}`}>{color === "green" ? "✓ " : ""}{label}</span>
+        {has && (
+          <button type="button" className="ev-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            {open ? "근거 닫기" : evidence!.kind === "course" ? `근거 보기 · 조사 지점 ${evidence!.items.length}곳` : "근거 보기"}
+          </button>
+        )}
+      </div>
+      {has && open && <EvidenceList ev={evidence!} />}
+    </>
+  );
 }
 
 function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail }) {
   const warn = [...(top.watch_out ?? [])];
   if (top.companion_advised) warn.unshift("동행인과 함께 가는 것을 권해요");
-  const tiles = overviewTiles(top);
+  if (top.verdict_color !== "green" && top.verdict_reason) warn.unshift(top.verdict_reason);
+  if (!hasCourse(top)) warn.push("길 경사는 확인이 안 돼요. 가기 전에 전화해 보세요.");
+  const facts = overviewFacts(top);
+  const bus = det?.bus_stops?.[0];
+  const alt = (top as PlaceResult & { rain_alt?: { name: string } }).rain_alt?.name;
   return (
     <>
-      <PlaceHead name={top.place} where={top.where} />
-      <VerdictWithEvidence key={top.place} color={top.verdict_color} label={top.verdict} reason={top.verdict_reason}
-        evidence={top.evidence ?? det?.evidence} />
-      <div className={`tiles-wrap n${tiles.length}`}><Tiles items={tiles} /></div>
-      <Notes good={top.good_points ?? []} warn={warn} />
-      <WeatherLine place={top.place} when={s.when} />
-      <BusLine stops={det?.bus_stops} />
-      <div className="row actions">
-        <LinkButton href={kakaoRouteLink(top.place, top.lat, top.lon)} icon="directions" kind="primary">
-          길안내
-        </LinkButton>
+      <div className="r-head">
+        <h2 className="place-name">{top.place}</h2>
+        <span className="place-where">{top.where}</span>
+      </div>
+      <VerdictPill key={top.place} color={top.verdict_color} label={top.verdict} evidence={top.evidence ?? det?.evidence} />
+      <ul className="facts">
+        {facts.map(([ic, text, yes], i) => (
+          <li key={i} className={yes ? "y" : "n"}><span className="ic" aria-hidden="true">{ic}</span><span>{text}</span></li>
+        ))}
+      </ul>
+      {warn.slice(0, 2).map((w, i) => (
+        <div key={i} className="line warn"><span className="ic" aria-hidden="true">⚠️</span><span><span className="sr-only">조심할 점: </span>{w}</span></div>
+      ))}
+      <WeatherLine place={top.place} when={s.when} alt={alt} />
+      <details className="more-d">
+        <summary>
+          <span>{bus ? <>🚌 {bus.name} 정류소 {fmt(bus.m)}m</> : "시설 정보"}</span>
+          <span className="more-go">자세히 ›</span>
+        </summary>
+        <Checks rows={top.checks ?? []} />
+        <Src>
+          자료: {hasCourse(top) ? `제주데이터허브 무장애여행 정보(${det?.base_date ?? top.base_date} 기준)` : "한국관광공사 무장애 여행 정보(입구·편의시설 기준)"}
+          {bus ? ", 버스 정류소 정보(직선거리)" : ""}, 날씨 예보(Open-Meteo). 현장과 다를 수 있어요.
+        </Src>
+      </details>
+      <div className="acts">
+        <LinkButton href={kakaoRouteLink(top.place, top.lat, top.lon)} icon="directions" kind="primary">길안내</LinkButton>
+        {top.phone && <LinkButton href={`tel:${top.phone}`} icon="call">전화</LinkButton>}
         {hasCourse(top) && (
           <button type="button" className="btn btn-secondary" onClick={() => setTab("코스")}>
-            <Icon name="route" /><span>코스 보기</span>
+            <Icon name="route" /><span>코스</span>
           </button>
         )}
-        {top.phone && <LinkButton href={`tel:${top.phone}`} icon="call">전화하기</LinkButton>}
       </div>
-      <Src>
-        자료: {hasCourse(top) ? `제주데이터허브 무장애여행 정보(${det?.base_date ?? top.base_date} 기준)` : "한국관광공사 무장애 여행 정보(입구·편의시설 기준)"}
-        {det?.bus_stops?.length ? ", 버스 정류소 정보(직선거리)" : ""}, 날씨 예보(Open-Meteo). 현장과 다를 수 있어요.
-      </Src>
     </>
   );
 }

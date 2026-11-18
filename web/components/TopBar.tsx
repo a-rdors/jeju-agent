@@ -13,7 +13,7 @@ export default function TopBar({ s, legend, hint }: { s: State; legend: [string,
     <header className="rail">
       <div className="box">
         <div className="brand" title="제주 같이나들이: 휠체어·유모차·어르신과 함께 가는 제주">
-          <Svg src={ART.hareubang} className="mini" />
+          <Svg src={ART.harFace} className="mini" />
           <h1>제주 같이나들이</h1>
         </div>
         <span className="box-sep" aria-hidden="true" />

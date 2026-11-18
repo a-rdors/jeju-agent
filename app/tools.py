@@ -301,6 +301,25 @@ def _tour_summary(r, user_type="other"):
             "source": "한국관광공사 무장애 여행 정보(시설 입구·편의시설 기준, 코스 경사 조사는 아님)"}
 
 
+# 이동 유형별로 특히 쓸모 있는 시설(칸 이름, 가산점). 관광공사 자료의 대여·수유실·엘리베이터, 공통 주차·쉼터
+TYPE_BONUS = {
+    "manual_wheelchair": (("wheelchair_rental", .4), ("elevator", .3), ("accessible_parking_yes", .3)),
+    "electric_wheelchair": (("elevator", .4), ("accessible_parking_yes", .3), ("wheelchair_rental", .1)),
+    "stroller": (("stroller_rental", .4), ("nursing_room", .4), ("elevator", .2)),
+    "senior": (("accessible_parking_yes", .4), ("wheelchair_rental", .3), ("rest_2", .4)),
+    "pregnant": (("nursing_room", .2), ("accessible_parking_yes", .3), ("rest_2", .3)),
+}
+
+
+def _has(r, col):
+    if col == "accessible_parking_yes":
+        return r.get("accessible_parking") == "yes"
+    if col == "rest_2":
+        return int(r.get("rest_points") or 0) >= 2
+    v = _txt(r.get(col))
+    return bool(v) and not re.search(r"없|불가|정보 없음", v)
+
+
 def recommend_places(user_type="other", area=None, theme=None, need_toilet=False, max_minutes=None, limit=3,
                      origin_lat=None, origin_lon=None, exclude=None, with_evidence=True):
     """조건에 맞는 장소를 점수로 정렬해 추천한다. origin_lat/lon(현재 위치)이 있으면 동네 이름보다 우선한다."""
@@ -335,6 +354,18 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
                     why.append("수유실이 있어요")
         else:
             score += SLOPE_PENALTY[user_type].get(grade, 1)
+            if grade == "완만한 편" and user_type != "other":
+                # 길을 따라 경사를 직접 잰 완만한 코스는 입구 정보만 있는 시설보다 믿을 만하다
+                score -= 1.0
+                why.insert(0, "길 경사를 직접 잰 완만한 코스예요")
+            if user_type in ("senior", "pregnant") and minutes_for(r["course_m"]) <= 40:
+                score -= 0.3  # 짧게 다녀올 수 있는 코스
+            # 같은 점수일 때의 순서: 휠체어는 가장 가파른 곳이 덜한 코스, 어르신·임산부는 짧은 코스부터
+            mx = r["route_slope_max_deg"]
+            if user_type in ("manual_wheelchair", "electric_wheelchair") and not pd.isna(mx):
+                score += float(mx) * 0.03
+            if user_type in ("senior", "pregnant"):
+                score += minutes_for(r["course_m"]) / 200
         stairs = int(r["route_stairs_points"])
         blocked = int(r["route_blocked_points"])
         score += min(stairs, 3) * (0.8 if user_type in ("manual_wheelchair", "stroller") else 0.5)
@@ -368,6 +399,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             why.append("장애인 주차구역이 있어요")
         if int(r["rest_points"]) >= 2:
             why.append(f"쉬어 갈 곳이 {int(r['rest_points'])}군데 있어요")
+        # 함께 가는 분에게 특히 쓸모 있는 시설에 가산점(같은 점수끼리 이름순으로만 정해지지 않게)
+        score -= sum(w for col, w in TYPE_BONUS.get(user_type, ()) if _has(r, col))
         rows.append({
             "place": r["place"],
             "where": f"{r['sigungu']} {r['dong']}",
@@ -394,7 +427,7 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             "overview": _txt(r.get("overview")), "image": _txt(r.get("image")), "homepage": _txt(r.get("homepage")),
             **access_summary(r, user_type),
         })
-    rows.sort(key=lambda x: (x["score"], x["place"]))
+    rows.sort(key=lambda x: (x["score"], -len(x["good_points"]), x["place"]))
     if rows:  # 1순위 장소에만 '비 오면 대신 갈 실내 장소'(바깥 장소일 때)
         rows[0]["rain_alt"] = rain_alternative(rows[0]["place"], user_type, exclude=[r["place"] for r in rows[:3]])
     rows = rows[: max(1, min(int(limit), 5))]
