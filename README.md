@@ -5,6 +5,8 @@
 휠체어·유모차·어르신·임산부와 함께하는 제주 나들이를 공공데이터 근거로 도와주는 AI Agent.
 제주 AI·빅데이터 활용 AI Agent 개발 챌린지 출품작.
 
+**바로 써보기: https://jeju-gachi.vercel.app** (PC·휴대폰 같은 주소)
+
 ---
 
 ## 1. 빠른 실행
@@ -230,15 +232,15 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 
 | 프로젝트 | Root Directory | 하는 일 | 환경 변수 |
 |---|---|---|---|
-| 서버(예: `jeju-gachi-api`) | 저장소 맨 위(비워 둠) | `api/index.py` → `server/api.py`(FastAPI) | `OPENAI_API_KEY`, `KAKAO_REST_KEY`, `KAKAO_JS_KEY` (선택: `OPENAI_MODEL`) |
-| 화면(예: `jeju-gachi`) | `web` | Next.js 화면. `/api/...` 요청을 서버로 넘김 | `API_ORIGIN` = 서버 주소(예: `https://jeju-gachi-api.vercel.app`) |
+| 서버 `jeju-gachi-api` → https://jeju-gachi-api.vercel.app | 저장소 맨 위(비워 둠) | `api/index.py` → `server/api.py`(FastAPI) | `OPENAI_API_KEY`, `KAKAO_REST_KEY`, `KAKAO_JS_KEY` (선택: `OPENAI_MODEL`) |
+| 화면 `jeju-agent` → **https://jeju-gachi.vercel.app** (공식 주소, `jeju-agent.vercel.app`도 열림) | `web` | Next.js 화면. `/api/...` 요청을 서버로 넘김 | `API_ORIGIN` = `https://jeju-gachi-api.vercel.app` |
 
 순서
 1. 서버 프로젝트를 먼저 배포하고 주소를 확인한다(`/api/config`가 열리면 정상).
 2. 화면 프로젝트에 `API_ORIGIN`을 넣고 배포한다. `API_ORIGIN`은 빌드할 때 읽으므로, 바꾸면 Redeploy가 필요하다.
 3. 카카오 개발자 앱(JavaScript 키 발급한 앱)의 사이트 도메인에 화면 주소(`https://...vercel.app`)를 추가한다.
 
-설정 파일: `vercel.json`(서버: 함수 최대 60초, web·docs·scripts·data/raw 제외), `api/index.py`(입구).
+설정 파일: `vercel.json`(서버: 함수 최대 60초, web·docs·scripts·data/raw 제외), `api/index.py`(입구), `web/vercel.json`(화면: Next.js 고정. 없으면 정적 파일로 배포돼 404).
 심사 기간에는 `main`에 바로 push하지 않는다(사이트가 바로 바뀜). 문제가 생기면 Vercel의 Instant Rollback으로 이전 배포로 되돌린다.
 
 ## 10. 한계와 향후 계획
