@@ -368,6 +368,9 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         tool_results.append(("get_weather", wx_args, wx))
         trace.append({"tool": "get_weather", "args": wx_args})
         system += "\n참고 날씨: " + _llm_view("get_weather", wx)
+        if re.search(r"가도|갈\s*만|갈\s*곳|가볼|바다|산책|구경|나들이|어디", last_q):
+            # 날씨와 갈 곳을 함께 물으면 날씨만 답하고 끝내지 않게
+            system += "\n이번 질문은 날씨와 갈 곳을 함께 묻는다. 날씨는 이미 확인했으니 다시 부르지 말고 반드시 recommend_places를 불러 장소 형식으로 답한다."
     messages = [{"role": "system", "content": system}] + history
     for _ in range(MAX_STEPS):
         resp = client.chat.completions.create(model=MODEL, messages=messages, tools=TOOL_SPECS)
