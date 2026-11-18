@@ -152,9 +152,13 @@ TOOL_FUNCS = {
 
 
 def _llm_view(name, result):
-    """모델에게는 필요한 만큼만 전달한다(전체 지점 목록은 화면에서만 사용)."""
-    if name == "get_place_detail" and "all_points" in result:
-        result = {k: v for k, v in result.items() if k != "all_points"}
+    """모델에게는 필요한 만큼만 전달한다(전체 지점 목록·판정 근거 원문은 화면에서만 사용)."""
+    if not isinstance(result, dict):
+        return json.dumps(result, ensure_ascii=False, default=str)
+    if name == "get_place_detail":
+        result = {k: v for k, v in result.items() if k not in ("all_points", "evidence")}
+    if name == "recommend_places" and isinstance(result.get("results"), list):
+        result = {**result, "results": [{k: v for k, v in x.items() if k != "evidence"} for x in result["results"]]}
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
@@ -388,6 +392,17 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                     and (not args.get("area") or said_place.startswith(str(args.get("area"))))):
                 args["place"] = said_place  # '서귀포흑돈 근처'를 '서귀포 전체'로 잘못 찾지 않게
                 args.pop("area", None)
+            if name == "get_weather" and args.get("place"):
+                # 사용자가 말했거나 도구 결과에 나온 장소만 쓴다. 모델이 스스로 고른 장소(예: 아무 해안길)는 빼고
+                # 동네 날씨로 본다(그 장소를 답에 지어내 추천하지 않게)
+                known = {last_place, said_place, named, *(shown_places or [])}
+                for _, _, res in tool_results:
+                    if isinstance(res, dict):
+                        known.add(res.get("place"))
+                        known |= {x.get("place") for x in res.get("results", []) if isinstance(x, dict)}
+                if args["place"] not in known:
+                    args.pop("place")
+                    args.setdefault("area", said_area)
             if name == "find_nearby_help" and known_user_type and "user_type" not in args:
                 args["user_type"] = known_user_type  # 임산부면 산부인과도 함께
             if name == "find_nearby_help":

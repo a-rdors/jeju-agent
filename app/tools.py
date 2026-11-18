@@ -136,6 +136,22 @@ def _txt(v):
     return "" if v is None or (isinstance(v, float) and pd.isna(v)) else str(v).strip()
 
 
+# 성인만 입장하는 곳: 유모차(아기) 가족에게는 추천하지 않고, 다른 가족에게는 주의로 알린다
+ADULT_ONLY = {"건강과 성 박물관(제주)", "제주러브랜드"}
+ADULT_WORDS = r"성인만 입장|성인 전용|성인들만|19세 이상|미성년자 (?:관람|입장)"
+
+
+def is_adult_only(r):
+    return r["place"] in ADULT_ONLY or bool(re.search(ADULT_WORDS, _txt(r.get("overview"))))
+
+
+def entry_say(entry, user_type="other"):
+    """관광공사 출입 문구는 휠체어 기준으로 적혀 있다. 휠체어가 아닌 가족에게는 같은 사실을 넓게 풀어 쓴다."""
+    if user_type in ("manual_wheelchair", "electric_wheelchair"):
+        return entry
+    return re.sub(r"휠체어로?\s*(?:접근|진입|출입|통과|이동)\s*가능(?:함|합니다)?", "휠체어·유모차도 들어갈 수 있음", entry)
+
+
 def km(lat1, lon1, lat2, lon2):
     r = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -144,11 +160,16 @@ def km(lat1, lon1, lat2, lon2):
 
 
 def josa(word, pair):
-    """받침에 맞는 조사. josa('턱', '은는') → '턱은', josa('경사', '이가') → '경사가'"""
+    """받침에 맞는 조사. josa('턱', '은는') → '턱은', josa('경사', '이가') → '경사가'
+    괄호 꼬리는 건너뛰고 앞 글자로 본다: josa('건강과 성 박물관(제주)', '을를') → '…(제주)을'.
+    숫자로 끝나면 읽는 소리로 본다: josa('올레 7', '을를') → '올레 7을'(칠), josa('올레 2', '을를') → '올레 2를'(이)."""
     w = str(word).rstrip()
-    last = w[-1] if w else ""
-    has = "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28 != 0
-    if pair == "으로" and "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28 == 8:  # ㄹ받침 + 로
+    base = re.sub(r"\s*[\(\[][^()\[\]]*[\)\]]$", "", w).rstrip() or w
+    last = base[-1] if base else ""
+    hangul = "가" <= last <= "힣"
+    digit = last.isdigit() and last.isascii()
+    has = (hangul and (ord(last) - 0xAC00) % 28 != 0) or (digit and last in "013678")
+    if pair == "으로" and ((hangul and (ord(last) - 0xAC00) % 28 == 8) or (digit and last in "178")):  # ㄹ받침 + 로
         return w + "로"
     a, b = {"은는": ("은", "는"), "이가": ("이", "가"), "을를": ("을", "를"), "과와": ("과", "와"), "으로": ("으로", "로")}[pair]
     return w + (a if has else b)
@@ -252,7 +273,7 @@ def _say(t):
 
 def _tour_summary(r, user_type="other"):
     """관광공사 무장애 정보(시설 입구·화장실·대여 중심) 판정. 코스 경사 자료가 아님을 이유에 밝힌다."""
-    entry = _txt(r.get("entry_access"))
+    entry = entry_say(_txt(r.get("entry_access")), user_type)
     ok = _txt(r.get("entry_ok"))
     toilet = r["accessible_toilet"] == "yes"
     if ok == "yes":
@@ -281,7 +302,7 @@ def _tour_summary(r, user_type="other"):
 
 
 def recommend_places(user_type="other", area=None, theme=None, need_toilet=False, max_minutes=None, limit=3,
-                     origin_lat=None, origin_lon=None, exclude=None):
+                     origin_lat=None, origin_lon=None, exclude=None, with_evidence=True):
     """조건에 맞는 장소를 점수로 정렬해 추천한다. origin_lat/lon(현재 위치)이 있으면 동네 이름보다 우선한다."""
     d = load()
     p = d["places"].copy()
@@ -292,6 +313,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
         loc = find_area(area)
     if exclude:  # '다른 곳'을 원할 때 이미 보여준 장소는 뺀다
         p = p[~p["place"].isin(list(exclude))]
+    if user_type == "stroller":  # 아기와 함께 가는 가족에게 성인 전용 장소는 뺀다
+        p = p[~p.apply(is_adult_only, axis=1)]
     rows = []
     for _, r in p.iterrows():
         score, why, warn = 0.0, [], []
@@ -318,6 +341,9 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
         score += min(blocked, 3) * 0.6
         if stairs:
             warn.append(f"코스 중 계단이 있는 곳 {stairs}군데(옆길이나 우회로가 있는지 확인)")
+        if is_adult_only(r):
+            warn.append("성인만 입장할 수 있는 곳이에요(아이와 함께라면 다른 곳을 골라 주세요)")
+            score += 2
         toilet = r["accessible_toilet"] == "yes"
         if need_toilet and not toilet:
             score += 3
@@ -347,7 +373,7 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             "where": f"{r['sigungu']} {r['dong']}",
             "score": round(score, 2),
             "slope_level": grade,
-            "slope_say": (f"출입: {_txt(r.get('entry_access'))}" if tour and _txt(r.get("entry_access"))
+            "slope_say": (f"출입: {entry_say(_txt(r.get('entry_access')), user_type)}" if tour and _txt(r.get("entry_access"))
                           else ("출입 경로 정보가 없어요. 가기 전 확인해 주세요." if tour else SLOPE_WORDS.get(grade, ""))),
             "data_kind": "시설(관광공사)" if tour else "코스(제주도 조사)",
             "route_slope_max_deg": None if pd.isna(r["route_slope_max_deg"]) else float(r["route_slope_max_deg"]),
@@ -371,10 +397,13 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
     rows.sort(key=lambda x: (x["score"], x["place"]))
     if rows:  # 1순위 장소에만 '비 오면 대신 갈 실내 장소'(바깥 장소일 때)
         rows[0]["rain_alt"] = rain_alternative(rows[0]["place"], user_type, exclude=[r["place"] for r in rows[:3]])
+    rows = rows[: max(1, min(int(limit), 5))]
+    for x in rows if with_evidence else []:  # 판정 근거는 보여줄 장소에만 붙인다
+        x["evidence"] = place_evidence(x["place"])
     return {
         "user_type": USER_TYPES[user_type],
         "area_understood": loc["area"] if loc else None,
-        "results": rows[: max(1, min(int(limit), 5))],
+        "results": rows,
         "note": "코스 정보는 제주도 2020~2021년 조사, 시설 정보는 한국관광공사 자료예요. 방문 전 확인을 권장해요.",
     }
 
@@ -391,6 +420,8 @@ def match_place(text):
     if t in bare:
         return bare[t]
     if find_area(t) or len(t) < 3:  # '서귀포', '애월' 같은 동네 이름은 장소 이름으로 보지 않는다
+        return None
+    if sum(b.endswith(t) for b in bare) >= 2:  # '해안길', '박물관'처럼 여러 장소 이름의 꼬리는 종류 이름이다
         return None
     hits = [n for b, n in bare.items() if t in b or (len(t) >= 3 and b.replace("제주", "") in t)]
     return sorted(hits, key=len)[0] if hits else None
@@ -443,39 +474,16 @@ def get_place_detail(place, user_type="other"):
             "place": place, "where": f"{r['sigungu']} {r['dong']}", "course_m": 0, "minutes": None,
             "slope_level": "기록 없음", "slope_say": "", "companion_advised": False,
             **access_summary(r, user_type), "key_points": [],
-            "all_points": [{"at_m": 0, "label": "입구", "text": _txt(r.get("entry_access")), "flags": [],
+            "all_points": [{"at_m": 0, "label": "입구", "text": entry_say(_txt(r.get("entry_access")), user_type), "flags": [],
                             "lat": float(r["start_lat"]), "lon": float(r["start_lon"])}],
             "toilets_near": toilets, "tel": _txt(r.get("tel")), "base_date": r["base_date"],
             "rain_alt": rain_alternative(place, user_type),
             "bus_stops": nearest_bus_stops(float(r["start_lat"]), float(r["start_lon"])), "bus_source": BUS_SOURCE,
             "data_kind": "시설(관광공사)",
+            "evidence": place_evidence(r),
         }
-    pts = d["points"][(d["points"]["place"] == place)].copy()
-    pts["order"] = pd.to_numeric(pts["order"], errors="coerce")
-    pts = pts.sort_values("order")
-    route = pts[pts["on_route"] == "Y"]
-    steps, acc, prev = [], 0.0, None
-    for _, p in route.iterrows():
-        if prev is not None:
-            acc += km(prev[0], prev[1], p["lat"], p["lon"]) * 1000
-        prev = (p["lat"], p["lon"])
-        flags = []
-        if p.get("slope_max_deg") == p.get("slope_max_deg") and p.get("slope_max_deg") != "" and pd.notna(p.get("slope_max_deg")):
-            flags.append(f"경사 약 {p['slope_max_deg']:g}도")
-        if pd.notna(p.get("step_max_cm")):
-            flags.append(f"턱 {p['step_max_cm']:g}cm")
-        if p.get("stairs") == "yes":
-            flags.append("계단")
-        if p.get("blocked") == "yes":
-            flags.append("진입 어려움")
-        if p.get("needs_help") == "yes":
-            flags.append("도움 필요")
-        if p.get("accessible_toilet") == "yes":
-            flags.append("장애인 화장실")
-        if p.get("accessible_parking") == "yes":
-            flags.append("장애인 주차")
-        steps.append({"at_m": int(round(acc, -1)), "label": p["label"], "text": p["text"], "flags": flags,
-                      "lat": float(p["lat"]), "lon": float(p["lon"])})
+    steps = [{k: (list(v) if k == "flags" else v) for k, v in s.items() if k not in ("on_route", "used")}
+             for s in _course_points(place) if s["on_route"]]
     important = [s for s in steps if s["flags"]]
     return {
         "place": place,
@@ -494,7 +502,118 @@ def get_place_detail(place, user_type="other"):
         "bus_source": BUS_SOURCE,
         "base_date": r["base_date"],
         "data_kind": "코스(제주도 조사)",
+        "evidence": place_evidence(r),
     }
+
+
+# ---------- 판정 근거(evidence): 판정 뒤에 있는 공공데이터 기록 원문 ----------
+COURSE_EVIDENCE_SOURCE = "제주데이터허브 무장애여행 위치정보"
+TOUR_EVIDENCE_SOURCE = "한국관광공사 무장애 여행 정보"
+# 관광공사 원문 칸 -> 화면에 보일 이름
+TOUR_EVIDENCE_FIELDS = [("출입 경로", "출입 경로"), ("출입문", "출입문"), ("화장실", "장애인 화장실"), ("주차", "장애인 주차"),
+                        ("엘리베이터", "엘리베이터"), ("휠체어", "휠체어 대여"), ("유모차", "유모차 대여"),
+                        ("수유실", "수유실"), ("유아용 의자", "유아용 의자")]
+# places_app.csv 에 남아 있는 칸(관광공사 원문 표가 없을 때 대신 쓴다)
+TOUR_APP_FIELDS = {"출입 경로": "entry_access", "휠체어": "wheelchair_rental", "유모차": "stroller_rental",
+                   "수유실": "nursing_room", "엘리베이터": "elevator"}
+
+
+def _point_flags(p):
+    """조사 지점 한 곳의 표시(경사·턱·계단…)와, 그 지점이 판정에 쓰였는지(경사·계단·턱·막힘 기록)."""
+    flags, used = [], False
+    if pd.notna(p.get("slope_max_deg")) and _txt(p.get("slope_max_deg")):
+        flags.append(f"경사 약 {p['slope_max_deg']:g}도")
+        used = True
+    if pd.notna(p.get("step_max_cm")):
+        flags.append(f"턱 {p['step_max_cm']:g}cm")
+        used = True
+    if p.get("stairs") == "yes":
+        flags.append("계단")
+        used = True
+    if p.get("blocked") == "yes":
+        flags.append("진입 어려움")
+        used = True
+    if p.get("needs_help") == "yes":
+        flags.append("도움 필요")
+    if p.get("accessible_toilet") == "yes":
+        flags.append("장애인 화장실")
+    if p.get("accessible_parking") == "yes":
+        flags.append("장애인 주차")
+    return flags, used
+
+
+@lru_cache(maxsize=None)
+def _course_points(place):
+    """제주도 조사 지점(조사 순서). 코스 위 지점은 출발점에서 걸은 거리(at_m), 코스 옆 지점은 at_m=None.
+    캐시된 값이므로 호출한 쪽에서 고치지 않는다(복사해서 쓴다)."""
+    pts = load()["points"]
+    pts = pts[pts["place"] == place].copy()
+    pts["order"] = pd.to_numeric(pts["order"], errors="coerce")
+    out, acc, prev = [], 0.0, None
+    for _, p in pts.sort_values("order").iterrows():
+        on = p["on_route"] == "Y"
+        at = None
+        if on:
+            if prev is not None:
+                acc += km(prev[0], prev[1], p["lat"], p["lon"]) * 1000
+            prev = (p["lat"], p["lon"])
+            at = int(round(acc, -1))
+        flags, used = _point_flags(p)
+        out.append({"at_m": at, "label": p["label"], "text": p["text"], "flags": tuple(flags),
+                    "lat": float(p["lat"]), "lon": float(p["lon"]), "on_route": on, "used": on and used})
+    return tuple(out)
+
+
+@lru_cache(maxsize=1)
+def _tour_raw():
+    """관광공사 원문 표: 장소 이름 -> 행(dict)."""
+    t = load()["tour"]
+    if t.empty:
+        return {}
+    return {str(r["title"]): r for r in t.astype(object).fillna("").to_dict(orient="records")}
+
+
+def _course_evidence(r):
+    pts = _course_points(r["place"])
+    used = [s for s in pts if s["used"]]
+    rest = sorted((s for s in pts if not s["used"]), key=lambda s: not s["on_route"])  # 코스 위 -> 코스 옆
+    items = [{"label": _txt(s["label"]), "text": _txt(s["text"]), "flags": list(s["flags"]), "at_m": s["at_m"],
+              "on_route": s["on_route"], "used": s["used"], "lat": s["lat"], "lon": s["lon"]} for s in used + rest]
+    summary = (f"이 코스 조사 지점 {len(pts)}곳 확인" + (f" · 판정에 쓴 지점 {len(used)}곳" if used else "")
+               if pts else "이 코스의 조사 지점 기록이 없어요")
+    return {"kind": "course", "summary": summary, "source": COURSE_EVIDENCE_SOURCE, "survey": _txt(r.get("survey")),
+            "base_date": _txt(r.get("base_date")), "used_count": len(used), "items": items}
+
+
+def _tour_evidence(r):
+    raw = _tour_raw().get(str(r["place"]))
+    if raw is None:  # 원문 표가 없으면 장소 표에 남은 칸으로
+        raw = {col: _txt(r.get(app_col)) for col, app_col in TOUR_APP_FIELDS.items()}
+    texts = {col: _txt(raw.get(col)) for col, _ in TOUR_EVIDENCE_FIELDS}
+    # 판정은 '출입 경로'(없으면 '출입문') 문구로 했고, 장애인 화장실이 있으면 이유에 함께 적었다
+    entry_col = "출입 경로" if texts["출입 경로"] else "출입문"
+    used_cols = {entry_col} | ({"화장실"} if r["accessible_toilet"] == "yes" else set())
+    items = [{"label": label, "text": texts[col], "flags": [], "at_m": None, "on_route": None,
+              "used": col in used_cols, "lat": None, "lon": None}
+             for col, label in TOUR_EVIDENCE_FIELDS if texts[col]]
+    items.sort(key=lambda x: not x["used"])
+    used_n = sum(x["used"] for x in items)
+    summary = (f"관광공사 시설 정보 {len(items)}개 항목 확인" + (f" · 판정에 쓴 항목 {used_n}개" if used_n else "")
+               if items else "관광공사 시설 정보에 접근성 항목이 없어요")
+    return {"kind": "facility", "summary": summary, "source": TOUR_EVIDENCE_SOURCE, "survey": _txt(r.get("survey")),
+            "base_date": _txt(r.get("base_date")), "used_count": used_n, "items": items}
+
+
+def place_evidence(r):
+    """판정(갈 만해요 / 동행인 도움 있으면 / 확인 더 필요) 뒤에 있는 공공데이터 기록.
+    r: 장소 표의 한 행 또는 장소 이름. 판정에 쓴 기록(used=True)이 앞에 온다. 화면 전용(모델에게는 넘기지 않는다)."""
+    if isinstance(r, str):
+        pl = load()["places"]
+        hit = pl[pl["place"] == r]
+        if hit.empty:
+            return None
+        r = hit.iloc[0]
+    return _tour_evidence(r) if is_tour(r) else _course_evidence(r)
 
 
 def nearby_toilets(lat, lon, need="accessible", limit=2, max_km=3.0):
@@ -675,7 +794,7 @@ def _tour_restaurants():
     t = load()["tour"]
     if t.empty:
         return {}
-    t = t[t["type"] == "음식점"].fillna("")
+    t = t[t["type"] == "음식점"].astype(object).fillna("")
     out = {}
     for _, r in t.iterrows():
         entry = f"{r['출입 경로']} {r['출입문']}".strip()
@@ -1154,7 +1273,7 @@ def rain_alternative(place, user_type="other", exclude=None):
         return None
     r = row.iloc[0]
     rec = recommend_places(user_type=user_type, theme="실내", limit=1, origin_lat=float(r["start_lat"]),
-                           origin_lon=float(r["start_lon"]), exclude=[place] + list(exclude or []))
+                           origin_lon=float(r["start_lon"]), exclude=[place] + list(exclude or []), with_evidence=False)
     if not rec["results"]:
         return None
     x = rec["results"][0]

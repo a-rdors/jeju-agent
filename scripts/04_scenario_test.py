@@ -10,6 +10,7 @@
 """
 import datetime as dt
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -173,7 +174,8 @@ def run_one(sc):
 def main():
     rows = [run_one(sc) for sc in SCENARIOS]
     passed = sum(r["condition_ok"] and r["grounded"] for r in rows)
-    docs = ROOT / "docs"
+    docs = Path(os.environ.get("TEST_OUT_DIR") or ROOT / "docs")  # 결과 저장 위치(기본 docs/)
+    docs.mkdir(parents=True, exist_ok=True)
     (docs / "scenario_results.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     lines = [f"# 시나리오 테스트 결과", "",
              f"실행: {dt.datetime.now():%Y-%m-%d %H:%M} · 모델: {A.MODEL} · 통과 {passed}/{len(rows)}", "",
