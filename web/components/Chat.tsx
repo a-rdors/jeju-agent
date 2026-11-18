@@ -8,7 +8,13 @@ import { Avatar, LinkButton, Svg } from "./bits";
 import Icon from "./Icon";
 import Markdown from "./Markdown";
 
-const EXAMPLES = ["휠체어 타는 아빠랑 바다 보러", "유모차로 비 오는 날 실내", "할머니 드시기 편한 식당", "근처 장애인 화장실"];
+// 빈 대화창에 보이는 예시(그림, 말)
+const EXAMPLES: [string, string][] = [
+  ["♿", "휠체어 타는 아빠랑 바다 보러"],
+  ["👶", "유모차로 비 오는 날 실내"],
+  ["🍲", "할머니 드시기 편한 식당"],
+  ["🚻", "근처 장애인 화장실"],
+];
 const GREETING = "안녕하세요, 하르방 도우미예요. 누구와 가는지 말해 주시면 **그분이 갈 수 있는 곳**만 골라 드려요.";
 // 기다리는 동안 보여 줄 말. 질문 종류에 맞춰 고른다(응급실을 물었는데 '경사 계산 중'이 뜨지 않게).
 const LOADING_STEPS = {
@@ -219,6 +225,12 @@ export function ChatWindow({ s }: { s: State }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // 새 말이 붙으면 맨 아래(가장 최근 말)로 내린다. 말풍선은 위에서부터 차례로 쌓인다.
+  const log = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    log.current?.scrollTo({ top: log.current.scrollHeight, behavior: "smooth" });
+  }, [s.msgs.length, s.pending, s.typing]);
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (s.pending || !text.trim()) return;
@@ -245,19 +257,24 @@ export function ChatWindow({ s }: { s: State }) {
           <span>닫기</span>
         </button>
       </div>
-      <div className="chatlog">
+      <div className="chatlog" ref={log}>
+        {!s.msgs.length && (
+          <div className="chat-empty">
+            <h3>누구와 어디로 가세요?</h3>
+            <p>{GREETING.replace(/\*\*/g, "")}</p>
+            <ul className="ex-list">
+              {EXAMPLES.map(([ic, ex]) => (
+                <li key={ex}>
+                  <button type="button" onClick={() => go(ex, null, true)}>
+                    <span className="ic" aria-hidden="true">{ic}</span>
+                    <span>{ex}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="chatlist" role="log" aria-live="polite" aria-relevant="additions">
-          <BotMsg m={{ role: "bot", text: GREETING }} s={s} />
-          {!s.msgs.length && (
-            <>
-              <p className="caption">이렇게 말해도 돼요</p>
-              <div className="examples">
-                {EXAMPLES.map((ex) => (
-                  <button key={ex} type="button" className="btn btn-secondary pill-btn" onClick={() => go(ex, null, true)}>{ex}</button>
-                ))}
-              </div>
-            </>
-          )}
           {s.msgs.map((m, i) =>
             m.role === "user" ? (
               <div key={i} className="msg-me"><span className="sr-only">나: </span>{m.text}</div>

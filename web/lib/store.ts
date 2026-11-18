@@ -26,6 +26,15 @@ export interface Msg {
   items?: MsgItem[];
 }
 
+/** 지도를 부드럽게 옮겨 달라는 요청(시작 화면 동네 고르기). all이면 제주 전체. n은 같은 곳을 다시 눌러도 움직이게 */
+export interface MapView {
+  lat?: number;
+  lon?: number;
+  level?: number;
+  all?: boolean;
+  n: number;
+}
+
 export interface Pending {
   text: string;
   userType: string | null;
@@ -55,6 +64,7 @@ export interface State {
   typing: number | null;
   location: [number, number] | null; // (위도, 경도). 위치 권한을 받으면 채운다
   focus: string | null; // 지도·패널·대화가 함께 가리키는 가게·병원 이름
+  view: MapView | null; // 지도 부드럽게 옮기기
   // 아래는 처음으로 가도 그대로 두는 화면 설정
   checked: Record<string, boolean>; // 질문지 체크(Streamlit 체크박스 key 와 같은 열쇠)
   sheet: "half" | "full"; // 휴대폰 아래 시트 높이
@@ -65,7 +75,7 @@ function defaults(): Omit<State, "checked" | "sheet"> {
     history: [], msgs: [], ask: null, results: null, user_type: "other", selected: null,
     big: false, food: null, when: "오늘", shown: [], screen: "home", tab: "한눈에",
     pending: null, detail_only: null, help_only: null,
-    chat_open: false, panel_open: true, unread: 0, typing: null, location: null, focus: null,
+    chat_open: false, panel_open: true, unread: 0, typing: null, location: null, focus: null, view: null,
   };
 }
 
@@ -386,6 +396,10 @@ export function locateAndRetry() {
     () => fail("위치를 가져오지 못했어요. 위치 권한을 허용하거나 동네 이름을 말씀해 주세요."),
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
   );
+}
+
+export function setMapView(v: Omit<MapView, "n">) {
+  set((s) => ({ ...s, view: { ...v, n: (s.view?.n ?? 0) + 1 } }));
 }
 
 export function setSheet(sheet: "half" | "full") {

@@ -81,6 +81,7 @@ export default function App() {
           onLook={lookPlace}
           onFocus={focusItem}
           focus={s.focus}
+          view={s.view}
         />
       ) : (
         <div className="map-wait" aria-hidden="true" />

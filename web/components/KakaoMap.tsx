@@ -438,6 +438,7 @@ export default function KakaoMap({
   onLook,
   onFocus,
   focus,
+  view,
 }: {
   kakaoKey: string;
   data: MapData;
@@ -447,6 +448,7 @@ export default function KakaoMap({
   onLook: (name: string) => void;
   onFocus?: (name: string) => void;
   focus?: string | null;
+  view?: { lat?: number; lon?: number; level?: number; all?: boolean; n: number } | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<MapState | null>(null);
@@ -567,6 +569,31 @@ export default function KakaoMap({
       onFocusRef,
     );
   }, [data, panelOpen, chatOpen]);
+
+  // 시작 화면에서 동네를 고르면 지도를 그쪽으로 부드럽게(먼저 확대·축소, 다음에 미끄러지듯 이동).
+  // 패널·아래 시트에 가리지 않게 보이는 영역의 가운데로 맞춘다.
+  useEffect(() => {
+    const st = stateRef.current;
+    if (!view || !st || !window.kakao) return;
+    const k = window.kakao.maps;
+    const map = st.map;
+    const level = view.all ? (small() ? 11 : 10) : (view.level ?? 8) + (small() ? 1 : 0);
+    const target = view.all ? new k.LatLng(33.38, 126.55) : new k.LatLng(view.lat!, view.lon!);
+    const glide = () => {
+      const [t, r, b, l] = pads(latestRef.current.panelOpen, latestRef.current.chatOpen);
+      const proj = map.getProjection();
+      const p = proj.containerPointFromCoords(target);
+      map.panTo(proj.coordsFromContainerPoint(new k.Point(p.x + (r - l) / 2, p.y + (b - t) / 2)));
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (map.getLevel() !== level) {
+      map.setLevel(level, { animate: { duration: 350 } });
+      timer = setTimeout(glide, 380);
+    } else {
+      glide();
+    }
+    return () => clearTimeout(timer);
+  }, [view]);
 
   // 패널·대화에서 가게·병원을 고르면 지도 표식 말풍선을 연다
   useEffect(() => {

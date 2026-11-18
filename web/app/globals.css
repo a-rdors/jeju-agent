@@ -214,22 +214,23 @@ img { display: block; }
 .chat-head small { color: #C9CCC6; font-size: .8rem; display: block; }
 .chat-head .avatar { background: var(--gyul-soft); }
 .chatlog {
-  flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column-reverse;
+  flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column;
   padding: 14px 12px 10px; background: var(--paper); overscroll-behavior: contain;
 }
 .chatlist { display: flex; flex-direction: column; gap: .5rem; }
 .chatlist > * { flex-shrink: 0; }
 .chatform {
-  flex: 0 0 auto; display: flex; gap: 8px; align-items: center; padding: 10px 12px 12px;
-  border-top: 1px solid var(--stone); background: var(--card);
+  flex: 0 0 auto; display: flex; gap: 6px; align-items: center; margin: 8px 12px 12px; padding: 6px 6px 6px 16px;
+  background: #fff; border: 1.5px solid var(--stone-2); border-radius: 28px; box-shadow: 0 2px 10px rgba(20, 24, 28, .06);
 }
+.chatform:focus-within { border-color: var(--ink); }
 .chatform input {
-  flex: 1 1 auto; min-width: 0; min-height: 50px; font-size: max(16px, 1rem); padding: 10px 14px;
-  border: 2px solid var(--stone-2); border-radius: 16px; background: #fff; color: var(--ink);
+  flex: 1 1 auto; min-width: 0; min-height: 48px; font-size: max(16px, 1rem); padding: 8px 2px;
+  border: 0; border-radius: 0; background: transparent; color: var(--ink);
 }
 .chatform input::placeholder { color: #6B7177; }
-.chatform input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 2px var(--gyul-soft); }
-.chatform .send { width: 50px; height: 50px; padding: 0; flex: 0 0 auto; border-radius: 16px; }
+.chatform input:focus { outline: none; }
+.chatform .send { width: 46px; height: 46px; padding: 0; flex: 0 0 auto; border-radius: 50%; }
 .msg-me {
   align-self: flex-end; max-width: 85%; margin-left: auto; background: var(--gyul); color: #2A1606; font-weight: 600;
   border-radius: 18px 18px 4px 18px; padding: 9px 13px; font-size: .98rem; line-height: 1.45; word-break: keep-all;
@@ -601,3 +602,21 @@ html.big .tab { min-width: 0; padding: 0 6px; }
 .ans-row.check.call .go { color: var(--gyul-text); font-weight: 700; white-space: nowrap; }
 
 .vrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+
+/* ---------- 빈 대화창: 큰 질문 + 그림 목록(눌러서 바로 물어보기) ---------- */
+.chat-empty { margin-top: auto; padding: 8px 6px 14px; }
+.chat-empty h3 { font-size: 1.45rem; line-height: 1.3; margin: 0 0 6px; }
+.chat-empty p { color: var(--muted); font-size: .92rem; margin: 0 0 14px; }
+.ex-list { display: grid; gap: 2px; }
+.ex-list button {
+  all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 14px;
+  padding: 12px 8px; border-radius: 12px; font-size: 1rem; color: var(--ink);
+}
+.ex-list button:hover, .ex-list button:focus-visible { background: rgba(0, 0, 0, .04); }
+.ex-list button:focus-visible { outline: 2px solid var(--ink); }
+.ex-list .ic { width: 28px; text-align: center; font-size: 1.2rem; flex: 0 0 auto; }
+
+/* ---------- 시작 화면 동네 칩: 3칸 + 2칸 가지런히 ---------- */
+.where-chips { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.where-chips .wchip { grid-column: span 2; padding: 6px 4px; text-align: center; white-space: nowrap; }
+.where-chips .wchip:nth-child(n + 4) { grid-column: span 3; }

@@ -7,7 +7,7 @@ import { USER_TYPES, isError, kakaoRouteLink, urls } from "@/lib/api";
 import type { Detail, Evidence, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
-  TABS, conditionTexts, focusItem, go, pick, setSheet, setTab, toResult, togglePanel, topPlace,
+  TABS, conditionTexts, focusItem, go, pick, setMapView, setSheet, setTab, toResult, togglePanel, topPlace,
   type State, type Tab,
 } from "@/lib/store";
 import {
@@ -24,9 +24,13 @@ const TYPES: [string, string, string, string, string, string][] = [
   ["임신 중인 가족", "pregnant", "pregnant", "임신 중이라 무리 없이 다녀올 곳 추천해 줘", "평평한 길 · 가까운 병원", "#F6E6EF"],
 ];
 
-// 시작 화면 '어디쯤 가세요?' (보이는 글자, 질문에 붙일 동네 말). 고르지 않으면 제주 전체
-const AREAS: [string, string][] = [
-  ["상관없어요", ""], ["제주시", "제주시"], ["애월·한림", "애월"], ["중문·서귀포", "서귀포"], ["성산·구좌", "성산"],
+// 시작 화면 '어디쯤 가세요?' (보이는 글자, 질문에 붙일 동네 말, 지도 가운데). 고르지 않으면 제주 전체
+const AREAS: [string, string, [number, number] | null][] = [
+  ["상관없어요", "", null],
+  ["제주시", "제주시", [33.49, 126.53]],
+  ["애월·한림", "애월", [33.42, 126.31]],
+  ["중문·서귀포", "서귀포", [33.255, 126.49]],
+  ["성산·구좌", "성산", [33.47, 126.85]],
 ];
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
@@ -137,9 +141,12 @@ function PanelHome() {
       <div className="where">
         <p><b>어디쯤 가세요?</b> <span>고르지 않아도 돼요</span></p>
         <div className="where-chips" role="radiogroup" aria-label="어디쯤 가세요">
-          {AREAS.map(([label, word]) => (
+          {AREAS.map(([label, word, at]) => (
             <button key={label} type="button" role="radio" aria-checked={area === word} className="wchip"
-              onClick={() => setArea(word)}>{label}</button>
+              onClick={() => {
+                setArea(word);
+                setMapView(at ? { lat: at[0], lon: at[1], level: 8 } : { all: true });
+              }}>{label}</button>
           ))}
         </div>
       </div>
