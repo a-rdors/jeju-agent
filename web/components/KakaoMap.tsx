@@ -256,8 +256,8 @@ function drawMarkers(
   state.layers.forEach((o) => o.setMap(null));
   state.layers = [];
   state.cluster?.clear();
-  // 휴대폰은 섬 전체를 볼 때 점이 손가락보다 촘촘하다. 그때만 점을 묶어 숫자 원으로 보이고, 누르면 확대한다.
-  const clusterDots = small() && !!k.MarkerClusterer && data.marks.some((m) => m.kind === "dot");
+  // 섬 전체를 볼 때는 점이 촘촘해(휴대폰·PC 모두) 숫자 원으로 묶고, 누르면 부드럽게 다가가 점을 푼다.
+  const clusterDots = !!k.MarkerClusterer && data.marks.some((m) => m.kind === "dot");
   if (clusterDots && !state.cluster) {
     state.cluster = new k.MarkerClusterer({
       map: state.map, averageCenter: true, minLevel: 9, gridSize: 56, minClusterSize: 3,
