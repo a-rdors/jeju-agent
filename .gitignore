@@ -1,12 +1,14 @@
-﻿# 비밀 키: 절대 올리지 않는다
+# 비밀 키: 절대 올리지 않는다
 .env
-.streamlit/secrets.toml
 
 # 개발 환경
 .venv/
 __pycache__/
 *.pyc
 .gstack/
+web/node_modules/
+web/.next/
+.vercel/
 
 # 사진·주소를 뽑으려고 받은 일반정보 원본(HWP, 약 256MB). scripts/06_place_photos.py 로 다시 받을 수 있다
 data/raw/mujangae/general_src/

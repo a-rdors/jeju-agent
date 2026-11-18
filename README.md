@@ -5,27 +5,35 @@
 휠체어·유모차·어르신·임산부와 함께하는 제주 나들이를 공공데이터 근거로 도와주는 AI Agent.
 제주 AI·빅데이터 활용 AI Agent 개발 챌린지 출품작.
 
+**바로 써보기: https://jeju-gachi.vercel.app** (PC·휴대폰 같은 주소)
+
 ---
 
 ## 1. 빠른 실행
 
+필요한 프로그램: Python 3.11 이상, Node.js 20 이상.
+
 ```powershell
-# 1) 가상환경과 라이브러리
+# 1) 가상환경과 라이브러리(API 서버)
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 
+# 웹 화면 라이브러리(처음 한 번)
+cd web; npm install; cd ..
+
 # 2) 키 파일: 프로젝트 폴더에 .env 파일을 만들고 아래를 넣는다(값은 각자 발급)
 #    OPENAI_API_KEY=sk-...     Agent 대화(없으면 버튼 기반 기본 모드로 동작)
-#    KAKAO_JS_KEY=...          카카오맵(없으면 기본 지도. 카카오 개발자 앱 > 플랫폼 Web에 http://localhost:8501 등록, 카카오맵 사용 설정 ON)
+#    KAKAO_JS_KEY=...          카카오맵(없으면 기본 지도. 카카오 개발자 앱 > 플랫폼 Web에 http://localhost:3000 등록, 카카오맵 사용 설정 ON)
 #    KAKAO_REST_KEY=...        카카오 REST API(식당 전화번호. 없으면 전화번호만 빠짐)
 #    TOUR_API_KEY=...          공공데이터포털 한국관광공사 무장애 여행 정보(데이터를 다시 받을 때만)
 #    JEJU_PROJECT_KEY=...      제주데이터허브 프로젝트 키(현재 화면 실행에는 필요 없음)
 
-# 3) 실행(내 컴퓨터에서만 열림)
-.venv\Scripts\streamlit run app/main.py --server.address localhost
+# 3) 실행: 터미널 두 개
+.venv\Scripts\python -m uvicorn server.api:app --port 8000   # 터미널 1: API 서버(추천·AI)
+cd web; npm run dev                                        # 터미널 2: 웹 화면
 ```
 
-브라우저에서 http://localhost:8501 을 연다. `.env`는 절대 GitHub에 올리지 않는다(`.gitignore`로 막혀 있음).
+브라우저에서 http://localhost:3000 을 연다(127.0.0.1 말고 localhost로). 웹 화면(3000)이 API 서버(8000)를 불러 쓴다. `.env`는 절대 GitHub에 올리지 않는다(`.gitignore`로 막혀 있음).
 
 ---
 
@@ -106,13 +114,12 @@ python -m venv .venv
 ### 3-8. 전화 확인 질문지 — `tools.call_questions`
 이용자 유형 + 식사 조건별로 가게에 물어볼 질문. 예: "몇 층인가요? 엘리베이터가 있나요?", "음식을 잘게 잘라 주실 수 있나요?"
 
-### 3-9. 화면 — `app/main.py`
-- 첫 화면: 유형 버튼 4개, 예시 질문 4개, 큰 글씨 모드
-- 대화: 답변 위에 "확인한 것"(Agent가 어떤 도구로 무엇을 확인했는지 쉬운 말로)
+### 3-9. 화면 — `web/`(Next.js) + `server/api.py`(FastAPI)
+- 화면 전체에 카카오맵(제주도 안에서만 이동), 오른쪽에 대시보드(한눈에·코스·식당·병원·약국·질문지), 오른쪽 아래 돌하르방 대화창
+- 대화 답에 나온 장소는 단추로, 지도 표식을 누르면 대시보드도 그 장소로 이동
 - 결과 순서 고정: 추천 장소 → 식당·카페 → 병원·약국·화장실 → 오늘 일정
-- 한 질문에서 찾은 결과는 모두 카드로(예: 횟집 + 카페), 다음 질문에서 바뀜
-- 장소 카드 탭: 확인한 것 / 코스·위치(지도) / 병원·약국·화장실 / 주변 식당 / 전화 질문
-- 현재 위치: `st.session_state.location = (위도, 경도)`를 넣으면 "내 근처" 기준(지도 연동 담당이 연결 예정)
+- 웹은 화면만 그리고 판단·AI는 모두 API 서버가 `app/tools.py`, `app/agent.py`를 불러 처리(각 폴더 README)
+- 현재 위치: API `/api/chat`의 `location: [위도, 경도]`를 보내면 "내 근처" 기준
 
 ### 3-10. AI 없이 동작(기본 모드) — `agent.rule_mode`
 OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소를 추천한다(센터 PC 인터넷 제한 대비).
@@ -152,19 +159,17 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 
 | 경로 | 내용 |
 |---|---|
-| `app/main.py` | 화면(Streamlit): 전체 화면 지도, 오른쪽 대시보드, 하르방 챗봇 |
-| `app/map_view.py` | 카카오맵(st.components.v2, 제주도 안에서만 이동). 키가 없으면 기본 지도 |
-| `app/ui.py` | 화면 꾸미기: CSS, 돌하르방 그림, 카드 HTML |
+| `web/` | 화면(Next.js): 전체 화면 카카오맵, 오른쪽 대시보드, 하르방 챗봇 |
+| `server/api.py` | API 서버(FastAPI): 화면 요청을 받아 도구·Agent 호출 |
+| `api/index.py`, `vercel.json` | Vercel 배포 설정(9-1장) |
 | `app/agent.py` | Agent 반복, 시스템 프롬프트, 코드 보정 |
 | `app/tools.py` | 도구와 판단 로직 전부, 일정표 HTML |
-| `.streamlit/config.toml` | 테마(귤색 #F0892B, Pretendard, 17px) |
 | `scripts/01_download_mujangae.py` | 제주데이터허브 공개 무장애 데이터 받기 |
 | `scripts/02_build_access_table.py` | 지점 설명 문장 → 경사·턱·계단·노면·화장실 표 |
 | `scripts/03_build_support.py` | 동네, 의료, 영업 확인, 식당(층 포함), 관광공사 장소 합치기 |
 | `scripts/06_fetch_external.py` | 관광공사 무장애 정보, 화장실 좌표, (contacts) 장소 전화번호 |
 | `scripts/06_place_photos.py`, `scripts/07_hub_api.py` | 장소 사진·주소, 버스 정류소·약국 영업 상태(제주데이터허브) |
 | `scripts/04~05, 07_broad_test.py` | 테스트(아래 8장) |
-| `server/`, `web/` | FastAPI 서버와 같은 동작의 Next.js 화면(각 폴더 README) |
 | `data/raw`, `data/processed` | 원본과 정제 결과 |
 | `docs/` | 기획서, UX 흐름 설계, 검수·테스트 기록 |
 
@@ -221,6 +226,23 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 
 ---
 
+## 9-1. 배포(Vercel)
+
+같은 저장소로 Vercel 프로젝트 2개를 만든다. GitHub `main`에 push하면 둘 다 자동으로 다시 배포된다.
+
+| 프로젝트 | Root Directory | 하는 일 | 환경 변수 |
+|---|---|---|---|
+| 서버 `jeju-gachi-api` → https://jeju-gachi-api.vercel.app | 저장소 맨 위(비워 둠) | `api/index.py` → `server/api.py`(FastAPI) | `OPENAI_API_KEY`, `KAKAO_REST_KEY`, `KAKAO_JS_KEY` (선택: `OPENAI_MODEL`) |
+| 화면 `jeju-agent` → **https://jeju-gachi.vercel.app** (공식 주소, `jeju-agent.vercel.app`도 열림) | `web` | Next.js 화면. `/api/...` 요청을 서버로 넘김 | `API_ORIGIN` = `https://jeju-gachi-api.vercel.app` |
+
+순서
+1. 서버 프로젝트를 먼저 배포하고 주소를 확인한다(`/api/config`가 열리면 정상).
+2. 화면 프로젝트에 `API_ORIGIN`을 넣고 배포한다. `API_ORIGIN`은 빌드할 때 읽으므로, 바꾸면 Redeploy가 필요하다.
+3. 카카오 개발자 앱(JavaScript 키 발급한 앱)의 사이트 도메인에 화면 주소(`https://...vercel.app`)를 추가한다.
+
+설정 파일: `vercel.json`(서버: 함수 최대 60초, web·docs·scripts·data/raw 제외), `api/index.py`(입구), `web/vercel.json`(화면: Next.js 고정. 없으면 정적 파일로 배포돼 404).
+심사 기간에는 `main`에 바로 push하지 않는다(사이트가 바로 바뀜). 문제가 생기면 Vercel의 Instant Rollback으로 이전 배포로 되돌린다.
+
 ## 10. 한계와 향후 계획
 
 **한계**
@@ -231,7 +253,7 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 - 판정·식사 조건·날씨 기준값은 설계 가정이다
 
 **향후 계획**
-- 현재 위치와 지도(카카오맵) 화면 연동(진행 예정)
+- 브라우저 현재 위치를 "내 근처" 기준으로 자동 사용(API는 이미 `location`을 받음)
 - 저상버스 실시간 도착, 휠체어 대여 수량 실시간 확인
 - 식당 입식 테이블·엘리베이터 정보: 허가받은 리뷰·제휴 데이터 또는 센터 현장 조사
 - 이용자 제보로 오래된 무장애 정보 갱신, 어르신용 큰 글씨 일정표·음성 안내

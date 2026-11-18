@@ -22,21 +22,25 @@ export const HELP_HEX = "#5B3A8C";
 export const NOT_CAUTION: Set<string> = new Set(["장애인 화장실", "장애인 주차"]);
 
 // ── 내부 상수 ─────────────────────────────────────────────────────────────────
+// 지도 표식 그림(글자 대신 한눈에 알아보는 그림)
 const HELP_SHORT: Record<string, string> = {
-  "약국": "약",
-  "병·의원": "병",
-  "응급실": "응",
+  "약국": "💊",
+  "병·의원": "🏥",
+  "응급실": "🚑",
+  "산부인과": "🤰",
 };
+/** 병원·약국 표식에서 뺄 항목(화장실은 코스 쪽에서 보여 준다) */
+const HELP_SKIP = new Set(["장애인 화장실", "기저귀 교환대"]);
 
 /** 범례에 표시할 항목 정의 (kind, 한글 라벨, 색) — Python LEGEND 와 같은 순서 */
 const LEGEND_DEF: [string, string, string][] = [
   ["place", "추천 장소(번호)", VERDICT_HEX["green"]],
   ["route", "코스", ROUTE_HEX],
   ["dot", "나들이 장소", ROUTE_HEX],
-  ["caution", "확인할 지점", CAUTION_HEX],
+  ["caution", "조심할 곳", CAUTION_HEX],
   ["toilet", "장애인 화장실", ROUTE_HEX],
   ["food", "식당", FOOD_HEX],
-  ["help", "약국·병원", HELP_HEX],
+  ["help", "병원·약국", HELP_HEX],
 ];
 
 // ── 공개 API ──────────────────────────────────────────────────────────────────
@@ -112,7 +116,7 @@ export function buildMapData(o: {
           kind: "caution",
           lat: p.lat,
           lon: p.lon,
-          text: "!",
+          text: "⚠️",
           name: `출발 후 약 ${p.at_m}m`,
           sub: caution.join(" · "),
           color: CAUTION_HEX,
@@ -122,7 +126,7 @@ export function buildMapData(o: {
           kind: "toilet",
           lat: p.lat,
           lon: p.lon,
-          text: "WC",
+          text: "🚻",
           name: "장애인 화장실",
           sub: p.label as string,
           color: ROUTE_HEX,
@@ -139,7 +143,7 @@ export function buildMapData(o: {
         kind: "food",
         lat: it.lat,
         lon: it.lon,
-        text: "식",
+        text: "🍽️",
         name: it.name,
         sub:
           (it.food_type as string) +
@@ -154,13 +158,14 @@ export function buildMapData(o: {
   if (o.help) {
     const helpMap: Record<string, any[]> = o.help.help ?? {};
     for (const [kind, items] of Object.entries(helpMap)) {
+      if (HELP_SKIP.has(kind)) continue;
       for (const it of items) {
         if (it.lat == null) continue;
         marks.push({
           kind: "help",
           lat: it.lat,
           lon: it.lon,
-          text: HELP_SHORT[kind] ?? "+",
+          text: HELP_SHORT[kind] ?? "🏥",
           name: it.name,
           sub: `${kind} · ${it.km}km`,
           color: HELP_HEX,

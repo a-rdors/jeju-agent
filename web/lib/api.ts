@@ -56,6 +56,10 @@ export interface PlaceResult extends Access {
   lat: number;
   lon: number;
   base_date: string;
+  /** '코스(제주도 조사)' 또는 '시설(관광공사)' */
+  data_kind?: string;
+  phone?: string;
+  homepage?: string;
 }
 
 export interface Recommend {
@@ -86,7 +90,9 @@ export interface Detail extends Access {
   key_points: CoursePoint[];
   all_points: CoursePoint[];
   bus_stops?: BusStop[];
+  toilets_near?: { name: string; km?: number; m?: number; phone?: string; address?: string }[];
   base_date: string;
+  data_kind?: string;
 }
 
 /** 제주데이터허브 버스 정류소 기본 정보에서 고른 가까운 정류소(직선거리). */

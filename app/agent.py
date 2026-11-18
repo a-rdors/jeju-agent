@@ -101,8 +101,10 @@ TOOL_SPECS = [
             "required": ["place"]}}},
     {"type": "function", "function": {
         "name": "find_nearby_help",
-        "description": "장소에서 가장 가까운 약국·병의원·응급실과 버스 정류소. 약국은 폐업 기록이 있는 곳을 뺐다.",
-        "parameters": {"type": "object", "properties": {"place": {"type": "string"}}, "required": ["place"]}}},
+        "description": "장소(또는 현재 위치)에서 가장 가까운 약국·병의원·응급실. 물어본 종류만 kinds에 넣는다(약국만 물으면 ['약국']). 약국은 폐업 기록이 있는 곳을 뺐다.",
+        "parameters": {"type": "object", "properties": {
+            "place": {"type": "string"},
+            "kinds": {"type": "array", "items": {"type": "string", "enum": ["약국", "병·의원", "응급실"]}}}}}},
     {"type": "function", "function": {
         "name": "search_food",
         "description": "제주 식당·카페 찾기(약 1만 9천 곳). 식사 조건으로 고르고 휠체어 진입 확인 가게는 배지로 표시.",
@@ -218,19 +220,69 @@ def normalize_answer(text, tool_results, last_q=""):
             f = [res for name, _, res in tool_results if name == "search_food"][-1]
             qs = f.get("call_questions") or ["입구에 턱이나 계단이 있나요?"]
             text = text.rstrip() + f"\n확인할 점: 전화로 \"{qs[0]}\"라고 물어보세요."
-    if "recommend_places" in names and "조심할 점" not in text:
-        rec = [res for name, _, res in tool_results if name == "recommend_places"][-1]
-        top = (rec.get("results") or [{}])[0]
-        miss = [c["item"] for c in top.get("checks", []) if not c.get("known")]
-        note = (top.get("watch_out") or [None])[0] or (
-            f"{', '.join(miss[:2])}은(는) 확인이 안 돼요. 가기 전에 전화해 보세요." if miss else "현장 상황은 가기 전에 한 번 확인해 보세요.")
+    detail_only = "get_place_detail" in names and "recommend_places" not in names and "search_food" not in names
+    if ("recommend_places" in names or detail_only) and "조심할 점" not in text:
+        if "recommend_places" in names:
+            rec = [res for name, _, res in tool_results if name == "recommend_places"][-1]
+            top = (rec.get("results") or [{}])[0]
+        else:  # 특정 장소 확인(get_place_detail)도 같은 형식으로 조심할 점을 붙인다
+            top = [res for name, _, res in tool_results if name == "get_place_detail"][-1] or {}
+        miss = [c["item"] for c in top.get("checks", []) if isinstance(c, dict) and not c.get("known")]
+        watch = top.get("watch_out") or top.get("tips") or [None]
+        note = (watch[0] if isinstance(watch, list) else watch) or (
+            f"{T.josa(T.join_and(miss[:2]), '은는')} 확인이 안 돼요. 가기 전에 전화해 보세요." if miss else "현장 상황은 가기 전에 한 번 확인해 보세요.")
         body = text.rstrip().splitlines()
         insert_at = next((i for i, l in enumerate(body) if l.startswith("비 오면")), len(body))
         body.insert(insert_at, "조심할 점: " + note)
         text = "\n".join(body)
+    content_tools = [n for n in names if n not in ("get_weather", "ask_user")]
+    if content_tools and set(content_tools) == {"find_nearby_help"}:
+        built = help_text(tool_results)
+        if built:
+            return built
     if any(name == "find_nearby_help" for name, _, _ in tool_results) and "119" not in text:
         text = text.rstrip() + "\n응급 상황에는 119에 먼저 연락하세요."
     return text
+
+
+def help_text(tool_results):
+    """병원·약국 답변은 코드가 직접 만든다(항상 같은 형식)."""
+    calls = [(a, r) for n, a, r in tool_results if n == "find_nearby_help" and isinstance(r, dict) and r.get("help")]
+    if not calls:
+        return None
+    args, res = calls[-1]
+    order = [k for k in (args.get("kinds") or ["약국", "병·의원", "응급실"]) if res["help"].get(k)]
+    if not order:
+        return None
+    kind = order[0]
+    top = res["help"][kind][0]
+    kind_is = kind + ("이에요." if T.josa(kind, "은는").endswith("은") else "예요.")
+    base = "현재 위치" if res.get("place") == "현재 위치" else res.get("place", "")
+    dist = f" · {top['km']}km" if top.get("km") is not None else ""
+    lines = [f"**{top['name']}** — {kind}{dist}"]
+    if top.get("km") is not None:
+        lines.append(f"{base}에서 가장 가까운 {kind_is}" + (" 영업 중으로 확인됐어요." if top.get("status") else ""))
+    else:
+        lines.append(f"{base}에 있는 {kind_is}")
+    if kind == "응급실":
+        lines.append("확인할 점: 가기 전에 전화로 지금 진료가 되는지 물어보세요.")
+    else:
+        lines.append("확인할 점: 가기 전에 전화로 문을 열었는지 확인해 보세요.")
+    lines.append("응급 상황에는 119에 먼저 연락하세요.")
+    return "\n".join(lines)
+
+
+def help_kinds(text):
+    """질문에서 찾는 종류: '약국' → ['약국'], '응급실' → ['응급실'], '병원' → ['병·의원', '응급실']. 없으면 None."""
+    import re
+    kinds = []
+    if re.search(r"약국|약\s*사|약\s*살|해열제|파스|밴드", text):
+        kinds.append("약국")
+    if re.search(r"병원|의원|진료|다쳤|다치|아파|열이", text):
+        kinds += ["병·의원", "응급실"]
+    elif re.search(r"응급", text):
+        kinds.append("응급실")
+    return list(dict.fromkeys(kinds)) or None
 
 
 def detect_user_type(history):
@@ -286,6 +338,12 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         # 제주 밖 지역: AI에 맡기지 않고 항상 같은 답(제주 장소를 엉뚱하게 추천하지 않게)
         return {"text": "제주 지역만 안내할 수 있어요.\n제주로 오시면 함께 가실 분에 맞춰 갈 만한 곳과 식당을 찾아드릴게요.",
                 "ask": None, "tool_results": [], "trace": []}
+    taste_rank = re.search(r"제일\s*맛있|가장\s*맛있|최고\s*맛집|맛집\s*(순위|랭킹)|1\s*위|순위|랭킹|베스트\s*\d", last_q)
+    if taste_rank and re.search(r"맛|식당|집|가게|음식|카페", last_q):
+        # 맛 평가·순위: 근거 데이터가 없으므로 AI에 맡기지 않고 항상 같은 답
+        return {"text": "범위 밖 요청이에요. 맛 평가나 순위는 근거 자료가 없어서 알려드릴 수 없어요.\n"
+                        "대신 함께 가실 분과 동네를 말씀해 주시면 들어가기 편한 식당을 찾아드릴게요.",
+                "ask": None, "tool_results": [], "trace": []}
     if re.search(r"\d\s*박|박\s*\d\s*일|며칠|여러\s*날|일차|일정\s*표", last_q):
         # 여러 날 요청: 날짜별 시간표를 만들지 않는다는 결정을 이번 답변에 강하게 적용
         system += ("\n이번 질문은 여러 날 일정 요청이다. 첫 나들이 하나만 plan_outing으로 제안한다. "
@@ -332,6 +390,15 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                 args.pop("area", None)
             if name == "find_nearby_help" and known_user_type and "user_type" not in args:
                 args["user_type"] = known_user_type  # 임산부면 산부인과도 함께
+            if name == "find_nearby_help":
+                asked = help_kinds(last_q)
+                if asked:
+                    args["kinds"] = asked  # 약국만 물으면 약국만(병원까지 섞지 않게)
+                near_me = re.search(r"내\s*위치|여기|지금\s*있는|현재\s*위치|근처|가까운", last_q)
+                vague_place = not args.get("place") or T.resolve_anchor(args.get("place")) is None
+                if user_location and (vague_place or (near_me and not said_place and not said_area)):
+                    args["origin_lat"], args["origin_lon"] = user_location
+                    args.pop("place", None)
             if name == "search_food":
                 args["limit"] = max(3, int(args.get("limit") or 5))  # 화면 카드가 비지 않게 최소 3곳
                 if known_user_type in ("manual_wheelchair", "electric_wheelchair") and "prefer_wheelchair" not in args:
@@ -349,6 +416,10 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
             except Exception as e:  # 도구 오류도 모델에 알려 다시 판단하게 한다
                 result = {"error": f"{type(e).__name__}: {e}"}
             tool_results.append((name, args, result))
+            if name == "find_nearby_help" and isinstance(result, dict) and result.get("needs_location"):
+                # 시 전체만 말했고 위치가 없으면 기준을 임의로 정하지 않고 바로 묻는다
+                ask = {"question": result["error"], "options": ["내 위치로 찾기"]}
+                return {"text": ask["question"], "ask": ask, "tool_results": tool_results, "trace": trace}
             messages.append({"role": "tool", "tool_call_id": call.id, "content": _llm_view(name, result)})
     return {"text": "결과를 정리하지 못했어요. 다시 한 번 말씀해 주세요.", "ask": None,
             "tool_results": tool_results, "trace": trace}
@@ -382,5 +453,5 @@ def rule_mode(text, user_type=None):
         return {"text": "조건에 맞는 곳을 찾지 못했어요. 동네나 분위기를 바꿔서 말해 보세요.", "ask": None,
                 "tool_results": [("recommend_places", args, res)], "trace": [{"tool": "recommend_places", "args": args}]}
     top = res["results"][0]
-    return {"text": f"**{top['place']}**을(를) 추천해요. {top['slope_say']}", "ask": None,
+    return {"text": f"**{top['place']}** 추천해요. {top['slope_say']}", "ask": None,
             "tool_results": [("recommend_places", args, res)], "trace": [{"tool": "recommend_places", "args": args}]}

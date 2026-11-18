@@ -182,6 +182,18 @@ class ChatRequest(BaseModel):
     shown_places: Optional[list] = None
 
 
+# ---------- 입력 정리 ----------
+def _location(loc) -> Optional[tuple]:
+    """[위도, 경도] 두 숫자이고 제주 근처일 때만 쓴다."""
+    try:
+        lat, lon = float(loc[0]), float(loc[1])
+    except (TypeError, ValueError, IndexError):
+        return None
+    if 32.8 <= lat <= 34.0 and 125.8 <= lon <= 127.2:
+        return (lat, lon)
+    return None
+
+
 @app.post("/api/chat")
 def chat(req: ChatRequest):
     fallback = False
@@ -189,7 +201,7 @@ def chat(req: ChatRequest):
         out = A.rule_mode(req.text, req.user_type)
     else:
         known = req.known_user_type
-        location = tuple(req.location) if req.location else None
+        location = _location(req.location) if req.location else None
         shown = list(req.shown_places) if req.shown_places else None
         try:
             if A.available():

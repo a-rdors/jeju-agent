@@ -1,5 +1,5 @@
 "use client";
-// 오른쪽 대시보드(휴대폰은 아래 시트). 시작 / 결과(한눈에·코스·식당·병원·약국·질문지) / 식당 / 장소·병원 답.
+// 오른쪽 대시보드(휴대폰은 아래 시트). 시작 / 결과(한눈에·코스·식당·병원·약국) / 식당 / 장소·병원 답.
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { NOT_CAUTION, VERDICT_HEX } from "@/lib/mapData";
 import { ART, ICON, dataUri } from "@/lib/art";
@@ -7,7 +7,7 @@ import { USER_TYPES, isError, kakaoRouteLink, urls } from "@/lib/api";
 import type { BusStop, Detail, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
-  TABS, conditionTexts, go, pick, setChecked, setSheet, setTab, toResult, togglePanel, topPlace,
+  TABS, conditionTexts, focusItem, go, pick, setSheet, setTab, toResult, togglePanel, topPlace,
   type State, type Tab,
 } from "@/lib/store";
 import {
@@ -26,29 +26,48 @@ const TYPES: [string, string, string, string, string, string][] = [
 const fmt = (n: number) => n.toLocaleString("ko-KR");
 
 // ---------- 공통 조각 ----------
-function ShopCard({ it }: { it: Food["items"][number] }) {
+/** 지도 표식·대화 단추와 함께 움직이는 카드: 고른 곳이면 강조하고 보이게 내린다 */
+function FocusCard({ name, focus, children }: { name: string; focus?: string | null; children: React.ReactNode }) {
+  const ref = useRef<HTMLLIElement>(null);
+  const on = !!focus && focus === name;
+  useEffect(() => {
+    if (on) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [on]);
+  return <li ref={ref} className={`card${on ? " focus" : ""}`}>{children}</li>;
+}
+
+function MapButton({ name }: { name: string }) {
+  return (
+    <button type="button" className="btn btn-secondary" onClick={() => focusItem(name)} aria-label={`${name} 지도에서 보기`}>
+      <Icon name="map" /><span>지도</span>
+    </button>
+  );
+}
+
+function ShopCard({ it, focus }: { it: Food["items"][number]; focus?: string | null }) {
   const tags: [string, string][] = it.wheelchair_entry ? [["휠체어 진입 확인(2021)", "wc"]] : [];
   tags.push(...(it.why ?? []).map((w): [string, string] => [w.split(":")[0] + " (추정)", ""]));
   const meta = it.food_type + (it.km !== null && it.km !== undefined ? ` · ${it.km}km` : "");
   return (
-    <li className="card">
+    <FocusCard name={it.name} focus={focus}>
       <Shop name={it.name} meta={meta} tags={tags} />
       <div className="row">
         <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
         {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>}
+        <MapButton name={it.name} />
       </div>
-    </li>
+    </FocusCard>
   );
 }
 
-function FoodList({ f }: { f: Food }) {
+function FoodList({ f, focus }: { f: Food; focus?: string | null }) {
   if (f.anchor_not_found) return <Info>{f.note}</Info>;
   return (
     <>
       {!f.items.length && <Info>조건에 맞는 식당을 찾지 못했어요. 조건을 줄이거나 동네를 바꿔 말해 보세요.</Info>}
       {f.items.length > 0 && (
         <ul className="cards">
-          {f.items.map((it, i) => <ShopCard key={`${it.name}-${i}`} it={it} />)}
+          {f.items.map((it, i) => <ShopCard key={`${it.name}-${i}`} it={it} focus={focus} />)}
         </ul>
       )}
       <Src>{f.note}</Src>
@@ -56,45 +75,31 @@ function FoodList({ f }: { f: Food }) {
   );
 }
 
-function HelpList({ h }: { h: Help }) {
+/** 병원·약국 탭에는 병원·약국·응급실만(화장실은 코스 탭에서 보여 준다) */
+const HELP_ONLY = new Set(["응급실", "병·의원", "약국", "산부인과"]);
+
+function HelpList({ h, focus }: { h: Help; focus?: string | null }) {
   if (isError(h)) return <Caption>{h.error}</Caption>;
   return (
     <>
       <ul className="cards">
-        {Object.entries(h.help ?? {}).flatMap(([kind, items]) =>
+        {Object.entries(h.help ?? {}).filter(([kind]) => HELP_ONLY.has(kind)).flatMap(([kind, items]) =>
           items.map((it, i) => (
-            <li key={`${kind}-${i}`} className="card">
-              <Shop name={it.name} meta={`${kind} · ${it.km}km · ${it.address}`}
+            <FocusCard key={`${kind}-${i}`} name={it.name} focus={focus}>
+              <Shop name={it.name} meta={[kind, it.km !== null && it.km !== undefined ? `${it.km}km` : "", it.address].filter(Boolean).join(" · ")}
                 tags={it.status ? [[it.status, "wc"]] : []} />
-              {it.phone && (
-                <div className="row">
-                  <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>
-                </div>
-              )}
-            </li>
+              <div className="row">
+                <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
+                {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>}
+                <MapButton name={it.name} />
+              </div>
+            </FocusCard>
           )),
         )}
       </ul>
-      {h.bus && h.bus.length > 0 && (
-        <>
-          <Sect>가까운 버스 정류소</Sect>
-          <ul className="cards">
-            {h.bus.map((b, i) => (
-              <li key={`bus-${i}`} className="card">
-                <Shop name={b.name} meta={busMeta(b)} tags={[]} />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      <Src>{h.note ?? ""}{h.bus?.length ? ` 정류소: ${h.bus_source ?? "제주데이터허브 버스 정류소 기본 정보"}(직선거리, 저상버스·노선은 확인 안 됨).` : ""}</Src>
+      <Src>거리는 직선거리예요. 급할 때는 119에 먼저 전화하세요. 전화번호는 카카오 장소 정보로 찾았어요.</Src>
     </>
   );
-}
-
-function busMeta(b: BusStop) {
-  const near = b.local_info ? ` · ${b.local_info}` : "";
-  return `직선 ${fmt(b.m)}m · 걸어서 약 ${b.walk_min}분${near}`;
 }
 
 /** 개요 카드의 한 줄: 출발점에서 가까운 정류소 */
@@ -104,30 +109,6 @@ function BusLine({ stops }: { stops?: BusStop[] }) {
     <div className="busline">
       <Icon name="bus" />
       <span><b>가까운 정류소</b> {stops.map((b) => `${b.name} ${fmt(b.m)}m`).join(" · ")}</span>
-    </div>
-  );
-}
-
-function Questions({ s, dietNeeds, prefix, place }: { s: State; dietNeeds?: string[] | null; prefix: string; place: string }) {
-  const q = useApi<string[]>(urls.questions(s.user_type, dietNeeds));
-  return (
-    <div className="questions">
-      <Caption>가기 전에 전화로 이것만 물어보세요. 물어본 것은 눌러서 표시해 두세요.</Caption>
-      {q.data ? (
-        <ul className="qlist">
-          {q.data.map((text, i) => {
-            const key = `${prefix}_${place}_${i}`;
-            return (
-              <li key={key}>
-                <label className="check">
-                  <input type="checkbox" checked={!!s.checked[key]} onChange={(e) => setChecked(key, e.target.checked)} />
-                  <span>{text}</span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
-      ) : q.error ? <Caption>질문지를 불러오지 못했어요.</Caption> : <Loading />}
     </div>
   );
 }
@@ -152,7 +133,7 @@ function PanelHome() {
       </div>
       <div className="hello">
         <h2>우리 가족이 갈 수 있을까?</h2>
-        <p>경사·계단·턱, 장애인 화장실과 쉴 곳까지 먼저 살펴보고 알려드려요.</p>
+        <p>경사·턱·화장실을 미리 확인해 드려요.</p>
       </div>
       <ul className="choices">
         {TYPES.map(([label, icon, ut, text, desc, bg]) => (
@@ -166,7 +147,7 @@ function PanelHome() {
                 <span>{desc}</span>
               </div>
             </div>
-            <button type="button" className="btn btn-primary" onClick={() => go(text, ut)} aria-label={`${label} 갈 곳 찾기`}>
+            <button type="button" className="btn btn-primary" onClick={() => go(text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
               <span>찾기</span>
               <Icon name="arrow_forward" />
             </button>
@@ -192,21 +173,36 @@ function WeatherLine({ place, when }: { place: string; when: string }) {
   return <WeatherBox line={line} tips={wx.tips ?? []} />;
 }
 
+/** 코스 조사 자료가 있는 곳인지(관광공사 시설 자료는 경사·코스 길이가 없다) */
+const hasCourse = (p: { minutes?: number | null; course_m?: number | null }) => !!p.minutes && !!p.course_m;
+
+/** 관광공사 출입 경로 문장을 칸에 맞게 짧게 */
+const entryShort = (st: string) =>
+  /턱이 없|턱 없|단차 없/.test(st) ? "턱 없음" : /경사로/.test(st) ? "경사로 있음" : /계단|턱이 있|단차/.test(st) ? "턱·계단 있음" : "있어요";
+
+/** 자료가 있는 칸만 보여 준다('기록 없음', 'null분' 칸을 만들지 않는다) */
+function overviewTiles(top: PlaceResult): [string, string, string][] {
+  const t: [string, string, string][] = [];
+  if (top.slope_level && top.slope_level !== "기록 없음") {
+    t.push(["경사", top.slope_level, top.slope_level === "완만한 편" ? "yes" : ""]);
+  }
+  if (hasCourse(top)) t.push(["코스", `약 ${top.minutes}분 · ${fmt(top.course_m)}m`, ""]);
+  const entry = (top.checks ?? []).find((c) => c.item.includes("출입"));
+  if (!hasCourse(top) && entry) t.push(["출입구", entry.known ? entryShort(entry.status) : "확인 안 됨", entry.known ? "yes" : "no"]);
+  t.push(["장애인 화장실", top.accessible_toilet ? "있어요" : "확인 안 됨", top.accessible_toilet ? "yes" : "no"]);
+  t.push(["장애인 주차", top.accessible_parking === "yes" ? "있어요" : "확인 안 됨", top.accessible_parking === "yes" ? "yes" : "no"]);
+  return t;
+}
+
 function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail }) {
   const warn = [...(top.watch_out ?? [])];
   if (top.companion_advised) warn.unshift("동행인과 함께 가는 것을 권해요");
+  const tiles = overviewTiles(top);
   return (
     <>
       <PlaceHead name={top.place} where={top.where} />
       <Verdict color={top.verdict_color} label={top.verdict} reason={top.verdict_reason} />
-      <Tiles items={[
-        ["경사", top.slope_level, top.slope_level === "완만한 편" ? "yes" : ""],
-        top.minutes != null && top.course_m > 0
-          ? ["코스", `${top.minutes}분 · ${fmt(top.course_m)}m`, ""]
-          : ["자료", "입구 정보", ""],
-        ["장애인 화장실", top.accessible_toilet ? "있어요" : "확인 안 됨", top.accessible_toilet ? "yes" : "no"],
-        ["장애인 주차", top.accessible_parking === "yes" ? "있어요" : "확인 안 됨", top.accessible_parking === "yes" ? "yes" : "no"],
-      ]} />
+      <div className={`tiles-wrap n${tiles.length}`}><Tiles items={tiles} /></div>
       <Notes good={top.good_points ?? []} warn={warn} />
       <WeatherLine place={top.place} when={s.when} />
       <BusLine stops={det?.bus_stops} />
@@ -214,15 +210,16 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
         <LinkButton href={kakaoRouteLink(top.place, top.lat, top.lon)} icon="directions" kind="primary">
           길안내
         </LinkButton>
-        <button type="button" className="btn btn-secondary" onClick={() => setTab("코스")}>
-          <Icon name="route" /><span>코스 보기</span>
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={() => setTab("질문지")}>
-          <Icon name="call" /><span>질문지</span>
-        </button>
+        {hasCourse(top) && (
+          <button type="button" className="btn btn-secondary" onClick={() => setTab("코스")}>
+            <Icon name="route" /><span>코스 보기</span>
+          </button>
+        )}
+        {top.phone && <LinkButton href={`tel:${top.phone}`} icon="call">전화하기</LinkButton>}
       </div>
       <Src>
-        자료: 제주데이터허브 무장애여행 정보({det?.base_date ?? top.base_date} 기준){det?.bus_stops?.length ? "·버스 정류소 기본 정보(직선거리)" : ""}, 날씨 Open-Meteo 예보. 현장과 다를 수 있어요.
+        자료: {hasCourse(top) ? `제주데이터허브 무장애여행 정보(${det?.base_date ?? top.base_date} 기준)` : "한국관광공사 무장애 여행 정보(입구·편의시설 기준)"}
+        {det?.bus_stops?.length ? ", 버스 정류소 정보(직선거리)" : ""}, 날씨 예보(Open-Meteo). 현장과 다를 수 있어요.
       </Src>
     </>
   );
@@ -230,18 +227,45 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
 
 // ---------- 결과: 코스 ----------
 function Course({ top, det, failed }: { top: PlaceResult; det?: Detail; failed: boolean }) {
-  if (!det) return failed ? <Caption>코스 정보를 불러오지 못했어요.</Caption> : <Loading />;
+  if (!det) return failed ? <Caption>코스 정보를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</Caption> : <Loading />;
+  const bits = [
+    hasCourse(det) ? `약 ${det.minutes}분 · ${fmt(det.course_m)}m` : "",
+    det.slope_level && det.slope_level !== "기록 없음" ? `경사 ${det.slope_level}` : "",
+  ].filter(Boolean);
+  const toilets = det.toilets_near ?? [];
   return (
     <>
-      <PlaceHead name={top.place} where={det.minutes != null && det.course_m > 0
-        ? `약 ${det.minutes}분 · ${fmt(det.course_m)}m · 경사 ${det.slope_level}`
-        : "코스 조사 없이 시설 입구·편의시설 정보만 있어요"} />
-      <Sect>확인한 것</Sect>
-      <Checks rows={det.checks ?? top.checks} />
-      <Sect>코스 따라가기</Sect>
-      <Caption>지도의 빨간 ! 표시가 아래 빨간 점 지점이에요.</Caption>
-      {det.key_points.length ? <Timeline points={det.key_points} notCaution={NOT_CAUTION} />
-        : <Caption>특별히 확인할 지점 기록이 없어요.</Caption>}
+      <PlaceHead name={top.place} where={bits.join(" · ") || top.where} />
+      {hasCourse(det) ? (
+        <>
+          <Sect>코스 따라가기</Sect>
+          {det.key_points.length ? (
+            <>
+              <Caption>지도에 ⚠️로 표시한 곳은 천천히 지나가세요.</Caption>
+              <Timeline points={det.key_points} notCaution={NOT_CAUTION} />
+            </>
+          ) : <Caption>코스에 조심할 곳으로 기록된 지점은 없어요.</Caption>}
+        </>
+      ) : (
+        <Info>이곳은 코스 조사 자료가 없어요. 입구와 편의시설 정보는 한눈에 탭에서 볼 수 있어요.</Info>
+      )}
+      {toilets.length > 0 && (
+        <>
+          <Sect>가까운 장애인 화장실</Sect>
+          <ul className="cards">
+            {toilets.map((t, i) => (
+              <li key={`wc-${i}`} className="card">
+                <Shop name={t.name} meta={[t.km ? `${t.km}km` : "바로 옆", t.address ?? ""].join(" · ")} tags={[]} />
+                {t.phone && (
+                  <div className="row">
+                    <LinkButton href={`tel:${t.phone}`} icon="call">전화 {t.phone}</LinkButton>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
       <Src>{det.source}</Src>
     </>
   );
@@ -261,10 +285,10 @@ function FoodTab({ s, top }: { s: State; top: PlaceResult }) {
   return (
     <>
       <Sect>{top.place} 근처 {cond || "식당"}</Sect>
-      {f ? <FoodList f={f} /> : fetched.error ? <Caption>식당 정보를 불러오지 못했어요.</Caption> : <Loading />}
+      {f ? <FoodList f={f} focus={s.focus} /> : fetched.error ? <Caption>식당 정보를 불러오지 못했어요.</Caption> : <Loading />}
       {near.data && near.data.items.length > 0 && (
         <details className="expander">
-          <summary><Icon name="storefront" /><span>2021년 조사 때 있던 가게 (2025 영업 확인)</span><Icon name="expand_more" /></summary>
+          <summary><Icon name="storefront" /><span>이 장소 주변 가게 (2021 조사)</span><Icon name="expand_more" /></summary>
           <ul className="cards">
             {near.data.items.map((it, i) => {
               const tags: [string, string][] = [OPEN_STATUS[it.open_status] ?? [it.open_status, "gray"]];
@@ -283,12 +307,12 @@ function FoodTab({ s, top }: { s: State; top: PlaceResult }) {
   );
 }
 
-function HelpTab({ top }: { top: PlaceResult }) {
+function HelpTab({ s, top }: { s: State; top: PlaceResult }) {
   const h = useApi<Help>(urls.help(top.place));
   return (
     <>
       <Sect>{top.place}에서 가까운 곳</Sect>
-      {h.data ? <HelpList h={h.data} /> : h.error ? <Caption>병원·약국 정보를 불러오지 못했어요.</Caption> : <Loading />}
+      {h.data ? <HelpList h={h.data} focus={s.focus} /> : h.error ? <Caption>병원·약국 정보를 불러오지 못했어요.</Caption> : <Loading />}
     </>
   );
 }
@@ -315,16 +339,14 @@ function Tabs({ tab }: { tab: Tab }) {
   );
 }
 
-/** 패널 맨 위: 무엇을 보는지(꼬리표)와 지금 조건(이동 유형·날짜·동네) */
+/** 패널 맨 위: 지금 조건(이동 유형·날짜·동네)을 한 줄 글자로. tag는 화면 읽기 프로그램용 */
 function Head({ s, tag, userTypes }: { s: State; tag: string; userTypes?: Record<string, string> }) {
   const chips = conditionTexts(s, userTypes ?? USER_TYPES);
   return (
-    <div className="dash-head">
-      <b>{tag}</b>
-      <ul className="cond" aria-label="지금 조건">
-        {chips.map((t, i) => <li key={i} className={s.user_type !== "other" && i === 0 ? "gyul" : ""}>{t}</li>)}
-      </ul>
-    </div>
+    <p className="dash-head">
+      <span className="sr-only">{tag}: </span>
+      {chips.join(" · ")}
+    </p>
   );
 }
 
@@ -363,13 +385,7 @@ function PanelResult({ s, userTypes }: { s: State; userTypes?: Record<string, st
         {s.tab === "한눈에" && <Overview s={s} top={top} det={det} />}
         {s.tab === "코스" && <Course top={top} det={det} failed={failed} />}
         {s.tab === "식당" && <FoodTab s={s} top={top} />}
-        {s.tab === "병원·약국" && <HelpTab top={top} />}
-        {s.tab === "질문지" && (
-          <>
-            <Sect>전화로 물어볼 것</Sect>
-            <Questions s={s} dietNeeds={s.food?.diet_needs} prefix="qr" place={top.place} />
-          </>
-        )}
+        {s.tab === "병원·약국" && <HelpTab s={s} top={top} />}
       </div>
     </>
   );
@@ -383,11 +399,7 @@ function PanelFood({ s, f, userTypes }: { s: State; f: Food; userTypes?: Record<
       <Head s={s} tag={`식당 ${(f.items ?? []).length}곳`} userTypes={userTypes} />
       <BackButton s={s} />
       <Sect>{f.around} 근처 {cond || f.food_kind || "식당"}</Sect>
-      <FoodList f={f} />
-      <details className="expander" open={!!f.diet_needs?.length}>
-        <summary><Icon name="call" /><span>전화로 물어볼 것</span><Icon name="expand_more" /></summary>
-        <Questions s={s} dietNeeds={f.diet_needs} prefix="qf" place={f.around || ""} />
-      </details>
+      <FoodList f={f} focus={s.focus} />
     </>
   );
 }
@@ -403,7 +415,7 @@ function PanelAnswer({ s, userTypes }: { s: State; userTypes?: Record<string, st
         <>
           <Verdict color={d.verdict_color} label={d.verdict} reason={d.verdict_reason} />
           <PlaceHead name={d.place} where={d.where} />
-          <Sect>확인한 것</Sect>
+          <Sect>시설 정보</Sect>
           <Checks rows={d.checks} />
           {d.key_points.length > 0 && (
             <>
@@ -416,7 +428,7 @@ function PanelAnswer({ s, userTypes }: { s: State; userTypes?: Record<string, st
       {s.help_only && (
         <>
           <Sect>{s.help_only.place}에서 가까운 곳</Sect>
-          <HelpList h={s.help_only} />
+          <HelpList h={s.help_only} focus={s.focus} />
         </>
       )}
     </>

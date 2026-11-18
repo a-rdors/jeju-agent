@@ -37,6 +37,8 @@ interface MapState {
   psig: string;
   /** 휴대폰에서 멀리 볼 때 초록 점을 묶는 클러스터러(카카오 clusterer 라이브러리) */
   cluster?: any;
+  /** 식당·병원 표식 이름 → 그 표식 말풍선을 여는 함수(패널·대화에서 고르면 지도도 따라온다) */
+  openers?: Map<string, () => void>;
 }
 
 /** 현재 렌더 사이클의 최신 props (비동기 콜백용) */
@@ -197,6 +199,7 @@ function drawMarkers(
   chatOpen: boolean,
   onPickRef: React.RefObject<(name: string) => void>,
   onLookRef: React.RefObject<(name: string) => void>,
+  onFocusRef?: React.RefObject<(name: string) => void>,
 ): void {
   const k = window.kakao!.maps;
   const sig = JSON.stringify([data.marks, data.route]);
@@ -220,6 +223,7 @@ function drawMarkers(
 
   state.sig = sig;
   state.psig = psig;
+  state.openers = new Map();
   closeTip(state);
   state.layers.forEach((o) => o.setMap(null));
   state.layers = [];
@@ -282,6 +286,20 @@ function drawMarkers(
       (m.ring ? " ring" : "");
     el.style.background = m.color;
     el.textContent = m.text || "";
+    if (m.kind === "dot") {
+      // 확대하면 이름이 서서히 보인다(지도 단계는 아래 zoom_changed 에서 root 에 표시)
+      const lb = document.createElement("span");
+      lb.className = "km-lb";
+      lb.textContent = m.name;
+      lb.setAttribute("aria-hidden", "true");
+      el.appendChild(lb);
+    }
+    if (/\p{Extended_Pictographic}/u.test(m.text || "")) {
+      // 그림 표식: 흰 바탕에 종류 색 테두리(그림이 잘 보이게)
+      el.classList.add("emoji");
+      el.style.background = "#fff";
+      el.style.borderColor = m.color;
+    }
     el.tabIndex = 0;
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", `${m.name}, ${m.sub || ""}`);
@@ -361,14 +379,30 @@ function drawMarkers(
       }
     };
 
+    const linked = m.kind === "food" || m.kind === "help";
+    if (linked) {
+      // 패널 카드·대화 단추에서 이 가게를 고르면 이 말풍선을 연다(닫지 않고 열기만)
+      state.openers?.set(m.name, () => {
+        if (state.open === info) return;
+        closeTip(state);
+        info.setMap(state.map);
+        state.open = info;
+        state.map.panTo(pos);
+        reveal(state, tip);
+      });
+    }
+    const press = () => {
+      act2();
+      if (linked) onFocusRef?.current?.(m.name); // 아래 패널을 올려 그 가게 카드를 보여 준다
+    };
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      act2();
+      press();
     });
     el.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        act2();
+        press();
       }
     });
   });
@@ -402,6 +436,8 @@ export default function KakaoMap({
   chatOpen,
   onPick,
   onLook,
+  onFocus,
+  focus,
 }: {
   kakaoKey: string;
   data: MapData;
@@ -409,6 +445,8 @@ export default function KakaoMap({
   chatOpen: boolean;
   onPick: (name: string) => void;
   onLook: (name: string) => void;
+  onFocus?: (name: string) => void;
+  focus?: string | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<MapState | null>(null);
@@ -416,6 +454,7 @@ export default function KakaoMap({
   // 콜백을 ref 에 보관해 핸들러 identity 가 바뀌어도 맵을 다시 만들지 않는다
   const onPickRef = useRef(onPick);
   const onLookRef = useRef(onLook);
+  const onFocusRef = useRef(onFocus ?? (() => {}));
 
   // 비동기 SDK 콜백에서 항상 최신 props 를 읽기 위한 ref
   const latestRef = useRef<LatestProps>({ data, panelOpen, chatOpen });
@@ -425,6 +464,7 @@ export default function KakaoMap({
   useLayoutEffect(() => {
     onPickRef.current = onPick;
     onLookRef.current = onLook;
+    onFocusRef.current = onFocus ?? (() => {});
     latestRef.current = { data, panelOpen, chatOpen };
   });
 
@@ -490,12 +530,16 @@ export default function KakaoMap({
           };
           k.event.addListener(map, "dragend", clamp);
           k.event.addListener(map, "zoom_changed", clamp);
+          // 어느 정도 확대하면 나들이 장소 이름을 보여 준다
+          const labels = () => root.classList.toggle("km-names", map.getLevel() <= 8);
+          k.event.addListener(map, "zoom_changed", labels);
+          labels();
           k.event.addListener(map, "click", () => closeTip(state));
         }
 
         // 최신 props 로 초기 렌더
         const { data: d, panelOpen: po, chatOpen: co } = latestRef.current;
-        drawMarkers(root, stateRef.current!, d, po, co, onPickRef, onLookRef);
+        drawMarkers(root, stateRef.current!, d, po, co, onPickRef, onLookRef, onFocusRef);
       })
       .catch(() => {
         // SDK 로드 실패 → 에러 메시지 표시
@@ -520,8 +564,14 @@ export default function KakaoMap({
       chatOpen,
       onPickRef,
       onLookRef,
+      onFocusRef,
     );
   }, [data, panelOpen, chatOpen]);
+
+  // 패널·대화에서 가게·병원을 고르면 지도 표식 말풍선을 연다
+  useEffect(() => {
+    if (focus) stateRef.current?.openers?.get(focus)?.();
+  }, [focus, data]);
 
   // 확대·축소(넓은 화면). 카카오 기본 버튼은 축척과 겹쳐서 축척 위쪽에 따로 둔다.
   const zoom = (d: number) => {
