@@ -14,6 +14,7 @@ import {
   Caption, Checks, Info, LinkButton, Loading, Notes, PlaceHead, Sect, Shop, Src, Svg, Tiles, Timeline,
   Verdict, WeatherBox,
 } from "./bits";
+import { VerdictWithEvidence } from "./Evidence";
 import Icon from "./Icon";
 
 // (버튼 글자, 아이콘, 이동 유형, 보낼 문장, 설명, 아이콘 배경)
@@ -201,7 +202,8 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
   return (
     <>
       <PlaceHead name={top.place} where={top.where} />
-      <Verdict color={top.verdict_color} label={top.verdict} reason={top.verdict_reason} />
+      <VerdictWithEvidence key={top.place} color={top.verdict_color} label={top.verdict} reason={top.verdict_reason}
+        evidence={top.evidence ?? det?.evidence} />
       <div className={`tiles-wrap n${tiles.length}`}><Tiles items={tiles} /></div>
       <Notes good={top.good_points ?? []} warn={warn} />
       <WeatherLine place={top.place} when={s.when} />
@@ -413,7 +415,8 @@ function PanelAnswer({ s, userTypes }: { s: State; userTypes?: Record<string, st
       <BackButton s={s} />
       {d && (
         <>
-          <Verdict color={d.verdict_color} label={d.verdict} reason={d.verdict_reason} />
+          <VerdictWithEvidence key={d.place} color={d.verdict_color} label={d.verdict} reason={d.verdict_reason}
+            evidence={d.evidence} />
           <PlaceHead name={d.place} where={d.where} />
           <Sect>시설 정보</Sect>
           <Checks rows={d.checks} />
