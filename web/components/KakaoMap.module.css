@@ -144,6 +144,7 @@
 
 /* 마커 툴팁 */
 :global(.km-tip) {
+  position: relative;
   background: #fff;
   color: #16202A;
   border: 1px solid #D7D9D3;
@@ -273,4 +274,62 @@
     height: 19px;
     font-size: 10px;
   }
+}
+
+/* 1순위 표식: 크게 + 귤색 고리 + 위로 뾰족한 이름 말풍선 */
+:global(.km-mk.pinned) {
+  position: relative;
+}
+
+:global(.km-mk.emoji.big) {
+  width: 46px;
+  height: 46px;
+  font-size: 22px;
+  border-width: 3px;
+  box-shadow: 0 0 0 6px rgba(240, 137, 43, 0.35), 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+:global(.km-pinlabel) {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  color: #16202A;
+  border: 2px solid #F0892B;
+  border-radius: 12px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+
+:global(.km-pinlabel)::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #F0892B;
+}
+
+/* 말풍선이 열리면 '추천 1' 이름표는 숨긴다(겹치지 않게) */
+:global(.km-mk.tip-open .km-pinlabel) {
+  display: none;
+}
+
+/* 식당·병원 말풍선: 아래로 뾰족한 꼬리 */
+:global(.km-tip)::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: #fff;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.12));
 }

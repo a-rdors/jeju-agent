@@ -92,6 +92,7 @@ export function buildMapData(o: {
         photos: info.get(r.place)?.photos ?? [],
         color: VERDICT_HEX[r.verdict_color as string] ?? "#5F6B73",
         big: r.place === o.selected,
+        pin: r.place === o.selected ? r.place : undefined,
         fit: r.place === o.selected || !o.selected,
       });
     });
@@ -145,16 +146,18 @@ export function buildMapData(o: {
   // ── 식당 표식 ─────────────────────────────────────────────────────────────
   if (o.food) {
     const items: any[] = o.food.items ?? [];
-    items.forEach((it) => {
+    items.forEach((it, i) => {
       marks.push({
         kind: "food",
+        big: i === 0,
+        pin: i === 0 ? `추천 1 · ${it.name}` : undefined,
         lat: it.lat,
         lon: it.lon,
         text: "🍽️",
         name: it.name,
         sub:
           (it.food_type as string) +
-          (it.wheelchair_entry ? " · 휠체어 진입 확인" : ""),
+          (it.wheelchair_entry ? (o.wheel ? " · 휠체어 진입 확인" : " · 입구 턱 없음") : ""),
         color: FOOD_HEX,
         ring: it.wheelchair_entry as boolean,
       });

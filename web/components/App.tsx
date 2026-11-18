@@ -42,7 +42,7 @@ function useMapData(s: State) {
         help: s.tab === "병원·약국" && help.data && !isError(help.data) ? help.data : undefined,
       });
     }
-    if (s.screen === "food" && s.food) return buildMapData({ food: s.food });
+    if (s.screen === "food" && s.food) return buildMapData({ food: s.food, wheel: s.user_type.includes("wheelchair") });
     if (s.screen === "answer" && (s.detail_only || s.help_only)) {
       return buildMapData({ detail: s.detail_only ?? undefined, help: s.help_only ?? undefined, wheel: s.user_type.includes("wheelchair") });
     }

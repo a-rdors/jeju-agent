@@ -10,6 +10,8 @@ export interface MapMark {
   sub: string;
   color: string;
   big?: boolean;
+  /** 1순위 표식 위에 늘 떠 있는 뾰족한 이름 말풍선 */
+  pin?: string;
   fit?: boolean;
   ring?: boolean;
   /** 장소 카드(나들이 장소·추천 장소)에 보일 주소와 대표 사진 */

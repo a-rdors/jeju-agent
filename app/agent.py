@@ -353,7 +353,10 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
     tokens = [re.sub(r"(으로|에서|에는|에|로|이랑|랑|하고|까지|부터|근처|쪽|은|는|을|를|도)$", "", w)
               for w in re.findall(r"[가-힣A-Za-z0-9]+", last_q)]
     said_place = None
-    for tok in tokens:
+    lm = T.find_landmark(last_q)
+    if lm:
+        said_place = lm[2]  # '공항 근처' → 제주공항 기준(가게 이름 '…제주공항'으로 잘못 잡지 않게)
+    for tok in ([] if lm else tokens):
         if len(tok) < 3:
             continue
         a = T.match_place(tok) or (lambda r: r[2] if r and re.sub(r"\s", "", r[2]) == tok else None)(T.resolve_anchor(tok))

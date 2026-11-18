@@ -7,7 +7,7 @@ import { USER_TYPES, isError, kakaoRouteLink, urls } from "@/lib/api";
 import type { Detail, Evidence, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
-  TABS, conditionTexts, focusItem, go, pick, setLocation, setMapView, setSheet, setTab, toResult, togglePanel, topPlace,
+  TABS, backHome, conditionTexts, focusItem, go, pick, setLocation, setMapView, setSheet, setTab, toResult, togglePanel, topPlace,
   type State, type Tab,
 } from "@/lib/store";
 import {
@@ -66,8 +66,8 @@ function Acts({ name, lat, lon, phone, map = true }: { name: string; lat: number
   );
 }
 
-function ShopCard({ it, focus }: { it: Food["items"][number]; focus?: string | null }) {
-  const tags: [string, string][] = it.wheelchair_entry ? [["휠체어 진입 확인(2021)", "wc"]] : [];
+function ShopCard({ it, focus, ut = "other" }: { it: Food["items"][number]; focus?: string | null; ut?: string }) {
+  const tags: [string, string][] = it.wheelchair_entry ? [[isWheel(ut) ? "휠체어 진입 확인(2021)" : "입구 턱 없음(2021 조사)", "wc"]] : [];
   tags.push(...(it.why ?? []).map((w): [string, string] => [w.split(":")[0] + " (추정)", ""]));
   const meta = [it.food_type, it.km !== null && it.km !== undefined ? `${it.km}km` : "", it.phone ?? ""].filter(Boolean).join(" · ");
   return (
@@ -78,14 +78,14 @@ function ShopCard({ it, focus }: { it: Food["items"][number]; focus?: string | n
   );
 }
 
-function FoodList({ f, focus }: { f: Food; focus?: string | null }) {
+function FoodList({ f, focus, ut }: { f: Food; focus?: string | null; ut?: string }) {
   if (f.anchor_not_found) return <Info>{f.note}</Info>;
   return (
     <>
       {!f.items.length && <Info>조건에 맞는 식당을 찾지 못했어요. 조건을 줄이거나 동네를 바꿔 말해 보세요.</Info>}
       {f.items.length > 0 && (
         <ul className="cards">
-          {f.items.map((it, i) => <ShopCard key={`${it.name}-${i}`} it={it} focus={focus} />)}
+          {f.items.map((it, i) => <ShopCard key={`${it.name}-${i}`} it={it} focus={focus} ut={ut} />)}
         </ul>
       )}
       <Src>{f.note}</Src>
@@ -118,13 +118,27 @@ function HelpList({ h, focus }: { h: Help; focus?: string | null }) {
 
 function BackButton({ s }: { s: State }) {
   const top = topPlace(s);
-  if (!top) return null;
+  if (!top) {
+    return (
+      <button type="button" className="btn btn-tertiary back" onClick={backHome}>
+        <Icon name="arrow_back" />
+        <span>처음 화면으로</span>
+      </button>
+    );
+  }
   return (
     <button type="button" className="btn btn-tertiary back" onClick={toResult}>
       <Icon name="arrow_back" />
       <span>{s.selected ?? top.place} 결과로 돌아가기</span>
     </button>
   );
+}
+
+/** 식당 목록 제목: '제주공항 근처 흑돼지·고기', 기준이 없으면 '제주 전체에서 찾은 흑돼지·고기' */
+function foodTitle(around: string | null | undefined, what: string) {
+  if (!around || around === "제주 전체") return `제주 전체에서 찾은 ${what}`;
+  if (around === "현재 위치") return `내 근처 ${what}`;
+  return `${around} 근처 ${what}`;
 }
 
 // ---------- 시작 ----------
@@ -411,8 +425,8 @@ function FoodTab({ s, top }: { s: State; top: PlaceResult }) {
   const cond = (f?.diet_labels ?? []).join(" · ");
   return (
     <>
-      <Sect>{top.place} 근처 {cond || "식당"}</Sect>
-      {f ? <FoodList f={f} focus={s.focus} /> : fetched.error ? <Caption>식당 정보를 불러오지 못했어요.</Caption> : <Loading />}
+      <Sect>{foodTitle(top.place, cond || "식당")}</Sect>
+      {f ? <FoodList f={f} focus={s.focus} ut={s.user_type} /> : fetched.error ? <Caption>식당 정보를 불러오지 못했어요.</Caption> : <Loading />}
       {near.data && near.data.items.length > 0 && (
         <details className="expander">
           <summary><Icon name="storefront" /><span>이 장소 주변 가게 (2021 조사)</span><Icon name="expand_more" /></summary>
@@ -525,8 +539,8 @@ function PanelFood({ s, f, userTypes }: { s: State; f: Food; userTypes?: Record<
     <>
       <Head s={s} tag={`식당 ${(f.items ?? []).length}곳`} userTypes={userTypes} />
       <BackButton s={s} />
-      <Sect>{f.around} 근처 {cond || f.food_kind || "식당"}</Sect>
-      <FoodList f={f} focus={s.focus} />
+      <Sect>{foodTitle(f.around, cond || f.food_kind || "식당")}</Sect>
+      <FoodList f={f} focus={s.focus} ut={s.user_type} />
     </>
   );
 }

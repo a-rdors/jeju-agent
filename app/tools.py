@@ -172,6 +172,10 @@ def neutral_words(text, user_type=None):
     for a, b in (("장애인 화장실", "넓은 화장실"), ("장애인용 화장실", "넓은 화장실"), ("장애인 칸", "넓은 칸"),
                  ("장애인 주차구역", "주차장"), ("장애인 주차", "주차장")):
         text = text.replace(a, b)
+    # '휠체어로 들어가기 편한' → '들어가기 편한', '휠체어 진입 확인' → '입구 턱 없음 확인'(공식 장소 이름 속 '휠체어'는 그대로)
+    text = re.sub(r"휠체어\s*진입", "입구 턱 없음", text)
+    text = re.sub(r"휠체어로\s*", "", text)
+    text = re.sub(r"휠체어\s*(이동|접근)", r"", text)
     return text
 
 
@@ -476,10 +480,33 @@ def match_place(text):
     return sorted(hits, key=len)[0] if hits else None
 
 
+# 사람들이 '근처'의 기준으로 자주 말하는 곳(가게·나들이 장소 목록에는 없는 큰 기준점)
+LANDMARKS = [
+    ("제주공항", r"공항", (33.5066, 126.4929)),
+    ("제주항 여객터미널", r"제주\s*항|여객\s*터미널|제주\s*항구", (33.5193, 126.5442)),
+    ("서귀포항", r"서귀포\s*항", (33.2397, 126.5656)),
+    ("성산항", r"성산\s*항", (33.4747, 126.9306)),
+    ("중문관광단지", r"중문\s*관광\s*단지|중문\s*단지", (33.2500, 126.4120)),
+    ("제주시청", r"제주\s*시청", (33.4996, 126.5312)),
+    ("서귀포시청", r"서귀포\s*시청", (33.2541, 126.5601)),
+]
+
+
+def find_landmark(text):
+    """질문 속 '공항 근처' 같은 큰 기준점 → (위도, 경도, 이름)"""
+    for name, pat, (lat, lon) in LANDMARKS:
+        if re.search(pat, str(text or "")):
+            return (lat, lon, name)
+    return None
+
+
 def resolve_anchor(name):
-    """'근처'의 기준이 되는 이름을 좌표로 바꾼다. 나들이 장소, 그다음 식당·카페 이름."""
+    """'근처'의 기준이 되는 이름을 좌표로 바꾼다. 공항·항구 같은 기준점, 나들이 장소, 그다음 식당·카페 이름."""
     if not name:
         return None
+    lm = find_landmark(name)
+    if lm:
+        return lm
     d = load()
     pl = match_place(name)
     if pl:

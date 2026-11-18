@@ -140,9 +140,9 @@ function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
         </div>
         {(m.items ?? []).length > 0 && (
           <ul className="mitems">
-            {(m.items ?? []).map((it) => (
-              <li key={it.name}>
-                <div className="mi-name"><b>{it.name}</b><small>{[it.kind, it.phone].filter(Boolean).join(" · ")}</small></div>
+            {(m.items ?? []).map((it, i) => (
+              <li key={it.name} className={i === 0 ? "first" : ""}>
+                <div className="mi-name">{i === 0 && <span className="mi-top">추천 1</span>}<b>{it.name}</b><small>{[it.kind, it.phone].filter(Boolean).join(" · ")}</small></div>
                 <div className="acts">
                   <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
                   {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화</LinkButton>}

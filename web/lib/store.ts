@@ -246,6 +246,16 @@ function send(s0: State, p: Pending, out: ChatOut): State {
       }))).slice(0, 3);
     }
   }
+  if (s.food && names.includes("search_food")) {
+    // 하르방이 말로 먼저 꺼낸 가게를 목록·지도의 1순위로(말과 화면이 어긋나지 않게)
+    const its = s.food.items ?? [];
+    const hit = firstMentioned(out.text, its.map((it) => it.name));
+    if (hit) {
+      s.food = { ...s.food, items: [...its.filter((it) => it.name === hit), ...its.filter((it) => it.name !== hit)] };
+      s.focus = hit;
+    }
+    items = (s.food.items ?? []).slice(0, 3).map((it) => ({ name: it.name, kind: it.food_type, lat: it.lat, lon: it.lon, phone: it.phone }));
+  }
   s.ask = out.ask;
   const said = names.includes("recommend_places") ? firstMentioned(out.text, resultNames(s)) : null;
   if (said) {
@@ -367,13 +377,20 @@ export function setChecked(key: string, on: boolean) {
 
 /** 지도 표식·대화 단추·패널 카드에서 가게·병원을 고르면 셋이 같은 곳을 가리킨다 */
 export function focusItem(name: string, fromChat = false) {
+  // 휴대폰은 대화창이 화면 전체라 닫아야 지도가 보인다. PC는 대화창 옆에 지도가 보이므로 대화를 그대로 둔다.
+  const phone = typeof window !== "undefined" && window.matchMedia("(max-width: 639.98px)").matches;
   set((s) => ({
     ...s,
     focus: name,
     panel_open: true,
     sheet: "half",
-    ...(fromChat ? { chat_open: false } : {}),
+    ...(fromChat && phone ? { chat_open: false } : {}),
   }));
+}
+
+/** 결과 화면에서 처음 화면으로(대화 기록은 그대로) */
+export function backHome() {
+  set({ screen: "home", focus: null });
 }
 
 /** '내 위치로 찾기': 브라우저 위치를 받아 방금 질문을 다시 보낸다 */

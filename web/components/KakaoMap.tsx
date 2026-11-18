@@ -43,6 +43,8 @@ interface MapState {
   /** 코드가 지도를 옮기는 중에는 제주 밖 클램프를 잠시 끈다(옮긴 뒤 다시 끌려가지 않게) */
   noClamp?: boolean;
   flyTimer?: ReturnType<typeof setTimeout>;
+  /** 말풍선이 열린 표식(열리면 위에 떠 있는 '추천 1' 이름표를 잠시 숨긴다) */
+  openEl?: HTMLElement | null;
 }
 
 /** 현재 렌더 사이클의 최신 props (비동기 콜백용) */
@@ -163,6 +165,8 @@ function closeTip(state: MapState): void {
     state.open.setMap(null);
     state.open = null;
   }
+  state.openEl?.classList.remove("tip-open");
+  state.openEl = null;
 }
 
 /** 열린 말풍선이 상단 상자·패널·화면 끝에 가리면 그만큼 지도를 민다 */
@@ -315,6 +319,15 @@ function drawMarkers(
       (m.ring ? " ring" : "");
     el.style.background = m.color;
     el.textContent = m.text || "";
+    if (m.pin) {
+      // 1순위: 위로 뾰족하게 튀어나온 이름 말풍선(누르지 않아도 어디인지 바로 보이게)
+      el.classList.add("pinned");
+      const pl = document.createElement("span");
+      pl.className = "km-pinlabel";
+      pl.textContent = m.pin;
+      pl.setAttribute("aria-hidden", "true");
+      el.appendChild(pl);
+    }
     if (m.kind === "dot") {
       // 확대하면 이름이 서서히 보인다(지도 단계는 아래 zoom_changed 에서 root 에 표시)
       const lb = document.createElement("span");
@@ -404,6 +417,8 @@ function drawMarkers(
       if (!same) {
         info.setMap(state.map);
         state.open = info;
+        state.openEl = el;
+        el.classList.add("tip-open");
         reveal(state, tip);
       }
     };
@@ -416,6 +431,8 @@ function drawMarkers(
         closeTip(state);
         info.setMap(state.map);
         state.open = info;
+        state.openEl = el;
+        el.classList.add("tip-open");
         state.map.panTo(pos);
         reveal(state, tip);
       });
