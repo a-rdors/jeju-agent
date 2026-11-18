@@ -228,7 +228,7 @@ def normalize_answer(text, tool_results, last_q=""):
         miss = [c["item"] for c in top.get("checks", []) if isinstance(c, dict) and not c.get("known")]
         watch = top.get("watch_out") or top.get("tips") or [None]
         note = (watch[0] if isinstance(watch, list) else watch) or (
-            f"{', '.join(miss[:2])}은(는) 확인이 안 돼요. 가기 전에 전화해 보세요." if miss else "현장 상황은 가기 전에 한 번 확인해 보세요.")
+            f"{T.josa(T.join_and(miss[:2]), '은는')} 확인이 안 돼요. 가기 전에 전화해 보세요." if miss else "현장 상황은 가기 전에 한 번 확인해 보세요.")
         body = text.rstrip().splitlines()
         insert_at = next((i for i, l in enumerate(body) if l.startswith("비 오면")), len(body))
         body.insert(insert_at, "조심할 점: " + note)
@@ -393,5 +393,5 @@ def rule_mode(text, user_type=None):
         return {"text": "조건에 맞는 곳을 찾지 못했어요. 동네나 분위기를 바꿔서 말해 보세요.", "ask": None,
                 "tool_results": [("recommend_places", args, res)], "trace": [{"tool": "recommend_places", "args": args}]}
     top = res["results"][0]
-    return {"text": f"**{top['place']}**을(를) 추천해요. {top['slope_say']}", "ask": None,
+    return {"text": f"**{top['place']}** 추천해요. {top['slope_say']}", "ask": None,
             "tool_results": [("recommend_places", args, res)], "trace": [{"tool": "recommend_places", "args": args}]}

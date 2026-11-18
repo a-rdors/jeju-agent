@@ -6,7 +6,7 @@ import { api, isError } from "./api";
 import type { Ask, ChatOut, Detail, Food, Help, PlaceResult, Recommend } from "./api";
 
 export type Screen = "home" | "result" | "food" | "answer";
-export const TABS = ["한눈에", "코스", "식당", "병원·약국", "질문지"] as const;
+export const TABS = ["한눈에", "코스", "식당", "병원·약국"] as const;
 export type Tab = (typeof TABS)[number];
 
 export interface Msg {
@@ -56,11 +56,12 @@ function defaults(): Omit<State, "checked" | "sheet"> {
   };
 }
 
+// 대화 답 아래 '찾아본 정보' 한 줄에 쓰는 이름(되묻기는 보여 주지 않는다)
 export const STEP_NAMES: Record<string, string> = {
-  recommend_places: "조건에 맞는 장소 찾기", get_weather: "날씨 확인",
-  search_food: "식당 찾기", get_place_detail: "코스 살펴보기",
-  find_nearby_help: "가까운 병원·약국 찾기", check_nearby_places: "주변 가게 확인",
-  ask_user: "필요한 것 여쭤보기",
+  recommend_places: "갈 만한 곳", get_weather: "날씨",
+  search_food: "식당", get_place_detail: "코스·시설",
+  find_nearby_help: "병원·약국", check_nearby_places: "주변 가게",
+  plan_outing: "나들이 일정", ask_user: "",
 };
 
 const INITIAL: State = { ...defaults(), checked: {}, sheet: "half" };

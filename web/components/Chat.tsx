@@ -98,10 +98,8 @@ function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
         <div className="md">
           {animate ? <Typewriter text={m.text} onDone={typingDone} /> : <Markdown text={m.text} />}
         </div>
-        {m.trace && m.trace.length > 0 && (
-          <ul className="trace" aria-label="확인한 단계">
-            {m.trace.map((t, i) => <li key={i}>✓ {t}</li>)}
-          </ul>
+        {m.trace && m.trace.filter(Boolean).length > 0 && (
+          <p className="trace">찾아본 정보: {[...new Set(m.trace.filter(Boolean))].join(" · ")}</p>
         )}
         {places.length > 0 && (
           <div className="mplaces">

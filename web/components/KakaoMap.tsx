@@ -237,6 +237,12 @@ function drawMarkers(
       (m.ring ? " ring" : "");
     el.style.background = m.color;
     el.textContent = m.text || "";
+    if (/\p{Extended_Pictographic}/u.test(m.text || "")) {
+      // 그림 표식: 흰 바탕에 종류 색 테두리(그림이 잘 보이게)
+      el.classList.add("emoji");
+      el.style.background = "#fff";
+      el.style.borderColor = m.color;
+    }
     el.tabIndex = 0;
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", `${m.name}, ${m.sub || ""}`);

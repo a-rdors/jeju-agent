@@ -67,6 +67,22 @@
   border-radius: 6px;
 }
 
+:global(.km-mk.emoji) {
+  width: 32px;
+  height: 32px;
+  font-size: 17px;
+  line-height: 1;
+  border-width: 2.5px;
+  border-style: solid;
+}
+
+:global(.km-mk.emoji.caution),
+:global(.km-mk.emoji.toilet) {
+  width: 28px;
+  height: 28px;
+  font-size: 15px;
+}
+
 :global(.km-mk.ring) {
   box-shadow: 0 0 0 3px #2F7A4D, 0 1px 4px rgba(0, 0, 0, 0.35);
 }
