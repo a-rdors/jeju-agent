@@ -42,6 +42,7 @@ interface MapState {
   openers?: Map<string, () => void>;
   /** 코드가 지도를 옮기는 중에는 제주 밖 클램프를 잠시 끈다(옮긴 뒤 다시 끌려가지 않게) */
   noClamp?: boolean;
+  flyTimer?: ReturnType<typeof setTimeout>;
 }
 
 /** 현재 렌더 사이클의 최신 props (비동기 콜백용) */
@@ -133,6 +134,30 @@ function loadSdk(key: string): Promise<void> {
 }
 
 /** 열려 있는 툴팁을 닫는다 */
+/**
+ * 부드럽게 다가가기: 그 지점을 향해 확대·축소한 뒤(지점이 화면에서 제자리) 보이는 영역 가운데로 미끄러지듯 옮긴다.
+ * 동네 고르기와 숫자 묶음 누르기가 같은 움직임을 쓴다. 옮기는 동안은 제주 밖 클램프를 끈다.
+ */
+function flyTo(state: MapState, target: any, level: number, p: number[]): void {
+  const k = window.kakao!.maps;
+  const map = state.map;
+  state.noClamp = true;
+  clearTimeout(state.flyTimer);
+  const glide = () => {
+    const [t, r, b, l] = p;
+    const proj = map.getProjection();
+    const pt = proj.containerPointFromCoords(target);
+    map.panTo(proj.coordsFromContainerPoint(new k.Point(pt.x + (r - l) / 2, pt.y + (b - t) / 2)));
+    state.flyTimer = setTimeout(() => { state.noClamp = false; }, 700);
+  };
+  if (map.getLevel() !== level) {
+    map.setLevel(level, { anchor: target, animate: { duration: 400 } });
+    state.flyTimer = setTimeout(glide, 430);
+  } else {
+    glide();
+  }
+}
+
 function closeTip(state: MapState): void {
   if (state.open) {
     state.open.setMap(null);
@@ -246,8 +271,9 @@ function drawMarkers(
     });
     // 기본 확대는 아래 시트를 모르고 가운데에 맞춰 묶음이 시트 뒤로 숨는다. 지금 여백으로 직접 맞춘다.
     k.event.addListener(state.cluster, "clusterclick", (c: any) => {
-      const [t, r, bt, l] = JSON.parse(state.psig || "[116,28,40,28]") as number[];
-      state.map.setBounds(c.getBounds(), t, r, bt, l);
+      // 숫자 묶음을 누르면 그쪽으로 부드럽게 다가가 점이 풀리는 단계까지 확대
+      const p = JSON.parse(state.psig || "[116,28,40,28]") as number[];
+      flyTo(state, c.getCenter(), Math.min(state.map.getLevel() - 2, 8), p);
     });
   }
   const dotOverlays: any[] = [];
@@ -574,24 +600,15 @@ export default function KakaoMap({
     );
   }, [data, panelOpen, chatOpen]);
 
-  // 시작 화면에서 동네를 고르면 지도를 그쪽으로 바로 옮긴다(어느 동네든 같은 방식).
+  // 시작 화면에서 동네를 고르면 그쪽으로 부드럽게 다가간다(숫자 묶음 누르기와 같은 움직임).
   // 패널·아래 시트에 가리지 않게 보이는 영역의 가운데로 맞춘다.
   useEffect(() => {
     const st = stateRef.current;
     if (!view || !st || !window.kakao) return;
     const k = window.kakao.maps;
-    const map = st.map;
     const level = view.all ? (small() ? 11 : 10) : (view.level ?? 8) + (small() ? 1 : 0);
     const target = view.all ? new k.LatLng(33.38, 126.55) : new k.LatLng(view.lat!, view.lon!);
-    st.noClamp = true;
-    map.setLevel(level);
-    map.setCenter(target);
-    const [t, r, b, l] = pads(latestRef.current.panelOpen, latestRef.current.chatOpen);
-    const proj = map.getProjection();
-    const p = proj.containerPointFromCoords(target);
-    map.setCenter(proj.coordsFromContainerPoint(new k.Point(p.x + (r - l) / 2, p.y + (b - t) / 2)));
-    const timer = setTimeout(() => { st.noClamp = false; }, 300);
-    return () => clearTimeout(timer);
+    flyTo(st, target, level, pads(latestRef.current.panelOpen, latestRef.current.chatOpen));
   }, [view]);
 
   // 패널·대화에서 가게·병원을 고르면 지도 표식 말풍선을 연다

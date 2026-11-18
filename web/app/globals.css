@@ -619,7 +619,12 @@ html.big .tab { min-width: 0; padding: 0 6px; }
 /* ---------- 시작 화면 동네 칩: 3칸 + 2칸 가지런히 ---------- */
 .where-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .where-chips .wchip { padding: 6px 4px; text-align: center; white-space: nowrap; }
-.where-note { color: var(--muted); font-size: .84rem; }
+.where-note {
+  display: flex; gap: 8px; align-items: flex-start; margin: 2px 0 0; padding: 9px 11px; border-radius: 12px;
+  background: #E6F0FA; color: #1F4E7A; font-size: .88rem; font-weight: 600; line-height: 1.45;
+  border: 1px solid #C9DDF2; animation: appear .25s ease-out;
+}
+.where-note .ic { flex: 0 0 auto; }
 
 /* 새 답: 상자째 부드럽게 나타나기 */
 .bot.appear { animation: appear .3s ease-out; }

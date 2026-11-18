@@ -27,11 +27,11 @@ const TYPES: [string, string, string, string, string, string][] = [
 // 시작 화면 '어디쯤 가세요?' (보이는 글자, 질문에 붙일 동네 말, 지도 가운데). 고르지 않으면 제주 전체
 const AREAS: [string, string, [number, number] | null][] = [
   ["상관없어요", "", null],
-  ["📍 내 위치", "@me", null],
   ["제주시", "제주시", [33.49, 126.53]],
   ["애월·한림", "애월", [33.42, 126.31]],
   ["중문·서귀포", "서귀포", [33.255, 126.49]],
   ["성산·구좌", "성산", [33.47, 126.85]],
+  ["📍 내 위치", "@me", null],
 ];
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
@@ -137,7 +137,7 @@ function PanelHome() {
     setNote("");
     if (word === "@me") {
       if (typeof navigator === "undefined" || !navigator.geolocation) {
-        setNote("이 기기에서는 위치를 쓸 수 없어요. 동네를 골라 주세요.");
+        setNote("이 기기에서는 현재 위치를 확인할 수 없어요. 가실 동네를 골라 주세요.");
         return;
       }
       navigator.geolocation.getCurrentPosition(
@@ -147,14 +147,15 @@ function PanelHome() {
             setLocation([lat, lon]);
             setArea("@me");
             setMapView({ lat, lon, level: 6 });
+            setNote("현재 위치를 기준으로 가까운 곳부터 찾아 드릴게요.");
           } else {
             setLocation(null);
             setArea("");
             setMapView({ all: true });
-            setNote("지금 계신 곳이 제주가 아니라서 제주 전체에서 찾아요.");
+            setNote("현재 위치가 제주 밖이에요. 제주 전체에서 찾아 드릴게요. 가실 동네를 고르면 그 근처로 찾을 수 있어요.");
           }
         },
-        () => setNote("위치를 가져오지 못했어요. 위치 권한을 허용하거나 동네를 골라 주세요."),
+        () => setNote("현재 위치를 확인하지 못했어요. 브라우저에서 위치 권한을 허용하거나 가실 동네를 골라 주세요."),
         { timeout: 10000, maximumAge: 300000 },
       );
       return;
@@ -180,7 +181,12 @@ function PanelHome() {
               onClick={() => pickArea(word, at)}>{label}</button>
           ))}
         </div>
-        {note && <p className="where-note" role="status">{note}</p>}
+        {note && (
+          <p className="where-note" role="status">
+            <span className="ic" aria-hidden="true">📍</span>
+            <span>{note}</span>
+          </p>
+        )}
       </div>
       <ul className="choices">
         {TYPES.map(([label, icon, ut, text, desc, bg]) => (
