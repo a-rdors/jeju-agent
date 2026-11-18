@@ -62,9 +62,67 @@ def load():
         "areas": rd("areas.csv"),
         "medical": rd("medical.csv"),
         "food": rd("food.csv"),
+        # 제주데이터허브 OpenAPI로 받은 자료(scripts/07_hub_api.py). 없으면 빈 표로 두고 기능만 빠진다.
+        "bus": rd("bus_stops.csv") if (PROC / "bus_stops.csv").exists() else pd.DataFrame(),
+        "pharmacy": rd("pharmacy_status.csv") if (PROC / "pharmacy_status.csv").exists() else pd.DataFrame(),
         "toilets": rd("toilets.csv") if (PROC / "toilets.csv").exists() else pd.DataFrame(),
         "tour": rd("tour_places.csv") if (PROC / "tour_places.csv").exists() else pd.DataFrame(),
     }
+
+
+BUS_SOURCE = "제주데이터허브 버스 정류소 기본 정보"
+PHARMACY_SOURCE = "제주데이터허브 약국 정보(2025-08)"
+
+
+def _road(address):
+    """'제주특별자치도 제주시 애월읍 애월로 12' -> '애월로'. 도로명이 없으면 ''."""
+    m = re.search(r"(?:시|군)\s+(?:\S+[읍면]\s+)?(\S+?(?:로|길))(?:\s|\d|,|$)", str(address))
+    return m.group(1) if m else ""
+
+
+@lru_cache(maxsize=1)
+def _pharmacy_index():
+    """약국 이름(공백 제거) -> [(도로명, 영업상태)]. 상가 정보에는 영업 상태가 없어서 약국 정보 API로 보탠다."""
+    ph = load()["pharmacy"]
+    idx = {}
+    if ph.empty:
+        return idx
+    for name, status, addr in zip(ph["name"], ph["open_status"].fillna(""), ph["address_doro"].fillna("")):
+        idx.setdefault(re.sub(r"\s", "", str(name)), []).append((_road(addr), status))
+    return idx
+
+
+def pharmacy_status(name, address):
+    """'영업' / '폐업' / ''(확인 안 됨). 이름이 같고 도로명이 같은(또는 그 이름이 하나뿐인) 기록으로 판단한다."""
+    recs = _pharmacy_index().get(re.sub(r"\s", "", str(name)))
+    if not recs:
+        return ""
+    road = _road(address)
+    same = [s for r, s in recs if road and r == road] or ([s for _, s in recs] if len(recs) == 1 else [])
+    if not same:
+        return ""
+    return "영업" if any(s.startswith("영업") for s in same) else "폐업"
+
+
+def nearest_bus_stops(lat, lon, limit=2, max_km=1.0):
+    """좌표에서 가까운 버스 정류소. 같은 이름의 양방향 정류소는 더 가까운 하나만 남긴다."""
+    bus = load()["bus"]
+    if bus.empty or lat is None or lon is None:
+        return []
+    # 대략 1.5km 상자 안에서만 거리를 잰다(4천여 곳 전부를 재지 않게)
+    near = bus[(bus["lat"] - lat).abs().lt(0.014) & (bus["lon"] - lon).abs().lt(0.017)].copy()
+    if near.empty:
+        return []
+    near["km"] = [km(lat, lon, a, b) for a, b in zip(near["lat"], near["lon"])]
+    near = near[near["km"] <= max_km].sort_values("km").drop_duplicates("name")
+    out = []
+    for _, s in near.head(int(limit)).iterrows():
+        m = int(round(s["km"] * 1000, -1))
+        out.append({"name": s["name"], "local_info": "" if pd.isna(s["local_info"]) else str(s["local_info"]),
+                    "direction": "" if pd.isna(s["direction"]) else str(s["direction"]),
+                    "m": m, "walk_min": max(1, round(m / WALK_M_PER_MIN)),
+                    "lat": float(s["lat"]), "lon": float(s["lon"])})
+    return out
 
 
 TOUR_SURVEY = "관광공사 무장애 여행 정보"
@@ -295,12 +353,15 @@ def match_place(text):
     if not text:
         return None
     names = load()["places"]["place"].tolist()
+    if str(text) in names:
+        return str(text)
+    bare = {re.sub(r"\s", "", n): n for n in names}  # 관광공사 장소처럼 이름에 띄어쓰기가 있어도 찾는다
     t = re.sub(r"\s", "", str(text))
-    if t in names:
-        return t
+    if t in bare:
+        return bare[t]
     if find_area(t) or len(t) < 3:  # '서귀포', '애월' 같은 동네 이름은 장소 이름으로 보지 않는다
         return None
-    hits = [n for n in names if t in n or (len(t) >= 3 and n.replace("제주", "") in t)]
+    hits = [n for b, n in bare.items() if t in b or (len(t) >= 3 and b.replace("제주", "") in t)]
     return sorted(hits, key=len)[0] if hits else None
 
 
@@ -354,6 +415,7 @@ def get_place_detail(place, user_type="other"):
                             "lat": float(r["start_lat"]), "lon": float(r["start_lon"])}],
             "toilets_near": toilets, "tel": _txt(r.get("tel")), "base_date": r["base_date"],
             "rain_alt": rain_alternative(place, user_type),
+            "bus_stops": nearest_bus_stops(float(r["start_lat"]), float(r["start_lon"])), "bus_source": BUS_SOURCE,
             "data_kind": "시설(관광공사)",
         }
     pts = d["points"][(d["points"]["place"] == place)].copy()
@@ -396,6 +458,8 @@ def get_place_detail(place, user_type="other"):
         "all_points": steps,
         "toilets_near": toilets,
         "rain_alt": rain_alternative(place, user_type),
+        "bus_stops": nearest_bus_stops(float(r["start_lat"]), float(r["start_lon"])),
+        "bus_source": BUS_SOURCE,
         "base_date": r["base_date"],
         "data_kind": "코스(제주도 조사)",
     }
@@ -430,12 +494,17 @@ def find_nearby_help(place, kinds=("약국", "병·의원", "응급실"), user_t
     # 나들이 중 급할 때 갈 곳만 남긴다(치과·성형·피부과·검사 의원 제외)
     med = med[~med["detail"].fillna("").str.contains("치과|성형|피부|방사선|한의원|한방|요양")]
     med["km"] = [km(lat, lon, a, b) for a, b in zip(med["lat"], med["lon"])]
+    # 약국은 약국 정보 API의 영업 상태를 붙이고, 폐업 기록이 있는 곳은 뺀다
+    med["status"] = [pharmacy_status(n, a) if k == "약국" else "" for k, n, a in zip(med["kind"], med["name"], med["address"])]
+    med = med[med["status"] != "폐업"]
     out = {}
     for k in kinds:
         top = med[med["kind"] == k].nsmallest(2 if k != "응급실" else 1, "km")
         out[k] = [{"name": t["name"], "km": round(t["km"], 1), "address": t["address"],
                    "phone": "" if pd.isna(t["phone"]) else str(t["phone"]), "detail": "" if pd.isna(t["detail"]) else t["detail"],
-                   "source": t["source"], "lat": float(t["lat"]), "lon": float(t["lon"])} for _, t in top.iterrows()]
+                   "status": {"영업": "영업 중 확인"}.get(t["status"], ""),
+                   "source": t["source"] + (f" · {PHARMACY_SOURCE}" if t["status"] else ""),
+                   "lat": float(t["lat"]), "lon": float(t["lon"])} for _, t in top.iterrows()]
     if user_type == "pregnant":  # 임산부: 가까운 산부인과
         ob = d["medical"][d["medical"]["detail"].fillna("").str.contains("산부인과")].copy()
         ob["km"] = [km(lat, lon, a, b) for a, b in zip(ob["lat"], ob["lon"])]
@@ -444,8 +513,10 @@ def find_nearby_help(place, kinds=("약국", "병·의원", "응급실"), user_t
                          for _, t in ob.nsmallest(1, "km").iterrows()]
     out["장애인 화장실"] = nearby_toilets(lat, lon, "accessible")
     out["기저귀 교환대"] = nearby_toilets(lat, lon, "diaper", limit=1)
-    return {"place": place, "help": out, "note": "직선거리 기준이에요. 응급 시에는 119에 먼저 연락하세요."
-                                                 " 화장실은 공중화장실 정보(제주특별자치도)예요."}
+    note = "직선거리 기준이에요. 응급 시에는 119에 먼저 연락하세요. 화장실은 공중화장실 정보(제주특별자치도)예요."
+    if not load()["pharmacy"].empty:
+        note += " 약국은 약국 정보(영업 상태)로 폐업한 곳을 뺐어요."
+    return {"place": place, "help": out, "bus": nearest_bus_stops(lat, lon), "bus_source": BUS_SOURCE, "note": note}
 
 
 def check_nearby_places(place, category=None, wheelchair_only=False, limit=6):
@@ -711,6 +782,7 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
         "food_kind": food_kind, "diet_needs": diet_needs or [],
         "diet_labels": [DIET_NEEDS[k]["label"] for k in (diet_needs or []) if k in DIET_NEEDS],
         "around": center[2] if center else (city or "제주 전체"),
+        "center": [center[0], center[1]] if center else None,
         "items": out, "unverified": [],
         "with_wheelchair_badge": sum(1 for i in out if i["wheelchair_entry"]),
         "call_questions": asks,
@@ -825,7 +897,8 @@ def get_weather(place=None, area=None, when="오늘"):
 
 
 def kakao_route_link(name, lat, lon):
-    return f"https://map.kakao.com/link/to/{name},{lat},{lon}"
+    from urllib.parse import quote
+    return f"https://map.kakao.com/link/to/{quote(str(name), safe='')},{lat},{lon}"
 
 
 # ---------- 하루 나들이 일정 ----------

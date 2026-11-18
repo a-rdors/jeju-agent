@@ -16,6 +16,7 @@ python -m venv .venv
 
 # 2) 키 파일: 프로젝트 폴더에 .env 파일을 만들고 아래를 넣는다(값은 각자 발급)
 #    OPENAI_API_KEY=sk-...     Agent 대화(없으면 버튼 기반 기본 모드로 동작)
+#    KAKAO_JS_KEY=...          카카오맵(없으면 기본 지도. 카카오 개발자 앱 > 플랫폼 Web에 http://localhost:8501 등록, 카카오맵 사용 설정 ON)
 #    KAKAO_REST_KEY=...        카카오 REST API(식당 전화번호. 없으면 전화번호만 빠짐)
 #    TOUR_API_KEY=...          공공데이터포털 한국관광공사 무장애 여행 정보(데이터를 다시 받을 때만)
 #    JEJU_PROJECT_KEY=...      제주데이터허브 프로젝트 키(현재 화면 실행에는 필요 없음)
@@ -151,15 +152,19 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 
 | 경로 | 내용 |
 |---|---|
-| `app/main.py` | 화면(Streamlit) |
+| `app/main.py` | 화면(Streamlit): 전체 화면 지도, 오른쪽 대시보드, 하르방 챗봇 |
+| `app/map_view.py` | 카카오맵(st.components.v2, 제주도 안에서만 이동). 키가 없으면 기본 지도 |
+| `app/ui.py` | 화면 꾸미기: CSS, 돌하르방 그림, 카드 HTML |
 | `app/agent.py` | Agent 반복, 시스템 프롬프트, 코드 보정 |
 | `app/tools.py` | 도구와 판단 로직 전부, 일정표 HTML |
-| `.streamlit/config.toml` | 테마(색 #0B6B55, Noto Sans KR, 17px) |
+| `.streamlit/config.toml` | 테마(귤색 #F0892B, Pretendard, 17px) |
 | `scripts/01_download_mujangae.py` | 제주데이터허브 공개 무장애 데이터 받기 |
 | `scripts/02_build_access_table.py` | 지점 설명 문장 → 경사·턱·계단·노면·화장실 표 |
 | `scripts/03_build_support.py` | 동네, 의료, 영업 확인, 식당(층 포함), 관광공사 장소 합치기 |
 | `scripts/06_fetch_external.py` | 관광공사 무장애 정보, 화장실 좌표, (contacts) 장소 전화번호 |
-| `scripts/04~05, 07` | 테스트(아래 8장) |
+| `scripts/06_place_photos.py`, `scripts/07_hub_api.py` | 장소 사진·주소, 버스 정류소·약국 영업 상태(제주데이터허브) |
+| `scripts/04~05, 07_broad_test.py` | 테스트(아래 8장) |
+| `server/`, `web/` | FastAPI 서버와 같은 동작의 Next.js 화면(각 폴더 README) |
 | `data/raw`, `data/processed` | 원본과 정제 결과 |
 | `docs/` | 기획서, UX 흐름 설계, 검수·테스트 기록 |
 
@@ -211,6 +216,7 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 | 한국관광공사 무장애 여행 정보 | 관광지·문화시설·음식점 무장애 정보, 사진·소개 | 필요(무료) |
 | 카카오 로컬 API | 장소·식당 전화번호와 장소 링크, 화장실 주소 → 좌표 | 필요(무료) |
 | Open-Meteo | 7일 날씨 예보 | 불필요 |
+| 카카오맵 JavaScript SDK | 화면 지도(추천 장소·코스·식당·병원) | 필요(없으면 기본 지도) |
 | 카카오맵 링크 | 길안내 열기 | 불필요 |
 
 ---

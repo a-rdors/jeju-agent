@@ -27,6 +27,7 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 3. 장소를 추천하려면 반드시 recommend_places를 먼저 호출한다. 도구 결과에 없는 장소·시설·사실은 절대 말하지 않는다.
 4. 답변은 아래 형식만 쓴다(자세한 내용은 화면 카드가 보여준다). 인사말·이모지·목록 기호·제목은 쓰지 않는다. 최대 4줄.
    [장소] 1순위 장소 하나만 쓴다(다른 후보는 화면의 '다른 곳 보기'에 있다).
+          1순위는 recommend_places 결과의 첫 번째 장소다(화면 카드와 지도의 1번). 순서를 바꾸지 않는다.
           1줄: **장소 이름** — 판정(verdict 그대로)
           2줄: 이 가족에게 맞는 이유 한 문장
           3줄: 조심할 점: 한 문장 (watch_out·tips·확인 안 된 항목에서)
@@ -52,6 +53,7 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 10. '다른 곳', '또 없어?'라고 하면 '이미 보여준 장소'를 exclude에 넣어 다시 recommend_places를 부른다.
 7. '거기', '그곳', '그 근처'는 '직전 추천 장소'를 뜻한다. 다시 묻지 말고 그 장소 이름으로 도구를 부른다.
    사용자가 특정 장소의 길·화장실·쉼터를 물으면 get_place_detail, 약국·병원·응급은 find_nearby_help를 쓴다.
+   버스로 가는 법을 물으면 get_place_detail의 bus_stops(가까운 정류소 이름·직선거리)를 전한다. 저상버스·노선 여부는 확인이 안 된다고 말한다.
 8. 식당·카페는 search_food를 쓴다. 제주 전체 식당이 대상이다(휠체어 진입은 배지일 뿐 필터가 아니다).
    휠체어 이용자 가족이면 prefer_wheelchair=true. wheelchair_only는 "휠체어로 들어갈 수 있는 곳만"이라고 할 때만.
    식사 조건(diet_needs, 여러 개 가능): 이가 안 좋다·씹기 힘들다·틀니 → soft / 소화·속·위장이 안 좋다 → gentle /
@@ -93,13 +95,13 @@ TOOL_SPECS = [
             "required": ["user_type"]}}},
     {"type": "function", "function": {
         "name": "get_place_detail",
-        "description": "장소의 코스 흐름: 출발점부터 주의 지점, 쉼터, 장애인 화장실 위치를 순서대로.",
+        "description": "장소의 코스 흐름: 출발점부터 주의 지점, 쉼터, 장애인 화장실 위치를 순서대로. 출발점에서 가까운 버스 정류소(bus_stops)도 준다.",
         "parameters": {"type": "object", "properties": {
             "place": {"type": "string"}, "user_type": {"type": "string", "enum": list(T.USER_TYPES.keys())}},
             "required": ["place"]}}},
     {"type": "function", "function": {
         "name": "find_nearby_help",
-        "description": "장소에서 가장 가까운 약국·병의원·응급실.",
+        "description": "장소에서 가장 가까운 약국·병의원·응급실과 버스 정류소. 약국은 폐업 기록이 있는 곳을 뺐다.",
         "parameters": {"type": "object", "properties": {"place": {"type": "string"}}, "required": ["place"]}}},
     {"type": "function", "function": {
         "name": "search_food",
@@ -376,6 +378,9 @@ def rule_mode(text, user_type=None):
             break
     args = {"user_type": user_type, "area": area, "theme": theme, "need_toilet": "화장실" in text}
     res = T.recommend_places(**args)
+    if not res["results"]:
+        return {"text": "조건에 맞는 곳을 찾지 못했어요. 동네나 분위기를 바꿔서 말해 보세요.", "ask": None,
+                "tool_results": [("recommend_places", args, res)], "trace": [{"tool": "recommend_places", "args": args}]}
     top = res["results"][0]
     return {"text": f"**{top['place']}**을(를) 추천해요. {top['slope_say']}", "ask": None,
             "tool_results": [("recommend_places", args, res)], "trace": [{"tool": "recommend_places", "args": args}]}
