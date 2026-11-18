@@ -604,7 +604,7 @@ html.big .tab { min-width: 0; padding: 0 6px; }
 .vrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
 
 /* ---------- 빈 대화창: 큰 질문 + 그림 목록(눌러서 바로 물어보기) ---------- */
-.chat-empty { margin-top: auto; padding: 8px 6px 14px; }
+.chat-empty { margin: auto 0; padding: 8px 6px 14px; } /* 빈 대화창: 위아래 가운데 */
 .chat-empty h3 { font-size: 1.45rem; line-height: 1.3; margin: 0 0 6px; }
 .chat-empty p { color: var(--muted); font-size: .92rem; margin: 0 0 14px; }
 .ex-list { display: grid; gap: 2px; }

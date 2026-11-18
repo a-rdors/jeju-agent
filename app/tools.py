@@ -713,7 +713,7 @@ def find_nearby_help(place=None, kinds=HELP_KINDS, user_type=None, origin_lat=No
     for items in out.values():  # 병원·약국 자료에는 전화번호가 없어 카카오 장소 검색으로 보강
         for it in items:
             if not it["phone"]:
-                kp = kakao_place(it["name"], it["lat"], it["lon"])
+                kp = kakao_place(it["name"], it["lat"], it["lon"], kind="help")
                 if kp and kp.get("phone"):
                     it["phone"], it["place_url"] = kp["phone"], kp["place_url"]
     if user_type == "pregnant":  # 임산부: 가까운 산부인과
@@ -844,8 +844,12 @@ def clean_name(name):
     return re.split(r"\s*;\s*", str(name))[0].strip() or str(name)
 
 
-def kakao_place(name, lat, lon):
-    """카카오 키워드 검색으로 가게 전화번호·카카오맵 링크를 찾는다(키 없거나 실패하면 None)."""
+KAKAO_GROUPS = {"food": ("FD6", "CE7"), "help": ("HP8", "PM9")}  # 음식점·카페 / 병원·약국
+
+
+def kakao_place(name, lat, lon, kind="food"):
+    """카카오 키워드 검색으로 가게 전화번호·카카오맵 링크를 찾는다(키 없거나 실패하면 None).
+    같은 종류(식당·카페 또는 병원·약국)이고 이름이 맞는 곳만 쓴다. 이름 앞 글자만 같은 다른 업종(예: 같은 이름의 충전소)은 버린다."""
     import json
     import os
     import urllib.parse
@@ -860,7 +864,7 @@ def kakao_place(name, lat, lon):
     if not key:
         return None
     name = clean_name(name)
-    ck = (name, round(lat, 3), round(lon, 3))
+    ck = (name, round(lat, 3), round(lon, 3), kind)
     if ck in _KAKAO_CACHE:
         return _KAKAO_CACHE[ck]
     url = "https://dapi.kakao.com/v2/local/search/keyword.json?" + urllib.parse.urlencode(
@@ -868,7 +872,13 @@ def kakao_place(name, lat, lon):
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers={"Authorization": "KakaoAK " + key}), timeout=4) as r:
             docs = json.loads(r.read().decode("utf-8"))["documents"]
-        hit = next((d for d in docs if _norm_name(d["place_name"])[:3] == _norm_name(name)[:3]), None)
+        groups = KAKAO_GROUPS.get(kind, ())
+        want = _norm_name(name)
+        same_kind = [d for d in docs if not groups or d.get("category_group_code") in groups]
+        # 1) 이름이 똑같은 곳 → 2) 한쪽 이름이 다른 쪽을 포함하는 곳(지점명 차이) → 3) 앞 세 글자가 같은 곳
+        hit = (next((d for d in same_kind if _norm_name(d["place_name"]) == want), None)
+               or next((d for d in same_kind if want in _norm_name(d["place_name"]) or _norm_name(d["place_name"]) in want), None)
+               or next((d for d in same_kind if _norm_name(d["place_name"])[:3] == want[:3]), None))
         res = {"phone": hit["phone"], "place_url": hit["place_url"], "category": hit["category_name"],
                "name": hit["place_name"]} if hit else None
     except Exception:
