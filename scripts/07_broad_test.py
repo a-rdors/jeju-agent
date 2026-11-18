@@ -15,6 +15,7 @@
 import datetime as dt
 import importlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -165,7 +166,8 @@ def main():
         print(("OK " if r["pass"] else "XX ") + r["category"], "|", " → ".join(r["questions"])[:40], "|",
               ">".join(r["used_tools"]), "|", r["format_problems"] or "", r["ungrounded"] or "", flush=True)
     passed = sum(r["pass"] for r in rows)
-    docs = ROOT / "docs"
+    docs = Path(os.environ.get("TEST_OUT_DIR") or ROOT / "docs")  # 결과 저장 위치(기본 docs/)
+    docs.mkdir(parents=True, exist_ok=True)
     (docs / "broad_results.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     by = {}
     for r in rows:
