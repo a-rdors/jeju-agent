@@ -393,8 +393,16 @@ def resolve_anchor(name):
         return exact
     loc = find_area(name)
     if loc:
-        return (loc["lat"], loc["lon"], loc["area"]) if loc.get("lat") is not None else None
+        if loc.get("lat") is not None:
+            return (loc["lat"], loc["lon"], loc["area"])
+        # '서귀포', '제주시'처럼 시 전체를 말하면 시청(시내 중심)을 기준으로 한다
+        c = CITY_CENTER.get(loc.get("sigungu"))
+        return (c[0], c[1], f"{loc['sigungu']} 시내(시청 기준)") if c else None
     return shop_hit(False) if len(key) >= 4 else None
+
+
+# 시 전체를 말했을 때 기준점: 시청 좌표
+CITY_CENTER = {"제주시": (33.4996, 126.5312), "서귀포시": (33.2541, 126.5601)}
 
 
 def get_place_detail(place, user_type="other"):

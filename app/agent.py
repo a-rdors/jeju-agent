@@ -218,11 +218,16 @@ def normalize_answer(text, tool_results, last_q=""):
             f = [res for name, _, res in tool_results if name == "search_food"][-1]
             qs = f.get("call_questions") or ["입구에 턱이나 계단이 있나요?"]
             text = text.rstrip() + f"\n확인할 점: 전화로 \"{qs[0]}\"라고 물어보세요."
-    if "recommend_places" in names and "조심할 점" not in text:
-        rec = [res for name, _, res in tool_results if name == "recommend_places"][-1]
-        top = (rec.get("results") or [{}])[0]
-        miss = [c["item"] for c in top.get("checks", []) if not c.get("known")]
-        note = (top.get("watch_out") or [None])[0] or (
+    detail_only = "get_place_detail" in names and "recommend_places" not in names and "search_food" not in names
+    if ("recommend_places" in names or detail_only) and "조심할 점" not in text:
+        if "recommend_places" in names:
+            rec = [res for name, _, res in tool_results if name == "recommend_places"][-1]
+            top = (rec.get("results") or [{}])[0]
+        else:  # 특정 장소 확인(get_place_detail)도 같은 형식으로 조심할 점을 붙인다
+            top = [res for name, _, res in tool_results if name == "get_place_detail"][-1] or {}
+        miss = [c["item"] for c in top.get("checks", []) if isinstance(c, dict) and not c.get("known")]
+        watch = top.get("watch_out") or top.get("tips") or [None]
+        note = (watch[0] if isinstance(watch, list) else watch) or (
             f"{', '.join(miss[:2])}은(는) 확인이 안 돼요. 가기 전에 전화해 보세요." if miss else "현장 상황은 가기 전에 한 번 확인해 보세요.")
         body = text.rstrip().splitlines()
         insert_at = next((i for i, l in enumerate(body) if l.startswith("비 오면")), len(body))
@@ -285,6 +290,12 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
     if outside and not re.search(r"제주|서귀포", last_q):
         # 제주 밖 지역: AI에 맡기지 않고 항상 같은 답(제주 장소를 엉뚱하게 추천하지 않게)
         return {"text": "제주 지역만 안내할 수 있어요.\n제주로 오시면 함께 가실 분에 맞춰 갈 만한 곳과 식당을 찾아드릴게요.",
+                "ask": None, "tool_results": [], "trace": []}
+    taste_rank = re.search(r"제일\s*맛있|가장\s*맛있|최고\s*맛집|맛집\s*(순위|랭킹)|1\s*위|순위|랭킹|베스트\s*\d", last_q)
+    if taste_rank and re.search(r"맛|식당|집|가게|음식|카페", last_q):
+        # 맛 평가·순위: 근거 데이터가 없으므로 AI에 맡기지 않고 항상 같은 답
+        return {"text": "범위 밖 요청이에요. 맛 평가나 순위는 근거 자료가 없어서 알려드릴 수 없어요.\n"
+                        "대신 함께 가실 분과 동네를 말씀해 주시면 들어가기 편한 식당을 찾아드릴게요.",
                 "ask": None, "tool_results": [], "trace": []}
     if re.search(r"\d\s*박|박\s*\d\s*일|며칠|여러\s*날|일차|일정\s*표", last_q):
         # 여러 날 요청: 날짜별 시간표를 만들지 않는다는 결정을 이번 답변에 강하게 적용
