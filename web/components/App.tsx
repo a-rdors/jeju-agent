@@ -15,7 +15,6 @@ import TopBar from "./TopBar";
 /** 지도 쓰는 법 한 줄(패널 대신 범례 아래에 둔다) */
 function mapHint(d: MapData): string {
   const kinds = new Set(d.marks.map((m) => m.kind));
-  if (kinds.has("dot")) return "초록 점을 누르면 그곳을 바로 살펴봐요";
   if (kinds.has("place") && d.marks.filter((m) => m.kind === "place").length > 1) return "다른 번호를 누르면 그곳으로 바뀌어요";
   return "";
 }
@@ -55,7 +54,8 @@ export default function App() {
   const s = useStore();
   const config = useApi<Config>(urls.config);
   const mapData = useMapData(s);
-  const legend = useMemo(() => legendItems(mapData), [mapData]);
+  // 첫 화면(나들이 장소 점만 있을 때)은 범례 상자를 두지 않는다
+  const legend = useMemo(() => (mapData.marks.some((m) => m.kind !== "dot") ? legendItems(mapData) : []), [mapData]);
 
   // 큰 글씨: 글자 기준 크기를 125%로
   useEffect(() => {

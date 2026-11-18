@@ -40,7 +40,7 @@ export function ChatFab({ s }: { s: State }) {
         aria-label={badge ? `${label}, 새 답 ${badge}개` : label} aria-expanded={s.chat_open} aria-controls="chatwin">
         {badge > 0 && <span className="fab-badge" aria-hidden="true">{badge}</span>}
       </button>
-      {!s.chat_open && !s.msgs.length && <div className="fab-hint" aria-hidden="true">하르방에게 물어보세요!</div>}
+      {!s.chat_open && !s.msgs.length && s.screen === "home" && <div className="fab-hint" aria-hidden="true">하르방에게 물어보세요!</div>}
     </>
   );
 }

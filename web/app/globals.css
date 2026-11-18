@@ -77,30 +77,30 @@ img { display: block; }
 .stack { display: grid; gap: 8px; }
 .stack .btn { justify-content: flex-start; text-align: left; }
 
-/* ---------- 왼쪽 위: 이름표 + 설정 3개를 정사각형 상자 하나(2×2)에 ---------- */
+/* ---------- 왼쪽 위: 이름표 + 설정 3개를 흰색 한 줄 막대에 ---------- */
 .rail {
   position: fixed; top: calc(16px + var(--sat)); left: calc(16px + var(--sal)); z-index: 30;
   display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
 }
 .box {
-  display: grid; grid-template-columns: repeat(2, 64px); grid-auto-rows: 64px; gap: 6px; padding: 7px;
-  border-radius: 22px; box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: 4px; padding: 6px 6px 6px 14px; min-height: 52px;
+  background: rgba(255, 255, 255, .97); border: 1px solid var(--stone-2); border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(20, 24, 28, .14);
 }
-.brand {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center;
-  color: #fff; border-radius: 14px;
-}
-.brand .mini { width: 16px; height: 27px; flex: 0 0 auto; filter: brightness(1.9) contrast(.9); }
-.brand h1 { font-size: .64rem; line-height: 1.15; color: #fff; word-break: keep-all; }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--ink); }
+.brand .mini { width: 15px; height: 25px; flex: 0 0 auto; }
+.brand h1 { font-size: .98rem; line-height: 1.2; color: var(--ink); white-space: nowrap; letter-spacing: -.01em; }
+.box-sep { width: 1px; height: 24px; background: var(--stone-2); margin: 0 6px 0 10px; }
 .tool {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 4px;
-  cursor: pointer; color: #F3F1EC; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .16);
-  border-radius: 14px; font-size: .68rem; font-weight: 700; line-height: 1.15; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px; min-height: 40px; padding: 0 12px;
+  cursor: pointer; color: var(--ink); background: transparent; border: 0;
+  border-radius: 999px; font-size: .82rem; font-weight: 700; line-height: 1; white-space: nowrap;
 }
-.tool .ic { width: 20px; height: 20px; }
-.tool:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
-.tool:disabled { opacity: .4; cursor: default; }
-.tool[aria-checked="true"] { background: var(--gyul); border-color: var(--gyul); color: #2A1606; }
+.tool .ic { width: 19px; height: 19px; color: var(--muted); }
+.tool:hover:not(:disabled) { background: var(--stone); }
+.tool:disabled { opacity: .35; cursor: default; }
+.tool[aria-checked="true"] { background: var(--gyul); color: #2A1606; }
+.tool[aria-checked="true"] .ic { color: #2A1606; }
 .legend {
   width: max-content; max-width: 210px; background: rgba(255, 255, 255, .96); border: 1px solid var(--stone-2);
   border-radius: 12px; padding: 7px 10px; box-shadow: 0 2px 8px rgba(20, 24, 28, .14); font-size: .76rem; color: var(--ink);
@@ -294,12 +294,13 @@ img { display: block; }
   padding: 0; display: block; overflow: hidden; height: 140px;
 }
 .hero-art img { width: 100%; height: 100%; }
-.hello h2 { font-size: 1.55rem; line-height: 1.25; margin: 2px 0 4px; }
-.hello p { font-size: .98rem; color: var(--muted); }
-.choices { display: grid; gap: .5rem; }
+.hello { padding: 6px 4px 10px; }
+.hello h2 { font-size: 1.5rem; line-height: 1.3; margin: 4px 0 6px; }
+.hello p { font-size: .96rem; color: var(--muted); line-height: 1.5; }
+.choices { display: grid; gap: .75rem; }
 .choice-card {
-  display: flex; align-items: center; gap: 10px; background: var(--card); border: 2px solid var(--stone-2);
-  border-radius: 18px; padding: 10px 12px;
+  display: flex; align-items: center; gap: 12px; background: var(--card); border: 1.5px solid var(--stone-2);
+  border-radius: 18px; padding: 14px 14px 14px 16px;
 }
 .choice-card:hover, .choice-card:focus-within { border-color: var(--gyul); }
 .choice-card .btn { flex: 0 0 auto; min-height: 44px; }
@@ -453,11 +454,11 @@ img { display: block; }
     top: calc(8px + var(--sat)); left: calc(8px + var(--sal)); right: calc(8px + var(--sar));
     align-items: stretch; gap: 6px;
   }
-  .box { grid-template-columns: minmax(0, 1fr) repeat(3, 52px); grid-auto-rows: 52px; gap: 5px; padding: 5px; border-radius: 18px; }
-  .brand { flex-direction: row; justify-content: flex-start; gap: 6px; padding-left: 6px; }
-  .brand h1 { font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .brand h1 br { display: none; }
-  .tool .lbl { font-size: .62rem; }
+  .box { gap: 2px; padding: 4px 4px 4px 12px; min-height: 48px; }
+  .brand { flex: 1 1 auto; min-width: 0; gap: 6px; }
+  .brand h1 { font-size: .92rem; overflow: hidden; text-overflow: ellipsis; }
+  .box-sep { display: none; }
+  .tool { flex-direction: column; gap: 2px; min-height: 42px; padding: 2px 8px; font-size: .62rem; }
   .legend { align-self: flex-start; min-width: 0; max-width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; padding: 5px 9px; }
   .legend li { white-space: normal; }
   /* 휴대폰은 후보 이름이 잘리지 않게 두 줄까지 */
@@ -472,13 +473,15 @@ img { display: block; }
     box-shadow: 0 -6px 24px rgba(20, 24, 28, .18);
   }
   .sheet-full { --sheet-h: calc(100dvh - 72px - var(--sat)); }
+  .sheet-full .dash { height: auto; max-height: var(--sheet-h); min-height: 45dvh; }
+  .sheet-full .legend { display: none; }
   .sheet-handle {
     display: flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 100%; height: 30px;
     border: 0; background: none; cursor: grab; touch-action: none; padding: 0;
   }
   .sheet-handle span { width: 44px; height: 5px; border-radius: 3px; background: #B9BCB5; }
   .dash-scroll { padding: 2px 14px calc(20px + var(--sab)); }
-  .sheet-full .dash-scroll { padding-bottom: calc(100px + var(--sab)); }
+  .sheet-full .dash-scroll { padding-bottom: calc(88px + var(--sab)); }
 
   .chatfab { right: calc(14px + var(--sar)); bottom: calc(var(--sheet-h) + 14px); width: 64px; height: 64px; }
   .fab-hint { right: calc(90px + var(--sar)); bottom: calc(var(--sheet-h) + 26px); font-size: .86rem; }

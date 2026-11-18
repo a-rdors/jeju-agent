@@ -147,7 +147,7 @@ function PanelHome() {
                 <span>{desc}</span>
               </div>
             </div>
-            <button type="button" className="btn btn-primary" onClick={() => go(text, ut)} aria-label={`${label} 갈 곳 찾기`}>
+            <button type="button" className="btn btn-primary" onClick={() => go(text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
               <span>찾기</span>
               <Icon name="arrow_forward" />
             </button>

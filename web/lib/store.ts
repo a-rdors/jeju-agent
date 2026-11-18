@@ -29,6 +29,8 @@ export interface Msg {
 export interface Pending {
   text: string;
   userType: string | null;
+  /** 시작 화면 '찾기': 대화창에 말을 남기지 않고 결과만 보여 준다 */
+  silent?: boolean;
 }
 
 export interface State {
@@ -136,13 +138,13 @@ export function conditionTexts(s: State, userTypes: Record<string, string>): str
 
 // ---------- 동작 ----------
 /** 버튼·입력창. 사용자 말은 바로 보이고, 답은 기다렸다가 받는다(대화창에는 '입력 중' 표시). */
-export function go(text: string | null | undefined, userType: string | null = null, openChat = false) {
+export function go(text: string | null | undefined, userType: string | null = null, openChat = false, silent = false) {
   const t = (text || "").trim();
   if (!t || state.pending) return;
-  const pending: Pending = { text: t, userType };
+  const pending: Pending = { text: t, userType, silent };
   set((s) => ({
     ...s,
-    msgs: [...s.msgs, { role: "user", text: t }],
+    msgs: silent ? s.msgs : [...s.msgs, { role: "user", text: t }],
     pending,
     ...(openChat ? { chat_open: true, unread: 0 } : {}),
   }));
@@ -241,13 +243,15 @@ function send(s0: State, p: Pending, out: ChatOut): State {
     s.selected = said;
     places = [said, ...places.filter((x) => x !== said)];
   }
-  s.msgs = [...s.msgs, {
-    role: "bot",
-    text: out.text || "찾은 내용을 정리했어요.",
-    places,
-    items,
-  }];
-  s.typing = s.msgs.length - 1;
+  if (!p.silent) {
+    s.msgs = [...s.msgs, {
+      role: "bot",
+      text: out.text || "찾은 내용을 정리했어요.",
+      places,
+      items,
+    }];
+  }
+  s.typing = p.silent ? null : s.msgs.length - 1;
   s.history = [...s.history, { role: "assistant", content: out.text }];
 
   // 대시보드 내용 고르기(그 밖의 대답이면 대시보드는 그대로 두고 대화창에만 답한다)
@@ -274,7 +278,7 @@ function send(s0: State, p: Pending, out: ChatOut): State {
   } else if (s.detail_only || s.help_only) {
     s.screen = "answer";
   }
-  if (!s.chat_open) {
+  if (!s.chat_open && !p.silent) {
     s.unread += 1;
     s.typing = null; // 닫힌 대화창은 한 글자씩 보여 주지 않는다
   }

@@ -241,6 +241,14 @@ function drawMarkers(
       (m.ring ? " ring" : "");
     el.style.background = m.color;
     el.textContent = m.text || "";
+    if (m.kind === "dot") {
+      // 확대하면 이름이 서서히 보인다(지도 단계는 아래 zoom_changed 에서 root 에 표시)
+      const lb = document.createElement("span");
+      lb.className = "km-lb";
+      lb.textContent = m.name;
+      lb.setAttribute("aria-hidden", "true");
+      el.appendChild(lb);
+    }
     if (/\p{Extended_Pictographic}/u.test(m.text || "")) {
       // 그림 표식: 흰 바탕에 종류 색 테두리(그림이 잘 보이게)
       el.classList.add("emoji");
@@ -474,6 +482,10 @@ export default function KakaoMap({
           };
           k.event.addListener(map, "dragend", clamp);
           k.event.addListener(map, "zoom_changed", clamp);
+          // 어느 정도 확대하면 나들이 장소 이름을 보여 준다
+          const labels = () => root.classList.toggle("km-names", map.getLevel() <= 8);
+          k.event.addListener(map, "zoom_changed", labels);
+          labels();
           k.event.addListener(map, "click", () => closeTip(state));
         }
 

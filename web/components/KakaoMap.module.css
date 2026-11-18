@@ -47,13 +47,50 @@
 }
 
 :global(.km-mk.dot) {
-  width: 13px;
-  height: 13px;
-  border-width: 2px;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-width: 2.5px;
+}
+
+/* 손가락으로 누르기 쉽게: 보이는 점보다 넓은 누름 영역 */
+:global(.km-mk.dot)::before {
+  content: "";
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
 }
 
 :global(.km-mk.dot:hover) {
-  transform: scale(1.4);
+  transform: scale(1.25);
+}
+
+/* 확대하면 점 아래에 이름이 서서히 */
+:global(.km-lb) {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 50%;
+  transform: translate(-50%, -2px);
+  font-size: 12px;
+  font-weight: 600;
+  color: #24352C;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .3s ease, transform .3s ease;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff;
+}
+
+:global(.km-names .km-lb) {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 639.98px) {
+  :global(.km-mk.dot) {
+    width: 18px;
+    height: 18px;
+  }
 }
 
 :global(.km-mk.caution),

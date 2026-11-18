@@ -1,6 +1,6 @@
 "use client";
-// 왼쪽 위: 이름표와 설정 버튼 3개(큰 글씨·패널·처음으로)를 정사각형 하나(2×2)에 담는다. 그 아래에 지도 범례.
-// 휴대폰은 같은 상자를 위쪽 한 줄로 펼친다.
+// 왼쪽 위: 이름표와 설정 버튼 3개(큰 글씨·패널·처음으로)를 흰색 한 줄 막대에 담는다. 그 아래에 지도 범례.
+// 휴대폰은 같은 막대를 화면 위쪽 폭에 맞춘다.
 import { ART } from "@/lib/art";
 import { home, setBig, togglePanel, type State } from "@/lib/store";
 import { Svg } from "./bits";
@@ -11,11 +11,12 @@ export default function TopBar({ s, legend, hint }: { s: State; legend: [string,
   const canReset = s.screen !== "home" || s.msgs.length > 0;
   return (
     <header className="rail">
-      <div className="box basalt">
+      <div className="box">
         <div className="brand" title="제주 같이나들이: 휠체어·유모차·어르신과 함께 가는 제주">
           <Svg src={ART.hareubang} className="mini" />
-          <h1>제주 <br />같이나들이</h1>
+          <h1>제주 같이나들이</h1>
         </div>
+        <span className="box-sep" aria-hidden="true" />
         <button type="button" role="switch" aria-checked={s.big} className="tool" onClick={() => setBig(!s.big)}
           title="큰 글씨">
           <Icon name="format_size" />
