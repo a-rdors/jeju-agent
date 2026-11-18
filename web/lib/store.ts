@@ -9,11 +9,21 @@ export type Screen = "home" | "result" | "food" | "answer";
 export const TABS = ["한눈에", "코스", "식당", "병원·약국"] as const;
 export type Tab = (typeof TABS)[number];
 
+/** 대화 답에 붙는 가게·병원 단추 */
+export interface MsgItem {
+  name: string;
+  kind: string;
+  lat: number;
+  lon: number;
+  phone?: string;
+}
+
 export interface Msg {
   role: "user" | "bot";
   text: string;
   places?: string[];
   trace?: string[];
+  items?: MsgItem[];
 }
 
 export interface Pending {
@@ -42,6 +52,7 @@ export interface State {
   unread: number;
   typing: number | null;
   location: [number, number] | null; // (위도, 경도). 위치 권한을 받으면 채운다
+  focus: string | null; // 지도·패널·대화가 함께 가리키는 가게·병원 이름
   // 아래는 처음으로 가도 그대로 두는 화면 설정
   checked: Record<string, boolean>; // 질문지 체크(Streamlit 체크박스 key 와 같은 열쇠)
   sheet: "half" | "full"; // 휴대폰 아래 시트 높이
@@ -52,17 +63,9 @@ function defaults(): Omit<State, "checked" | "sheet"> {
     history: [], msgs: [], ask: null, results: null, user_type: "other", selected: null,
     big: false, food: null, when: "오늘", shown: [], screen: "home", tab: "한눈에",
     pending: null, detail_only: null, help_only: null,
-    chat_open: false, panel_open: true, unread: 0, typing: null, location: null,
+    chat_open: false, panel_open: true, unread: 0, typing: null, location: null, focus: null,
   };
 }
-
-// 대화 답 아래 '찾아본 정보' 한 줄에 쓰는 이름(되묻기는 보여 주지 않는다)
-export const STEP_NAMES: Record<string, string> = {
-  recommend_places: "갈 만한 곳", get_weather: "날씨",
-  search_food: "식당", get_place_detail: "코스·시설",
-  find_nearby_help: "병원·약국", check_nearby_places: "주변 가게",
-  plan_outing: "나들이 일정", ask_user: "",
-};
 
 const INITIAL: State = { ...defaults(), checked: {}, sheet: "half" };
 let state: State = INITIAL;
@@ -192,12 +195,17 @@ function send(s0: State, p: Pending, out: ChatOut): State {
   s.ask = null;
   s.detail_only = null;
   s.help_only = null;
+  s.focus = null;
   const names: string[] = [];
+  let items: MsgItem[] = [];
   let places: string[] = [];
   for (const { name, args, result } of out.tool_results) {
     names.push(name);
     if (name === "get_weather" && args?.when) s.when = String(args.when);
-    if (name === "search_food") s.food = result as Food;
+    if (name === "search_food") {
+      s.food = result as Food;
+      items = (s.food.items ?? []).slice(0, 3).map((it) => ({ name: it.name, kind: it.food_type, lat: it.lat, lon: it.lon, phone: it.phone }));
+    }
     if (name === "recommend_places") {
       const res = result as Recommend;
       const got = (res.results ?? []).map((r) => r.place);
@@ -218,7 +226,13 @@ function send(s0: State, p: Pending, out: ChatOut): State {
       }
       places = places.length ? places : [d.place];
     }
-    if (name === "find_nearby_help" && !isError(result)) s.help_only = result as Help;
+    if (name === "find_nearby_help" && !isError(result)) {
+      s.help_only = result as Help;
+      const asked: string[] = (args?.kinds as string[] | undefined) ?? ["약국", "병·의원", "응급실"];
+      items = asked.flatMap((k) => (s.help_only?.help?.[k] ?? []).map((it) => ({
+        name: it.name, kind: k, lat: it.lat, lon: it.lon, phone: it.phone,
+      }))).slice(0, 3);
+    }
   }
   s.ask = out.ask;
   const said = names.includes("recommend_places") ? firstMentioned(out.text, resultNames(s)) : null;
@@ -231,7 +245,7 @@ function send(s0: State, p: Pending, out: ChatOut): State {
     role: "bot",
     text: out.text || "찾은 내용을 정리했어요.",
     places,
-    trace: (out.trace ?? []).map((t) => STEP_NAMES[t.tool] ?? t.tool),
+    items,
   }];
   s.typing = s.msgs.length - 1;
   s.history = [...s.history, { role: "assistant", content: out.text }];
@@ -335,6 +349,39 @@ export function setBig(big: boolean) {
 
 export function setChecked(key: string, on: boolean) {
   set((s) => ({ ...s, checked: { ...s.checked, [key]: on } }));
+}
+
+/** 지도 표식·대화 단추·패널 카드에서 가게·병원을 고르면 셋이 같은 곳을 가리킨다 */
+export function focusItem(name: string, fromChat = false) {
+  set((s) => ({
+    ...s,
+    focus: name,
+    panel_open: true,
+    sheet: "half",
+    ...(fromChat ? { chat_open: false } : {}),
+  }));
+}
+
+/** '내 위치로 찾기': 브라우저 위치를 받아 방금 질문을 다시 보낸다 */
+export function locateAndRetry() {
+  const lastQ = [...state.history].reverse().find((h) => h.role === "user")?.content ?? "근처 약국 찾아줘";
+  const fail = (why: string) => set((s) => ({
+    ...s,
+    ask: null,
+    msgs: [...s.msgs, { role: "bot", text: why }],
+  }));
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    fail("이 기기에서는 위치를 가져올 수 없어요. 동네나 장소 이름을 말씀해 주세요.");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (p) => {
+      set({ location: [p.coords.latitude, p.coords.longitude], ask: null });
+      go(lastQ, null, true);
+    },
+    () => fail("위치를 가져오지 못했어요. 위치 권한을 허용하거나 동네 이름을 말씀해 주세요."),
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+  );
 }
 
 export function setSheet(sheet: "half" | "full") {

@@ -27,6 +27,8 @@ html, body { height: 100%; margin: 0; overscroll-behavior: none; }
 body {
   font-family: var(--font); color: var(--ink); background: #DCE8EE; line-height: 1.5;
   overflow: hidden; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+  /* 한글 낱말이 화면 폭에 따라 중간에서 끊기지 않게(어절 단위 줄바꿈), 아주 긴 이름만 예외로 끊는다 */
+  word-break: keep-all; overflow-wrap: break-word; text-wrap: pretty;
 }
 button, input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
 h1, h2, h3, p, ul, ol { margin: 0; }
@@ -265,7 +267,26 @@ img { display: block; }
   display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
 .avatar img { width: 36px; height: 36px; }
-.trace { margin: 4px 0 0; font-size: .76rem; color: var(--muted); }
+/* 답변 정리: 제목 줄 + 그림 말머리 줄 */
+.ans { display: grid; gap: 6px; }
+.ans-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.ans-title b { font-size: 1.02rem; font-weight: 800; }
+.ans-tag { font-size: .8rem; font-weight: 700; color: var(--leaf-deep); background: var(--leaf-soft); border-radius: 999px; padding: 1px 9px; }
+.ans-row { display: flex; gap: 8px; align-items: flex-start; border-radius: 10px; padding: 6px 9px; font-size: .94rem; line-height: 1.5; }
+.ans-row .ic { flex: 0 0 auto; font-size: 1rem; line-height: 1.45; }
+.ans-row.warn { background: #FFF4E0; }
+.ans-row.check { background: #EEF3F8; }
+.ans-row.rain { background: #E8F1FB; }
+.ans-row.sos { background: #FDECEC; color: #8A1F1F; font-weight: 600; }
+/* 대화 속 가게·병원 단추 */
+.mitems { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.mitems li { border: 1px solid var(--stone-2); border-radius: 12px; padding: 8px 10px; background: var(--card); }
+.mi-name { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.mi-name small { color: var(--muted); font-size: .78rem; }
+.mi-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.mi-acts .btn { min-height: 36px; padding: 4px 12px; font-size: .86rem; flex: 0 0 auto; }
+/* 지도·대화에서 고른 카드 */
+.card.focus { outline: 3px solid var(--gyul); outline-offset: 1px; background: #FFF8EE; }
 
 /* ---------- 시작(대시보드 첫 화면) ---------- */
 .hero-art {

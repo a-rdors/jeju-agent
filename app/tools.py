@@ -424,16 +424,9 @@ def resolve_anchor(name):
         return exact
     loc = find_area(name)
     if loc:
-        if loc.get("lat") is not None:
-            return (loc["lat"], loc["lon"], loc["area"])
-        # '서귀포', '제주시'처럼 시 전체를 말하면 시청(시내 중심)을 기준으로 한다
-        c = CITY_CENTER.get(loc.get("sigungu"))
-        return (c[0], c[1], f"{loc['sigungu']} 시내(시청 기준)") if c else None
+        # '서귀포', '제주시'처럼 시 전체만 말하면 기준점을 임의로 정하지 않는다(None)
+        return (loc["lat"], loc["lon"], loc["area"]) if loc.get("lat") is not None else None
     return shop_hit(False) if len(key) >= 4 else None
-
-
-# 시 전체를 말했을 때 기준점: 시청 좌표
-CITY_CENTER = {"제주시": (33.4996, 126.5312), "서귀포시": (33.2541, 126.5601)}
 
 
 def get_place_detail(place, user_type="other"):
@@ -522,11 +515,32 @@ def nearby_toilets(lat, lon, need="accessible", limit=2, max_km=3.0):
              "lat": float(r["lat"]), "lon": float(r["lon"])} for _, r in t.iterrows()]
 
 
-def find_nearby_help(place, kinds=("약국", "병·의원", "응급실"), user_type=None):
-    """장소 출발점에서 가장 가까운 약국·병의원·응급실."""
+HELP_KINDS = ("약국", "병·의원", "응급실")
+
+
+def find_nearby_help(place=None, kinds=HELP_KINDS, user_type=None, origin_lat=None, origin_lon=None):
+    """기준(장소 또는 현재 위치)에서 가장 가까운 약국·병의원·응급실.
+    kinds: 물어본 종류만(약국만 물으면 약국만). 시 전체만 말하고 위치가 없으면 기준을 임의로 정하지 않고
+    needs_location을 돌려준다(응급실은 그 시의 응급실을 모두 알려 준다)."""
     d = load()
-    anchor = resolve_anchor(place)
+    kinds = [k for k in (kinds or HELP_KINDS) if k in HELP_KINDS] or list(HELP_KINDS)
+    if origin_lat is not None and origin_lon is not None:
+        anchor = (float(origin_lat), float(origin_lon), "현재 위치")
+    else:
+        anchor = resolve_anchor(place)
     if anchor is None:
+        loc = find_area(place) if place else None
+        city = (loc or {}).get("sigungu") if loc and loc.get("lat") is None else None
+        if city and kinds == ["응급실"]:
+            er = d["medical"][(d["medical"]["kind"] == "응급실") & d["medical"]["address"].fillna("").str.contains(city)]
+            items = [{"name": t["name"], "km": None, "address": t["address"],
+                      "phone": "" if pd.isna(t["phone"]) else str(t["phone"]), "detail": "", "status": "",
+                      "source": t["source"], "lat": float(t["lat"]), "lon": float(t["lon"])} for _, t in er.iterrows()]
+            return {"place": city, "help": {"응급실": items}, "bus": [], "bus_source": BUS_SOURCE,
+                    "note": f"{city}의 응급실이에요. 응급 시에는 119에 먼저 연락하세요."}
+        if city:
+            return {"needs_location": True, "city": city,
+                    "error": f"{city} 어디 근처에서 찾을까요? 동네·장소 이름을 말하거나 내 위치로 찾을 수 있어요."}
         return {"error": f"'{place}' 위치를 찾지 못했어요."}
     lat, lon, place = anchor
     med = d["medical"].copy()

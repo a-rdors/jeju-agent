@@ -7,7 +7,7 @@ import { USER_TYPES, isError, kakaoRouteLink, urls } from "@/lib/api";
 import type { BusStop, Detail, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
-  TABS, conditionTexts, go, pick, setSheet, setTab, toResult, togglePanel, topPlace,
+  TABS, conditionTexts, focusItem, go, pick, setSheet, setTab, toResult, togglePanel, topPlace,
   type State, type Tab,
 } from "@/lib/store";
 import {
@@ -26,29 +26,48 @@ const TYPES: [string, string, string, string, string, string][] = [
 const fmt = (n: number) => n.toLocaleString("ko-KR");
 
 // ---------- 공통 조각 ----------
-function ShopCard({ it }: { it: Food["items"][number] }) {
+/** 지도 표식·대화 단추와 함께 움직이는 카드: 고른 곳이면 강조하고 보이게 내린다 */
+function FocusCard({ name, focus, children }: { name: string; focus?: string | null; children: React.ReactNode }) {
+  const ref = useRef<HTMLLIElement>(null);
+  const on = !!focus && focus === name;
+  useEffect(() => {
+    if (on) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [on]);
+  return <li ref={ref} className={`card${on ? " focus" : ""}`}>{children}</li>;
+}
+
+function MapButton({ name }: { name: string }) {
+  return (
+    <button type="button" className="btn btn-secondary" onClick={() => focusItem(name)} aria-label={`${name} 지도에서 보기`}>
+      <Icon name="map" /><span>지도</span>
+    </button>
+  );
+}
+
+function ShopCard({ it, focus }: { it: Food["items"][number]; focus?: string | null }) {
   const tags: [string, string][] = it.wheelchair_entry ? [["휠체어 진입 확인(2021)", "wc"]] : [];
   tags.push(...(it.why ?? []).map((w): [string, string] => [w.split(":")[0] + " (추정)", ""]));
   const meta = it.food_type + (it.km !== null && it.km !== undefined ? ` · ${it.km}km` : "");
   return (
-    <li className="card">
+    <FocusCard name={it.name} focus={focus}>
       <Shop name={it.name} meta={meta} tags={tags} />
       <div className="row">
         <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
         {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>}
+        <MapButton name={it.name} />
       </div>
-    </li>
+    </FocusCard>
   );
 }
 
-function FoodList({ f }: { f: Food }) {
+function FoodList({ f, focus }: { f: Food; focus?: string | null }) {
   if (f.anchor_not_found) return <Info>{f.note}</Info>;
   return (
     <>
       {!f.items.length && <Info>조건에 맞는 식당을 찾지 못했어요. 조건을 줄이거나 동네를 바꿔 말해 보세요.</Info>}
       {f.items.length > 0 && (
         <ul className="cards">
-          {f.items.map((it, i) => <ShopCard key={`${it.name}-${i}`} it={it} />)}
+          {f.items.map((it, i) => <ShopCard key={`${it.name}-${i}`} it={it} focus={focus} />)}
         </ul>
       )}
       <Src>{f.note}</Src>
@@ -59,22 +78,22 @@ function FoodList({ f }: { f: Food }) {
 /** 병원·약국 탭에는 병원·약국·응급실만(화장실은 코스 탭에서 보여 준다) */
 const HELP_ONLY = new Set(["응급실", "병·의원", "약국", "산부인과"]);
 
-function HelpList({ h }: { h: Help }) {
+function HelpList({ h, focus }: { h: Help; focus?: string | null }) {
   if (isError(h)) return <Caption>{h.error}</Caption>;
   return (
     <>
       <ul className="cards">
         {Object.entries(h.help ?? {}).filter(([kind]) => HELP_ONLY.has(kind)).flatMap(([kind, items]) =>
           items.map((it, i) => (
-            <li key={`${kind}-${i}`} className="card">
-              <Shop name={it.name} meta={`${kind} · ${it.km}km · ${it.address}`}
+            <FocusCard key={`${kind}-${i}`} name={it.name} focus={focus}>
+              <Shop name={it.name} meta={[kind, it.km !== null && it.km !== undefined ? `${it.km}km` : "", it.address].filter(Boolean).join(" · ")}
                 tags={it.status ? [[it.status, "wc"]] : []} />
-              {it.phone && (
-                <div className="row">
-                  <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>
-                </div>
-              )}
-            </li>
+              <div className="row">
+                <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
+                {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화 {it.phone}</LinkButton>}
+                <MapButton name={it.name} />
+              </div>
+            </FocusCard>
           )),
         )}
       </ul>
@@ -114,7 +133,7 @@ function PanelHome() {
       </div>
       <div className="hello">
         <h2>우리 가족이 갈 수 있을까?</h2>
-        <p>경사·계단·턱, 장애인 화장실과 쉴 곳까지 먼저 살펴보고 알려드려요.</p>
+        <p>경사·턱·화장실을 미리 확인해 드려요.</p>
       </div>
       <ul className="choices">
         {TYPES.map(([label, icon, ut, text, desc, bg]) => (
@@ -266,7 +285,7 @@ function FoodTab({ s, top }: { s: State; top: PlaceResult }) {
   return (
     <>
       <Sect>{top.place} 근처 {cond || "식당"}</Sect>
-      {f ? <FoodList f={f} /> : fetched.error ? <Caption>식당 정보를 불러오지 못했어요.</Caption> : <Loading />}
+      {f ? <FoodList f={f} focus={s.focus} /> : fetched.error ? <Caption>식당 정보를 불러오지 못했어요.</Caption> : <Loading />}
       {near.data && near.data.items.length > 0 && (
         <details className="expander">
           <summary><Icon name="storefront" /><span>이 장소 주변 가게 (2021 조사)</span><Icon name="expand_more" /></summary>
@@ -288,12 +307,12 @@ function FoodTab({ s, top }: { s: State; top: PlaceResult }) {
   );
 }
 
-function HelpTab({ top }: { top: PlaceResult }) {
+function HelpTab({ s, top }: { s: State; top: PlaceResult }) {
   const h = useApi<Help>(urls.help(top.place));
   return (
     <>
       <Sect>{top.place}에서 가까운 곳</Sect>
-      {h.data ? <HelpList h={h.data} /> : h.error ? <Caption>병원·약국 정보를 불러오지 못했어요.</Caption> : <Loading />}
+      {h.data ? <HelpList h={h.data} focus={s.focus} /> : h.error ? <Caption>병원·약국 정보를 불러오지 못했어요.</Caption> : <Loading />}
     </>
   );
 }
@@ -366,7 +385,7 @@ function PanelResult({ s, userTypes }: { s: State; userTypes?: Record<string, st
         {s.tab === "한눈에" && <Overview s={s} top={top} det={det} />}
         {s.tab === "코스" && <Course top={top} det={det} failed={failed} />}
         {s.tab === "식당" && <FoodTab s={s} top={top} />}
-        {s.tab === "병원·약국" && <HelpTab top={top} />}
+        {s.tab === "병원·약국" && <HelpTab s={s} top={top} />}
       </div>
     </>
   );
@@ -380,7 +399,7 @@ function PanelFood({ s, f, userTypes }: { s: State; f: Food; userTypes?: Record<
       <Head s={s} tag={`식당 ${(f.items ?? []).length}곳`} userTypes={userTypes} />
       <BackButton s={s} />
       <Sect>{f.around} 근처 {cond || f.food_kind || "식당"}</Sect>
-      <FoodList f={f} />
+      <FoodList f={f} focus={s.focus} />
     </>
   );
 }
@@ -409,7 +428,7 @@ function PanelAnswer({ s, userTypes }: { s: State; userTypes?: Record<string, st
       {s.help_only && (
         <>
           <Sect>{s.help_only.place}에서 가까운 곳</Sect>
-          <HelpList h={s.help_only} />
+          <HelpList h={s.help_only} focus={s.focus} />
         </>
       )}
     </>

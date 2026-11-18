@@ -2,8 +2,9 @@
 // 오른쪽 아래 하르방 버튼과 대화창 (main.py chat_fab(), chat_window(), bot_msg())
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ART } from "@/lib/art";
-import { closeChat, go, resultNames, showPlace, toggleChat, typingDone, type Msg, type State } from "@/lib/store";
-import { Avatar, Svg } from "./bits";
+import { closeChat, focusItem, go, locateAndRetry, resultNames, showPlace, toggleChat, typingDone, type Msg, type State } from "@/lib/store";
+import { kakaoRouteLink } from "@/lib/api";
+import { Avatar, LinkButton, Svg } from "./bits";
 import Icon from "./Icon";
 import Markdown from "./Markdown";
 
@@ -84,6 +85,48 @@ function Typewriter({ text, onDone }: { text: string; onDone: () => void }) {
   );
 }
 
+// 답변 줄 앞의 말머리를 그림으로 바꿔 한눈에 보이게 한다(화면 읽기 프로그램에는 말머리를 읽어 준다)
+const LINE_MARKS: [RegExp, string, string, string][] = [
+  [/^조심할 점:\s*/, "⚠️", "warn", "조심할 점"],
+  [/^확인할 점:\s*/, "📞", "check", "확인할 점"],
+  [/^비 오면:\s*/, "☔", "rain", "비 오면"],
+  [/^(응급 상황에는|응급 시에는)/, "🚨", "sos", ""],
+];
+
+function AnswerView({ text }: { text: string }) {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  return (
+    <div className="ans">
+      {lines.map((ln, i) => {
+        const t = /^\*\*(.+?)\*\*\s*[—-]\s*(.+)$/.exec(ln);
+        if (i === 0 && t) {
+          return (
+            <div key={i} className="ans-title">
+              <b>{t[1]}</b>
+              <span className="ans-tag">{t[2]}</span>
+            </div>
+          );
+        }
+        const mk = LINE_MARKS.find(([re]) => re.test(ln));
+        if (mk) {
+          const [re, icon, cls, label] = mk;
+          const body = cls === "sos" ? ln : ln.replace(re, "");
+          return (
+            <div key={i} className={`ans-row ${cls}`}>
+              <span className="ic" aria-hidden="true">{icon}</span>
+              <span>
+                {label && <span className="sr-only">{label}: </span>}
+                {cls === "rain" ? <>비 오면 <b>{body}</b></> : body}
+              </span>
+            </div>
+          );
+        }
+        return <Markdown key={i} text={ln} />;
+      })}
+    </div>
+  );
+}
+
 function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
   const shown = [...resultNames(s), ...(s.detail_only ? [s.detail_only.place] : [])];
   const places = (m.places ?? []).filter((p) => shown.includes(p));
@@ -96,10 +139,23 @@ function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
       <Avatar />
       <div className="botb">
         <div className="md">
-          {animate ? <Typewriter text={m.text} onDone={typingDone} /> : <Markdown text={m.text} />}
+          {animate ? <Typewriter text={m.text} onDone={typingDone} /> : <AnswerView text={m.text} />}
         </div>
-        {m.trace && m.trace.filter(Boolean).length > 0 && (
-          <p className="trace">찾아본 정보: {[...new Set(m.trace.filter(Boolean))].join(" · ")}</p>
+        {!animate && (m.items ?? []).length > 0 && (
+          <ul className="mitems">
+            {(m.items ?? []).map((it) => (
+              <li key={it.name}>
+                <div className="mi-name"><b>{it.name}</b><small>{it.kind}</small></div>
+                <div className="mi-acts">
+                  <LinkButton href={kakaoRouteLink(it.name, it.lat, it.lon)} icon="directions" kind="primary">길안내</LinkButton>
+                  {it.phone && <LinkButton href={`tel:${it.phone}`} icon="call">전화</LinkButton>}
+                  <button type="button" className="btn btn-secondary" onClick={() => focusItem(it.name, true)} aria-label={`${it.name} 지도에서 보기`}>
+                    <Icon name="map" /><span>지도</span>
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
         {places.length > 0 && (
           <div className="mplaces">
@@ -197,7 +253,10 @@ export function ChatWindow({ s }: { s: State }) {
           {s.ask && !s.pending && options.length > 0 && (
             <div className="askopts">
               {options.map((o) => (
-                <button key={o} type="button" className="btn btn-primary pill-btn" onClick={() => go(o, null, true)}>{o}</button>
+                <button key={o} type="button" className="btn btn-primary pill-btn"
+                  onClick={() => (o === "내 위치로 찾기" ? locateAndRetry() : go(o, null, true))}>
+                  {o === "내 위치로 찾기" && <Icon name="my_location" />}{o}
+                </button>
               ))}
             </div>
           )}

@@ -7,7 +7,7 @@ import type { MapData } from "@/lib/types";
 import { isError, urls } from "@/lib/api";
 import type { Config, Detail, Food, Help, PlaceDot } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
-import { lookPlace, showPlace, topPlace, useStore, type State } from "@/lib/store";
+import { focusItem, lookPlace, showPlace, topPlace, useStore, type State } from "@/lib/store";
 import { ChatFab, ChatWindow, Searching } from "./Chat";
 import Dashboard from "./Dashboard";
 import TopBar from "./TopBar";
@@ -79,6 +79,8 @@ export default function App() {
           chatOpen={s.chat_open}
           onPick={showPlace}
           onLook={lookPlace}
+          onFocus={focusItem}
+          focus={s.focus}
         />
       ) : (
         <div className="map-wait" aria-hidden="true" />
