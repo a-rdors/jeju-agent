@@ -31,6 +31,7 @@ python -m venv .venv
 # 2. 키 파일 만들기: 프로젝트 폴더에 .env 파일을 만들고 아래를 넣는다
 #    OPENAI_API_KEY=sk-...          (Agent 대화. 없으면 버튼 기반 기본 모드로 동작)
 #    JEJU_PROJECT_KEY=...           (제주데이터허브 API. 현재 화면 실행에는 필요 없음)
+#    KAKAO_JS_KEY=...               (카카오맵. 없으면 기본 지도. 카카오 개발자 앱에 Web 플랫폼 http://localhost:8501 등록, 카카오맵 사용 설정 ON)
 
 # 3. 실행 (내 컴퓨터에서만 열림)
 .venv\Scripts\streamlit run app/main.py --server.address localhost
@@ -43,6 +44,7 @@ python -m venv .venv
 | 경로 | 내용 |
 |---|---|
 | `app/main.py` | 화면(Streamlit). **화면 작업은 이 파일만** 바꾸면 된다 |
+| `app/map_view.py` | 지도: 카카오맵 그리기, 키가 없으면 기본 지도 |
 | `app/agent.py` | Agent: OpenAI 함수 호출 반복, 시스템 프롬프트, 되묻기·날씨·위치·근처 기준 처리 |
 | `app/tools.py` | 도구: 장소 추천·판정, 코스 상세, 의료, 식당·식사 조건, 날씨, 전화 질문지. 모든 판단은 코드로 계산 |
 | `.streamlit/config.toml` | 테마(색·글꼴·글자 크기) |
@@ -93,6 +95,7 @@ python -m venv .venv
 |---|---|---|
 | OpenAI (gpt-5.4-mini) | 말 해석, 도구 선택, 쉬운 설명 | 필요 |
 | Open-Meteo | 7일 날씨 예보 | 불필요 |
+| 카카오맵 JavaScript SDK | 화면 지도(추천 장소·코스·식당·병원) | 필요(없으면 기본 지도) |
 | 카카오맵 링크 | 길안내 열기 | 불필요 |
 
 ## 한계
