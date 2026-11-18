@@ -10,6 +10,7 @@
 """
 import datetime as dt
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -36,9 +37,13 @@ def grounded(out):
     text = out["text"]
     allowed = set()
     for name, _, res in out["tool_results"]:
-        for key in ("results", "items", "unverified"):
+        for key in ("results", "items", "unverified", "stops"):
             for it in res.get(key, []) if isinstance(res, dict) else []:
                 allowed.add(it.get("place") or it.get("name"))
+                if isinstance(it.get("rain_alt"), dict):  # 코드가 계산한 '비 오면 대신 갈 곳'
+                    allowed.add(it["rain_alt"]["name"])
+                if it.get("food_type"):  # 업종 이름(예: 백반/한정식)은 가게 이름이 아님
+                    allowed.add(it["food_type"])
         if isinstance(res, dict) and res.get("place"):
             allowed.add(res["place"])
         if isinstance(res, dict) and res.get("around"):  # 근처 검색의 기준(사용자가 말한 가게·동네)
@@ -47,6 +52,9 @@ def grounded(out):
             for items in res["help"].values():
                 allowed |= {i["name"] for i in items}
     mentioned = {p for p in PLACES if p in text}
+    for res in [r for _, _, r in out["tool_results"] if isinstance(r, dict)]:
+        if isinstance(res.get("rain_alt"), dict):
+            allowed.add(res["rain_alt"]["name"])
     if any(name == "search_food" for name, _, _ in out["tool_results"]):  # 가게 이름 검사는 식당 찾기를 했을 때만
         mentioned |= {f for f in FOOD_NAMES if len(f) >= 4 and f in text}  # 3글자 이하는 일반 단어와 겹침(예: 카페라서)
     bad = sorted(m for m in mentioned if not any(m in a or a in m for a in allowed if a))
@@ -84,7 +92,7 @@ SCENARIOS = [
                          f"상위 {[(i['name'], i['wheelchair_entry']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
     {"id": 7, "q": ["무릎 안 좋으신 어머니랑 숲길 잠깐 걷고 싶어"],
      "expect": "어르신 기준 숲 장소, 짧은 코스",
-     "check": lambda o: (bool(top(o)) and "자연·숲" in top(o)[0]["themes"] and top(o)[0]["minutes"] <= 45,
+     "check": lambda o: (bool(top(o)) and "자연·숲" in top(o)[0]["themes"] and (top(o)[0]["minutes"] or 0) <= 45,
                          f"1순위 {top(o)[0]['place']} 약 {top(o)[0]['minutes']}분" if top(o) else "추천 없음")},
     {"id": 8, "q": ["휠체어로 갈 만한 데 추천해 줘", "거기 근처에 약국이나 병원 있어?"],
      "expect": "두 번째 질문에서 앞서 추천한 장소 기준으로 의료 찾기",
@@ -114,6 +122,29 @@ SCENARIOS = [
      "check": lambda o: (bool(results_of(o, "search_food")) and bool(set(results_of(o, "search_food")[-1]["diet_needs"]) & {"kids", "mild"})
                          and bool(results_of(o, "search_food")[-1]["items"]),
                          f"조건 {results_of(o, 'search_food')[-1]['diet_needs']}, 기준 {results_of(o, 'search_food')[-1]['around']}" if results_of(o, "search_food") else "식당 도구 안 씀")},
+    {"id": 15, "q": ["휠체어 타는 아빠랑 서귀포에서 반나절 일정 짜줘. 아빠가 이가 안 좋으셔"],
+     "expect": "일정 요청 → 장소 1곳 + 근처 씹기 편한 식당",
+     "check": lambda o: (bool(results_of(o, "plan_outing")) and len(results_of(o, "plan_outing")[-1]["stops"]) >= 2
+                         and [a for n, a, _ in o["tool_results"] if n == "plan_outing"][-1].get("diet_needs") == ["soft"],
+                         f"일정 {[s_['name'] for s_ in results_of(o, 'plan_outing')[-1]['stops']]}" if results_of(o, "plan_outing") else "일정 도구 안 씀")},
+    {"id": 16, "q": ["애월 근처 국수집 알려줘. 엄마가 휠체어 타셔"],
+     "expect": "단순 식당 질문 → 일정 도구를 쓰지 않음",
+     "check": lambda o: (bool(results_of(o, "search_food")) and not results_of(o, "plan_outing"),
+                         f"도구 {[t['tool'] for t in o['trace']]}")},
+    {"id": 17, "q": ["휠체어 타는 할머니랑 애월에서 카페 가고 싶어"],
+     "expect": "(사용자 지적) 거동 불편 → 2층·지하 카페는 상위 3곳에서 빠짐",
+     "check": lambda o: (bool(results_of(o, "search_food")) and bool(results_of(o, "search_food")[-1]["items"])
+                         and all(i["floor_note"] in ("1층", "층 정보 없음") for i in results_of(o, "search_food")[-1]["items"][:3]),
+                         f"{[(i['name'], i['floor_note']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
+    {"id": 18, "q": ["휠체어 타는 아빠랑 성산에서 횟집 갔다가 근처 카페도 가고 싶어"],
+     "expect": "(사용자 발견) 한 질문에 식당 두 종류 → 식당 찾기를 두 번(횟집·카페) 하고 둘 다 결과가 있음",
+     "check": lambda o: (len(results_of(o, "search_food")) >= 2 and all(r["items"] for r in results_of(o, "search_food")[:2]),
+                         f"찾기 {len(results_of(o, 'search_food'))}회: {[r['food_kind'] for r in results_of(o, 'search_food')]}")},
+    {"id": 19, "q": ["휠체어 타는 아빠랑 1박 2일로 제주 가는데 일정 짜줘"],
+     "expect": "(사용자 결정) 여러 날 시간표를 지어내지 않고 첫 나들이만 제안, 전체 동선 제안도 안 함",
+     "check": lambda o: (bool(results_of(o, "plan_outing")) and not any(w in o["text"] for w in ("2일차", "둘째 날", "전체 동선", "1일차"))
+                         and not re.search(r"(정리|짜|만들)[어아]?\s*드릴(게|까)", o["text"]) and "+ 일정" in o["text"],
+                         f"일정 도구 {'O' if results_of(o, 'plan_outing') else 'X'}, 답변 앞부분: {o['text'][:40]}")},
     {"id": 13, "q": ["어르신 모시고 갈 만한 곳", "다른 곳은 없어?"],
      "expect": "두 번째 질문에서 앞서 보여준 장소를 빼고 새로 추천",
      "check": lambda o: (bool(top(o)) and bool(results_of(o, "recommend_places")[-1] and [a for n, a, _ in o["tool_results"] if n == "recommend_places"][-1].get("exclude")),

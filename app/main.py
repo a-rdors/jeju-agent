@@ -30,6 +30,7 @@ DEFAULTS = {"history": [], "msgs": [], "ask": None, "results": None, "user_type"
             "big": False, "food": None, "when": "오늘", "shown": [], "screen": "home", "tab": "한눈에",
             "pending": None, "detail_only": None, "help_only": None,
             "chat_open": False, "panel_open": True, "unread": 0, "typing": None,
+            "foods": [], "itinerary": [], "diet": [],
             "location": None}  # location: (위도, 경도). 위치 권한을 받으면 채운다
 KEEP = {"big", "panel_open"}  # 처음으로 가도 그대로 둘 설정
 for k, v in DEFAULTS.items():
@@ -40,16 +41,17 @@ TYPES = [  # (버튼 글자, 아이콘, 이동 유형, 보낼 문장, 설명, �
      "경사·턱·장애인 화장실을 먼저 봐요", "#E3F1E7"),
     ("유모차와 함께", "stroller", "stroller", "유모차 끌고 갈 만한 곳 추천해 줘", "계단 없는 길, 쉬어 갈 곳을 봐요", "#FDE9D6"),
     ("어르신과 함께", "senior", "senior", "부모님 모시고 가볍게 다녀올 곳 추천해 줘", "짧고 완만한 길, 앉을 곳을 봐요", "#E2EDF7"),
+    ("임산부와 함께", "pregnant", "pregnant", "임산부와 무리 없이 다녀올 곳 추천해 줘", "짧은 코스, 화장실·산부인과를 봐요", "#F6E4EE"),
 ]
-EXAMPLES = ["비 오는 날 실내로 갈 곳", "바다 보면서 천천히 걷고 싶어", "숲길 산책하고 싶어", "근처 해산물 식당"]
+EXAMPLES = ["휠체어 타는 아빠랑 바다 보러 가고 싶어", "비 오는 날 아기랑 실내로 갈 곳",
+            "할머니가 이가 안 좋으셔서 제주시에서 밥 먹을 곳", "임산부랑 서귀포에서 반나절 일정 짜줘"]
 GREETING = ("안녕하세요, 하르방 도우미예요. 누구와 어디로 가고 싶은지 편하게 말해 주세요. "
             "찾은 곳은 지도에 바로 보여 드릴게요.")
 TABS = ["한눈에", "코스", "식당", "병원·약국", "질문지"]
 STEP_NAMES = {
-    "recommend_places": "조건에 맞는 장소 찾기", "get_weather": "날씨 확인",
-    "search_food": "식당 찾기", "get_place_detail": "코스 살펴보기",
-    "find_nearby_help": "가까운 병원·약국 찾기", "check_nearby_places": "주변 가게 확인",
-    "ask_user": "필요한 것 여쭤보기",
+    "recommend_places": "갈 만한 장소 찾기", "get_weather": "날씨 확인", "search_food": "식당·카페 찾기",
+    "get_place_detail": "코스·시설 살펴보기", "find_nearby_help": "가까운 병원·약국·화장실 찾기",
+    "check_nearby_places": "주변 가게 확인", "plan_outing": "반나절 일정 짜기", "ask_user": "필요한 것 여쭤보기",
 }
 LOADING_STEPS = {
     "food": ["가까운 식당을 찾고 있어요", "식사 조건을 맞춰 보고 있어요", "휠체어로 들어갈 수 있는지 보고 있어요"],
@@ -65,8 +67,8 @@ def detail_of(place, user_type):
 
 
 @st.cache_data(show_spinner=False)
-def help_of(place):
-    return T.find_nearby_help(place)
+def help_of(place, user_type=None):
+    return T.find_nearby_help(place, user_type=user_type)
 
 
 @st.cache_data(show_spinner=False)
@@ -115,7 +117,21 @@ def set_tab(name):
 
 
 def pick(place):
-    S.selected, S.food = place, None  # 이전 후보의 식당 결과는 버린다
+    S.selected, S.food, S.foods = place, None, []  # 이전 후보의 식당 결과는 버린다
+
+
+def add_stop(stop):
+    """'+ 일정' 버튼: 같은 곳을 두 번 담지 않는다."""
+    if stop and all(x["name"] != stop["name"] for x in S.itinerary):
+        S.itinerary.append(stop)
+
+
+def remove_stop(name):
+    S.itinerary = [x for x in S.itinerary if x["name"] != name]
+
+
+def open_plan():
+    S.screen, S.panel_open = "plan", True
 
 
 def result_names():
@@ -169,15 +185,20 @@ def send(text, user_type=None):
         except Exception:
             out = A.rule_mode(text, known)
             out["text"] = "(AI 연결이 안 돼서 기본 모드로 찾았어요) " + out["text"]
-    names, places = [], []
+    names, places, turn_foods = [], [], []
     for name, args, res in out["tool_results"]:
         names.append(name)
         if name == "get_weather" and args.get("when"):
             S.when = args["when"]
-        if name == "search_food":
-            S.food = res
+        if name == "search_food":  # 한 질문에서 찾은 식당 결과는 모두 보여 준다(예: 횟집과 카페)
+            turn_foods.append(res)
+            S.diet = args.get("diet_needs") or S.diet
+        if name == "plan_outing" and res.get("stops"):  # 반나절 일정 제안
+            S.itinerary = res["stops"]
+            S.diet = args.get("diet_needs") or S.diet
+            places = [x["name"] for x in res["stops"] if x["kind"] == "place"]
         if name == "recommend_places":
-            S.results, S.food = res, None
+            S.results, S.food, S.foods = res, None, []
             S.selected = res["results"][0]["place"] if res["results"] else None
             S.shown = list(dict.fromkeys(S.shown + [r["place"] for r in res["results"]]))
             places = [r["place"] for r in res["results"]]
@@ -191,6 +212,8 @@ def send(text, user_type=None):
             places = places or [res["place"]]
         if name == "find_nearby_help" and "error" not in res:
             S.help_only = res
+    if turn_foods:
+        S.foods, S.food = turn_foods, turn_foods[0]
     S.ask = out["ask"]
     said = first_mentioned(out["text"], result_names()) if "recommend_places" in names else None
     if said:  # 하르방이 말로 먼저 꺼낸 장소를 대시보드·지도에도 띄운다(말과 화면이 어긋나지 않게)
@@ -205,10 +228,12 @@ def send(text, user_type=None):
     has_results = bool(result_names())
     if S.ask:
         S.chat_open = True
+    elif "plan_outing" in names and S.itinerary:
+        S.screen = "plan"
     elif "recommend_places" in names:
         S.screen, S.tab = "result", "한눈에"
     elif "search_food" in names:
-        if has_results and S.food.get("around") == S.selected:
+        if has_results and len(S.foods) == 1 and S.food.get("around") == S.selected:
             S.screen, S.tab = "result", "식당"
         else:
             S.screen = "food"
@@ -244,10 +269,12 @@ def map_data():
         if S.tab == "식당":
             food = tab_food(top)
         if S.tab == "병원·약국":
-            help_ = help_of(top["place"])
+            help_ = help_of(top["place"], S.user_type)
         return M.build(results=S.results["results"], selected=top["place"], detail=det, food=food, help_=help_)
-    if S.screen == "food" and S.food:
-        return M.build(food=S.food)
+    if S.screen == "plan" and S.itinerary:
+        return M.build(stops=S.itinerary)
+    if S.screen == "food" and S.foods:
+        return M.build(food=S.foods)
     if S.screen == "answer" and (S.detail_only or S.help_only):
         return M.build(detail=S.detail_only, help_=S.help_only)
     return M.build(all_places=T.load()["places"])
@@ -319,15 +346,25 @@ def topbar():
 
 def shop_card(i, it, prefix):
     with st.container(key=f"card_{prefix}_{i}"):
-        tags = [("휠체어 진입 확인(2021)", "wc")] if it.get("wheelchair_entry") else []
+        tags = [("휠체어 진입 확인", "wc")] if it.get("wheelchair_entry") else []
+        fn = it.get("floor_note", "")
+        if fn:
+            tags.append((fn, "wc" if fn == "1층" else ("gray" if fn == "층 정보 없음" else "")))
+        if it.get("baby_chair"):
+            tags.append(("아기 의자 있음", "wc"))
         tags += [(w.split(":")[0] + " (추정)", "") for w in it.get("why", [])]
-        meta = it["food_type"] + (f" · {it['km']}km" if it.get("km") is not None else "")
+        meta = " · ".join(x for x in (it["food_type"], f"{it['km']}km" if it.get("km") is not None else "",
+                                       it.get("address", "")) if x)
         st.html(U.shop(it["name"], meta, tags))
         with st.container(horizontal=True, gap="small"):
             st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
                            icon=":material/directions:", type="primary", key=f"nav_{prefix}_{i}")
             if it.get("phone"):
                 st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:", key=f"tel_{prefix}_{i}")
+            if it.get("place_url"):
+                st.link_button("카카오맵 정보", it["place_url"], icon=":material/info:", key=f"info_{prefix}_{i}")
+            st.button("+ 일정", type="tertiary", key=f"add_{prefix}_{i}", on_click=add_stop, args=(T.food_stop(it),),
+                      help="하루 일정에 담기")
 
 
 def food_list(f, prefix):
@@ -354,18 +391,28 @@ def help_list(h, prefix="h"):
     for kind, items in h.get("help", {}).items():
         for i, it in enumerate(items):
             with st.container(key=f"card_{prefix}_{i}_{kind}"):
-                st.html(U.shop(it["name"], f"{kind} · {it['km']}km · {it['address']}", []))
-                if it["phone"]:
-                    st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:",
-                                   key=f"tel_{prefix}_{i}_{kind}")
+                extra = [it.get("status", ""), "기저귀 교환대" if it.get("diaper") else "", it.get("open", "")]
+                meta = " · ".join(x for x in [kind, f"{it['km']}km", it.get("address", "")] + extra if x)
+                st.html(U.shop(it["name"], meta, []))
+                with st.container(horizontal=True, gap="small"):
+                    if it.get("lat") is not None:
+                        st.link_button("길안내", T.kakao_route_link(it["name"], it["lat"], it["lon"]),
+                                       icon=":material/directions:", key=f"nav_{prefix}_{i}_{kind}")
+                    if it.get("phone"):
+                        st.link_button(f"전화 {it['phone']}", f"tel:{it['phone']}", icon=":material/call:",
+                                       key=f"tel_{prefix}_{i}_{kind}")
     st.html(U.src(h.get("note", "")))
 
 
 def place_overview(top, det):
-    st.html(U.verdict(top["verdict_color"], top["verdict"], top["verdict_reason"]) + U.place_head(top["place"], top["where"]))
+    where = " · ".join(x for x in (top["where"], f"{top['distance_km']}km 거리" if top.get("distance_km") is not None else "") if x)
+    st.html(U.verdict(top["verdict_color"], top["verdict"], top["verdict_reason"]) + U.place_head(top["place"], where))
+    if top.get("image"):
+        st.image(top["image"], width="stretch", caption="사진: 한국관광공사")
+    course = f"약 {top['minutes']}분 · {top['course_m']:,}m" if top.get("minutes") else "시설 방문"
     st.html(U.tiles([
         ("경사", top["slope_level"], "yes" if top["slope_level"] == "완만한 편" else ""),
-        ("코스", f"약 {top['minutes']}분 · {top['course_m']:,}m", ""),
+        ("코스", course, ""),
         ("장애인 화장실", "있어요" if top["accessible_toilet"] else "확인 안 됨", "yes" if top["accessible_toilet"] else "no"),
         ("장애인 주차", "있어요" if top["accessible_parking"] == "yes" else "확인 안 됨",
          "yes" if top["accessible_parking"] == "yes" else "no"),
@@ -383,10 +430,25 @@ def place_overview(top, det):
         wind = "확인 안 됨" if wx.get("wind_ms") is None else f"{wx['wind_ms']:.0f}m/s"
         line = f"{wx['date']} 비 올 확률 {rain} · 바람 {wind} · {wx['temp']} (Open-Meteo 예보)"
         weather_html = U.weather(line, wx["tips"])
+    alt = top.get("rain_alt")
+    alt_html = U.weather(f"{alt['name']} ({alt['km']}km · {alt['verdict']})", ["비 오면 대신 갈 곳"]) if alt else ""
     st.html(f"<p style='margin:12px 0 0;font-weight:700'>{U.escape(top['slope_say'])}</p>"
-            + U.notes(top["good_points"], warn) + weather_html)
+            + U.notes(top["good_points"], warn) + weather_html + alt_html)
+    if top.get("overview"):
+        with st.expander("장소 소개", icon=":material/info:"):
+            st.write(top["overview"])
     st.link_button("카카오맵 길안내", T.kakao_route_link(top["place"], top["lat"], top["lon"]),
                    icon=":material/directions:", type="primary", width="stretch")
+    with st.container(horizontal=True, gap="small"):
+        if top.get("parking"):
+            st.link_button("장애인 주차구역 길안내", top["parking"]["link"], icon=":material/local_parking:",
+                           help=f"조사 지점: {top['parking']['label']}")
+        if top.get("phone"):
+            st.link_button(f"전화 {top['phone']}", f"tel:{top['phone']}", icon=":material/call:")
+        if top.get("homepage"):
+            st.link_button("홈페이지", top["homepage"], icon=":material/language:")
+        st.button("+ 일정", type="tertiary", key="place_add", on_click=add_stop,
+                  args=(T.place_stop(top["place"], S.user_type),), help="하루 일정에 담기")
     with st.container(horizontal=True, gap="small"):
         st.button("코스 따라가기", icon=":material/route:", on_click=set_tab, args=("코스",), key="go_course", width="stretch")
         st.button("전화 질문지", icon=":material/call:", on_click=set_tab, args=("질문지",), key="go_ask", width="stretch")
@@ -399,7 +461,7 @@ def place_overview(top, det):
                           on_click=pick, args=(r["place"],))
     st.button("본 곳 빼고 새로 찾기", icon=":material/autorenew:", type="tertiary", key="find_new",
               on_click=go, args=("다른 곳 추천해 줘",))
-    st.html(U.src(f"자료: 제주데이터허브 무장애여행 정보(제주특별자치도, {det['base_date']} 기준). 현장과 다를 수 있어요."))
+    st.html(U.src(f"자료: {det.get('source') or '제주데이터허브 무장애여행 정보'} · 기준 {det['base_date']}. 현장과 다를 수 있어요."))
 
 
 # ---------- 대시보드 ----------
@@ -431,13 +493,29 @@ def panel_result():
     if S.tab == "한눈에":
         place_overview(top, det)
     elif S.tab == "코스":
-        st.html(U.place_head(top["place"], f"약 {det['minutes']}분 · {det['course_m']:,}m · 경사 {det['slope_level']}"))
-        st.caption("지도의 빨간 ! 표시가 아래 빨간 점 지점이에요.")
+        facility = det.get("data_kind") == "시설(관광공사)"
+        st.html(U.place_head(top["place"], "시설 방문" if facility else
+                             f"약 {det['minutes']}분 · {det['course_m']:,}m · 경사 {det['slope_level']}"))
         if det["key_points"]:
+            st.caption("지도의 빨간 ! 표시가 아래 빨간 점 지점이에요.")
             st.html(U.timeline(det["key_points"], NOT_CAUTION))
+        elif facility:
+            entry = (det.get("all_points") or [{}])[0].get("text", "")
+            st.caption("시설 입구 기준 정보예요. 코스를 따라 경사를 잰 자료는 아니에요.")
+            if entry:
+                st.html(U.notes([entry], []))
         else:
             st.caption("특별히 확인할 지점 기록이 없어요.")
-        st.html(U.src(det["source"]))
+        if det.get("toilets_near"):
+            st.html(U.sect("가까운 장애인 화장실") + U.notes(
+                [f"{t['name']} ({int(t['km'] * 1000)}m){' · 기저귀 교환대' if t.get('diaper') else ''}"
+                 + (f" · {t['open']}" if t.get("open") else "") for t in det["toilets_near"]], []))
+        if det.get("bus_stops"):
+            st.html(U.sect("가까운 버스 정류소") + U.notes(
+                [f"{b['name']} · 걸어서 약 {b['walk_min']}분({b['m']}m)" for b in det["bus_stops"]],
+                ["저상버스·노선은 확인이 안 됐어요"]))
+        if det.get("source"):
+            st.html(U.src(det["source"]))
     elif S.tab == "식당":
         f = tab_food(top)
         cond = " · ".join(f.get("diet_labels") or [])
@@ -457,10 +535,10 @@ def panel_result():
                 st.html(U.src(near["note"]))
     elif S.tab == "병원·약국":
         st.html(U.sect(f"{top['place']}에서 가까운 곳"))
-        help_list(help_of(top["place"]))
+        help_list(help_of(top["place"], S.user_type))
     elif S.tab == "질문지":
         st.html(U.sect("전화로 물어볼 것"))
-        questions((S.food or {}).get("diet_needs"), prefix="qr", place=top["place"])
+        questions(S.diet or (S.food or {}).get("diet_needs"), prefix="qr", place=top["place"])
 
 
 def back_button(key):
@@ -470,14 +548,41 @@ def back_button(key):
 
 
 def panel_food():
-    f = S.food
-    st.html(U.dash_head("식당", f"{len(f.get('items', []))}곳"))
+    total = sum(len(f.get("items", [])) for f in S.foods)
+    st.html(U.dash_head("식당·카페", f"{total}곳"))
     back_button("back_result")
-    cond = " · ".join(f.get("diet_labels") or [])
-    st.html(U.sect(f"{f['around']} 근처 {cond or (f['food_kind'] or '식당')}"))
-    food_list(f, "sf")
-    with st.expander("전화로 물어볼 것", icon=":material/call:", expanded=bool(f.get("diet_needs"))):
-        questions(f.get("diet_needs"), prefix="qf", place=f.get("around") or "")
+    for fi, f in enumerate(S.foods):
+        cond = " · ".join(f.get("diet_labels") or [])
+        kind = f.get("food_kind") or "식당"
+        st.html(U.sect(f"{f['around']} 근처 {kind}" + (f" · {cond}" if cond else "")))
+        food_list(f, f"sf{fi}")
+    with st.expander("전화로 물어볼 것", icon=":material/call:", expanded=bool(S.diet)):
+        questions(S.diet, prefix="qf", place=S.food.get("around") or "")
+
+
+def panel_plan():
+    st.html(U.dash_head("오늘 일정", f"{len(S.itinerary)}곳"))
+    back_button("back_result3")
+    legs = T.itinerary_legs(S.itinerary)
+    for i, stop in enumerate(S.itinerary):
+        if i:
+            st.caption(f"↓ 약 {legs[i - 1]['km']}km (직선)")
+        with st.container(key=f"card_plan_{i}"):
+            label = stop["verdict"] if stop["kind"] == "place" else stop.get("food_type", "")
+            tags = [(f"비 오면: {stop['rain_alt']['name']}", "")] if stop.get("rain_alt") else []
+            st.html(U.shop(f"{i + 1}. {stop['name']}", label, tags))
+            with st.container(horizontal=True, gap="small"):
+                st.link_button("길안내", T.kakao_route_link(stop["name"], stop["lat"], stop["lon"]),
+                               icon=":material/directions:", key=f"it_nav_{i}")
+                st.button("빼기", type="tertiary", key=f"it_del_{i}", on_click=remove_stop, args=(stop["name"],))
+    if S.itinerary:
+        sheet = T.itinerary_html(S.itinerary, S.user_type, S.diet, S.when)
+        st.download_button("일정표 내려받기", data=sheet.encode("utf-8"), file_name="같이나들이_일정표.html",
+                           mime="text/html", icon=":material/print:", type="primary", width="stretch",
+                           help="내려받은 파일을 열어 인쇄하거나 PDF로 저장하세요")
+        st.html(U.src("일정표: 들르는 순서·거리, 장소별 확인표, 가까운 장애인 화장실, 급할 때 연락처, 전화로 확인할 것"))
+    else:
+        st.caption("담은 곳이 없어요. 장소나 식당 카드의 '+ 일정'을 눌러 담아 보세요.")
 
 
 def panel_answer():
@@ -498,9 +603,14 @@ def dashboard():
     if not S.panel_open:
         return
     with st.container(key="dash", gap="small"):
-        if S.screen == "result" and S.results:
+        if S.itinerary and S.screen != "plan":
+            st.button(f"오늘 일정 {len(S.itinerary)}곳 보기", icon=":material/route:", type="secondary",
+                      key="open_plan", on_click=open_plan, width="stretch")
+        if S.screen == "plan":
+            panel_plan()
+        elif S.screen == "result" and S.results:
             panel_result()
-        elif S.screen == "food" and S.food:
+        elif S.screen == "food" and S.foods:
             panel_food()
         elif S.screen == "answer" and (S.detail_only or S.help_only):
             panel_answer()

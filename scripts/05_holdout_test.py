@@ -41,7 +41,7 @@ HOLDOUT = [
                          f"{[(i['name'], i['wheelchair_entry']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
     {"id": "H5", "q": ["할아버지가 오래 못 걸으셔서 잠깐 바람 쐬러 갈 곳"],
      "expect": "어르신 기준 짧은 코스(30분 안팎)",
-     "check": lambda o: (bool(top(o)) and top(o)[0]["minutes"] <= 35,
+     "check": lambda o: (bool(top(o)) and (top(o)[0]["minutes"] or 0) <= 35,
                          f"1순위 {top(o)[0]['place']} 약 {top(o)[0]['minutes']}분" if top(o) else "추천 없음")},
     {"id": "H6", "q": ["전동휠체어로 사려니숲 갈 수 있어?"],
      "expect": "특정 장소 질문 → 사려니숲길 무장애나눔길 정보로 답",

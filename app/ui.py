@@ -248,6 +248,7 @@ ICON = {
     "question": '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M9 9.2a3 3 0 1 1 4.3 2.7c-.9.5-1.3 1.1-1.3 2.1"/><circle cx="12" cy="17.6" r=".6" fill="#fff"/></svg>',
     "wheel": '<svg viewBox="0 0 24 24" fill="none" stroke="#1E5636" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="4" r="1.6" fill="#1E5636"/><path d="M10 7v6h6l2.5 5"/><path d="M10 10h5"/><path d="M7.5 11.5a5 5 0 1 0 7 5.8"/></svg>',
     "stroller": '<svg viewBox="0 0 24 24" fill="none" stroke="#9C4A07" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h2l1.5 7h10a6 6 0 0 0-6-6V5"/><path d="M7.5 12c.5 2.5 2.5 3.5 5 3.5h3"/><circle cx="9" cy="19" r="1.8"/><circle cx="16.5" cy="19" r="1.8"/></svg>',
+    "pregnant": '<svg viewBox="0 0 24 24" fill="none" stroke="#9A3D6B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="4" r="1.8" fill="#9A3D6B"/><path d="M10 7.5c-1.5 1-2 3-1.5 5.5l1 8"/><path d="M11 8.5c3.5 1 5 3.5 4 6.5-.6 1.6-2.5 2-4.5 1.5"/><path d="M12.5 17l.5 4"/></svg>',
     "senior": '<svg viewBox="0 0 24 24" fill="none" stroke="#2C6EA6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="4" r="1.8" fill="#2C6EA6"/><path d="M11 7l-1.5 6 3 3 1 5"/><path d="M9.5 13l-2.5 8"/><path d="M11 8.5l3 2.5"/><path d="M17 11v10"/><path d="M15.5 11.2c.4-.6 1-1 1.5-1"/></svg>',
 }
 

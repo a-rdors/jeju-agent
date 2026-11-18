@@ -24,7 +24,7 @@ PROC = DATA / "processed"
 THEMES = {
     "바다": r"해안|포구|방파제|해수욕장|해변|바당|항|등대|알작지|넙빌레|환해장성|요트|바다",
     "마을": r"마을|골목|거리|벽화|리사무소|식당",
-    "자연·숲": r"숲|동백|목장|생태|공원|저수지|오름|봉|월대천|밭담|군락|퐁낭|산책|휴양림|올레",
+    "자연·숲": r"숲|동백|목장|생태|공원|저수지|오름|봉|월대천|밭담|군락|퐁낭|산책|휴양림|올레|폭포|정원|수목원|곶자왈|습지|분화구|계곡|섬|식물원|녹차|감귤",
     "역사·문화": r"사|법정사|항일|당터|유적|환해장성|이중섭|연대|기념관|박물관",
     "실내": r"박물관|미술관|갤러리|두모악|뮤지엄|벙커|센터|기념관|공연장",
     "시장": r"시장|오일장",
@@ -150,6 +150,93 @@ def course_metrics(points, place):
     }
 
 
+TOUR_SURVEY = "관광공사 무장애 여행 정보"
+ENTRY_OK = r"턱이 없|턱 없|단차가 없|단차 없|경사로|휠체어 접근 가능|휠체어 진입 가능|평지|무단차"
+ENTRY_BAD = r"불가|어려|계단만|턱이 있|단차 있"
+
+
+def add_tour_places(app):
+    """관광공사 무장애 여행 정보(관광지·문화시설)를 나들이 장소 표에 합친다.
+    제주도 조사 70곳은 '코스 경사' 자료, 관광공사는 '시설 입구·화장실·대여' 자료라 칸을 나눠 둔다."""
+    path = PROC / "tour_places.csv"
+    for col in ("entry_access", "entry_ok", "wheelchair_rental", "stroller_rental", "nursing_room", "elevator",
+                "tour_type", "tel", "overview", "image", "homepage"):
+        app[col] = ""
+    if not path.exists():
+        return app
+    t = pd.read_csv(path).fillna("")
+    t = t[t["type"].isin(["관광지", "문화시설"]) & t["lat"].astype(str).ne("")]
+    alias = lambda x: re.sub(r"제주|국립|도립|특별자치도", "", norm(x).replace("특별자치도립", "도립"))
+    have = [alias(x) for x in app["place"]]
+    areas = pd.read_csv(PROC / "areas.csv", encoding="utf-8-sig")
+    dongs = areas[areas["area"].str.contains(r"[읍면동]$", regex=True)]
+    rows = []
+    for _, r in t.iterrows():
+        key = alias(r["title"])
+        if any(key == h or (len(key) >= 4 and len(h) >= 4 and (key in h or h in key)) for h in have):
+            continue  # 제주도 조사 장소와 겹치면 기존 장소를 쓴다
+        addr = str(r["address"])
+        sgg = "서귀포시" if "서귀포시" in addr else ("제주시" if "제주시" in addr else "")
+        dong = re.search(r"([가-힣0-9]+[읍면동])(?:\s|$)", addr.replace("제주특별자치도", "").replace(sgg, ""))
+        if not dong:  # 주소에 동 이름이 없으면 가장 가까운 읍·면·동 중심으로 채운다
+            dd = (dongs["lat"] - float(r["lat"])) ** 2 + (dongs["lon"] - float(r["lon"])) ** 2
+            nearest = dongs.loc[dd.idxmin()]
+            dong_name = nearest["area"]
+        else:
+            dong_name = dong.group(1)
+        entry = str(r["출입 경로"]) or str(r["출입문"])
+        ok = bool(re.search(ENTRY_OK, entry)) and not re.search(ENTRY_BAD, entry)
+        themes = [k for k, pat in THEMES.items() if re.search(pat, r["title"])]
+        if r["type"] == "문화시설" and "실내" not in themes:
+            themes.append("실내")
+        rows.append({
+            "place": r["title"], "sigungu": sgg, "dong": dong_name,
+            "start_lat": float(r["lat"]), "start_lon": float(r["lon"]), "points": 1, "route_points": 0,
+            "route_slope_points": 0, "route_over_relax_points": 0, "route_stairs_points": 0, "route_blocked_points": 0,
+            "route_help_points": 0, "route_steep_word_points": 0, "side_blocked_points": 0,
+            "slope_grade": "기록 없음", "slope_relative": "기록 없음",
+            "accessible_toilet": "yes" if re.search(r"장애인", str(r["화장실"])) and "없" not in str(r["화장실"]) else "",
+            "accessible_parking": "yes" if re.search(r"장애인", str(r["주차"])) and "없" not in str(r["주차"]) else "",
+            "base_date": "관광공사 API(수시 갱신)", "survey": TOUR_SURVEY, "course_m": 0, "rest_points": 0,
+            "themes": "/".join(themes) or "기타",
+            "entry_access": entry, "entry_ok": "yes" if ok else ("no" if entry else ""),
+            "wheelchair_rental": str(r["휠체어"]), "stroller_rental": str(r["유모차"]),
+            "nursing_room": str(r["수유실"]), "elevator": str(r["엘리베이터"]),
+            "tour_type": r["type"], "tel": str(r["tel"]),
+            "overview": str(r.get("overview", "")), "image": str(r.get("image", "")),
+            "homepage": (re.search(r"https?://[^\s\"'>]+", str(r.get("homepage", ""))) or [""])[0],
+        })
+    return pd.concat([app, pd.DataFrame(rows)], ignore_index=True)
+
+
+FLOOR = re.compile(r"(지하\s*\d+\s*층|\d+\s*층)")
+
+
+def floor_of(addr):
+    m = FLOOR.search(str(addr))
+    return re.sub(r"\s", "", m.group(1)) if m else ""
+
+
+def attach_floor(food, rest):
+    """음식점 목록(인허가, 2025)의 주소에 적힌 층(예: '…, 2층')을 같은 이름·같은 읍면동 가게에 붙인다."""
+    op = rest[rest["영업상태명"].str.contains("영업", na=False)]
+    addr = op["도로명전체주소"].fillna("") + " " + op["소재지전체주소"].fillna("")
+    idx = {}
+    for name, a in zip(op["사업장명"], addr):
+        fl = floor_of(a)
+        if fl:
+            idx.setdefault(norm(name), []).append((a, fl))
+    out = []
+    for key, dong, address in zip(food["key"], food["dong"], food["address"]):
+        cands = idx.get(key, [])
+        town = re.sub(r"(\d)", "", str(dong))[:2]
+        hit = next((fl for a, fl in cands if town and town in a), None)
+        if hit is None and len(cands) == 1:
+            hit = cands[0][1]
+        out.append(hit or "")
+    return out
+
+
 def main():
     sangga = read(DATA / "제주특별자치도 상가(상권) 정보.csv")
     rest = read(DATA / "제주특별자치도음식점목록(통합).csv", low_memory=False)
@@ -168,7 +255,10 @@ def main():
                          "dong": food["행정동명"], "address": food["도로명주소"].fillna(food["지번주소"]),
                          "lat": food["위도"], "lon": food["경도"]})
     food["key"] = food["name"].map(norm)
+    food["floor"] = attach_floor(food, rest)
     food.drop(columns="key").to_csv(PROC / "food.csv", index=False, encoding="utf-8-sig")
+    print("층 정보", food["floor"].replace("", None).notna().sum(), "/", len(food),
+          food["floor"].value_counts().head(5).to_dict())
     first = food.drop_duplicates("key").set_index("key")
     checked["key"] = checked["name"].map(norm)
     checked = checked.join(first[["food_type", "lat", "lon"]], on="key").drop(columns="key")
@@ -181,7 +271,9 @@ def main():
         m.update({"place": pl["place"], "themes": "/".join(themes) or "기타"})
         extra.append(m)
     app = places.merge(pd.DataFrame(extra), on="place")
+    app = add_tour_places(app)
     app.to_csv(PROC / "places_app.csv", index=False, encoding="utf-8-sig")
+    print("나들이 장소", len(app), app["survey"].value_counts().to_dict())
 
     print("동네", len(areas), "| 의료", med["kind"].value_counts().to_dict(),
           "| 영업확인", checked["open_status"].value_counts().to_dict())

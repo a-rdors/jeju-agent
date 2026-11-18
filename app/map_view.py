@@ -19,7 +19,8 @@ CAUTION_HEX = "#B83227"
 ROUTE_HEX = "#2F7A4D"
 FOOD_HEX = "#E07A1C"   # 귤색
 HELP_HEX = "#5B3A8C"
-HELP_SHORT = {"약국": "약", "병·의원": "병", "응급실": "응"}
+HELP_SHORT = {"약국": "약", "병·의원": "병", "응급실": "응", "산부인과": "산", "장애인 화장실": "WC", "기저귀 교환대": "기"}
+STOP_HEX = "#2C6EA6"   # 일정(바다 파랑)
 NOT_CAUTION = {"장애인 화장실", "장애인 주차"}
 
 
@@ -27,9 +28,15 @@ def kakao_key():
     return os.getenv("KAKAO_JS_KEY", "").strip()
 
 
-def build(results=None, selected=None, detail=None, food=None, help_=None, all_places=None):
-    """지도에 올릴 표식 목록을 만든다. 화면 상태(추천·식당·병원)에 따라 필요한 것만 담는다."""
+def build(results=None, selected=None, detail=None, food=None, help_=None, all_places=None, stops=None):
+    """지도에 올릴 표식 목록을 만든다. 화면 상태(추천·식당·병원·일정)에 따라 필요한 것만 담는다.
+    food 는 식당 결과 하나 또는 여러 개(한 질문에서 횟집과 카페를 함께 찾은 경우)."""
     marks, route = [], []
+    if stops:  # 하루 일정: 들르는 순서대로 번호와 선
+        for i, s in enumerate(stops, 1):
+            marks.append({"kind": "stop", "lat": s["lat"], "lon": s["lon"], "text": str(i), "name": s["name"],
+                          "sub": s.get("verdict") or s.get("food_type", ""), "color": STOP_HEX})
+            route.append([s["lat"], s["lon"]])
     if results:
         for i, r in enumerate(results, 1):
             marks.append({"kind": "place", "lat": r["lat"], "lon": r["lon"], "text": str(i),
@@ -49,8 +56,8 @@ def build(results=None, selected=None, detail=None, food=None, help_=None, all_p
             elif "장애인 화장실" in p["flags"]:
                 marks.append({"kind": "toilet", "lat": p["lat"], "lon": p["lon"], "text": "WC",
                               "name": "장애인 화장실", "sub": p["label"], "color": ROUTE_HEX})
-    if food:
-        for i, it in enumerate(food.get("items", []), 1):
+    for f in (food if isinstance(food, list) else [food] if food else []):
+        for i, it in enumerate(f.get("items", []), 1):
             marks.append({"kind": "food", "lat": it["lat"], "lon": it["lon"], "text": "식",
                           "name": it["name"], "sub": it["food_type"] + (" · 휠체어 진입 확인" if it["wheelchair_entry"] else ""),
                           "color": FOOD_HEX, "ring": it["wheelchair_entry"]})
@@ -66,7 +73,8 @@ def build(results=None, selected=None, detail=None, food=None, help_=None, all_p
 
 LEGEND = [("place", "추천 장소(번호)", VERDICT_HEX["green"]), ("route", "코스", ROUTE_HEX),
           ("dot", "나들이 장소 70곳", ROUTE_HEX), ("caution", "확인할 지점", CAUTION_HEX),
-          ("toilet", "장애인 화장실", ROUTE_HEX), ("food", "식당", FOOD_HEX), ("help", "약국·병원", HELP_HEX)]
+          ("toilet", "장애인 화장실", ROUTE_HEX), ("food", "식당", FOOD_HEX), ("help", "약국·병원·화장실", HELP_HEX),
+          ("stop", "오늘 일정(순서)", STOP_HEX)]
 
 
 def legend_items(data):
@@ -108,7 +116,7 @@ _CSS = """
 
 _JS = r"""
 const JEJU = {s: 33.05, n: 33.66, w: 126.05, e: 127.08};   // 지도 중심이 이 밖으로 못 나간다
-const ORDER = {dot: 1, toilet: 2, caution: 3, help: 4, food: 5, place: 6};
+const ORDER = {dot: 1, toilet: 2, caution: 3, help: 4, food: 5, place: 6, stop: 7};
 
 function esc(t) {
   return String(t ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -209,7 +217,7 @@ function draw(root, S) {
     const tip = document.createElement('div');
     tip.className = 'km-tip';
     let act = '';
-    if (m.kind === 'place' || m.kind === 'food' || m.kind === 'help')
+    if (m.kind === 'place' || m.kind === 'food' || m.kind === 'help' || m.kind === 'stop')
       act = `<a href="https://map.kakao.com/link/to/${encodeURIComponent(m.name)},${m.lat},${m.lon}" target="_blank" rel="noopener">길안내 열기</a>`;
     if (m.kind === 'dot') act = '<button type="button" data-look="1">이곳 살펴보기</button>';
     tip.innerHTML = `<b>${esc(m.name)}</b><small>${esc(m.sub)}</small>${act ? '<br>' + act : ''}`;
