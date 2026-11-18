@@ -35,7 +35,7 @@ export function DashHead({ tag, note = "" }: { tag: string; note?: string }) {
   );
 }
 
-export function Verdict({ color, label, reason }: { color: string; label: string; reason: string }) {
+export function Verdict({ color, label, reason, extra }: { color: string; label: string; reason: string; extra?: ReactNode }) {
   const [cls, icon] = VERDICT[color] ?? ["stone", "question"];
   return (
     <div className={`verdict ${cls}`}>
@@ -45,6 +45,7 @@ export function Verdict({ color, label, reason }: { color: string; label: string
       <div>
         <div className="vl">{label}</div>
         <div className="vr">{reason}</div>
+        {extra}
       </div>
     </div>
   );

@@ -338,6 +338,29 @@ html.big .tab { min-width: 0; padding: 0 6px; }
 .verdict .vi img { width: 22px; height: 22px; }
 .verdict .vl { font-size: 1.12rem; line-height: 1.25; }
 .verdict .vr { font-size: .86rem; line-height: 1.4; opacity: .95; }
+/* 판정 근거: 판정 상자 안 작은 단추 + 펼친 목록 */
+.ev-toggle {
+  margin-top: 5px; padding: 3px 10px; min-height: 28px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.7); background: rgba(255,255,255,.16); color: #fff;
+  font-size: .78rem; font-weight: 700;
+}
+.ev-toggle:hover { background: rgba(255,255,255,.28); }
+.evidence { border: 1px solid var(--stone-2); border-radius: 14px; background: var(--card); padding: 10px 12px; margin-top: 6px; }
+.ev-sum { margin: 0 0 6px; font-size: .84rem; font-weight: 700; color: var(--ink); }
+.ev-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.ev-list li { padding: 7px 0 7px 10px; border-top: 1px solid var(--stone); border-left: 3px solid transparent; }
+.ev-list li:first-child { border-top: none; }
+.ev-list li.used { border-left-color: var(--gyul); }
+.ev-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; }
+.ev-head b { font-size: .9rem; }
+.ev-head small { color: var(--muted); font-size: .76rem; }
+.ev-list p { margin: 2px 0 0; font-size: .84rem; line-height: 1.45; color: var(--ink); }
+.ev-list .tags { margin-top: 4px; }
+.ev-more {
+  display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; min-height: 40px; margin-top: 4px;
+  border: 1px dashed var(--stone-2); border-radius: 12px; background: none; color: var(--leaf-deep); font-weight: 700; cursor: pointer;
+}
+.evidence .src { margin-top: 6px; }
 .place-name { font-size: 1.4rem; line-height: 1.25; margin: 4px 0 0; color: var(--ink); }
 .place-where { color: var(--muted); font-size: .93rem; }
 .slope-say { margin: 12px 0 0; font-weight: 700; }

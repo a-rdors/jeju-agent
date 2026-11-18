@@ -37,7 +37,31 @@ interface Access {
 }
 
 /** recommend_places().results[] */
+/** 판정 근거 한 줄(공공데이터 조사 원문). app/tools.py evidence.items */
+export interface EvidenceItem {
+  label: string;
+  text: string;
+  flags: string[];
+  at_m: number | null;
+  on_route: boolean | null;
+  used: boolean;
+  lat: number | null;
+  lon: number | null;
+}
+
+/** 판정 근거 묶음. course: 제주도 코스 조사 / facility: 관광공사 시설 정보 */
+export interface Evidence {
+  kind: "course" | "facility";
+  summary: string;
+  source: string;
+  survey: string;
+  base_date: string;
+  used_count: number;
+  items: EvidenceItem[];
+}
+
 export interface PlaceResult extends Access {
+  evidence?: Evidence | null;
   place: string;
   where: string;
   score: number;
@@ -80,6 +104,7 @@ export interface CoursePoint {
 
 /** get_place_detail() (오류가 아니면) */
 export interface Detail extends Access {
+  evidence?: Evidence | null;
   place: string;
   where: string;
   course_m: number;
