@@ -51,6 +51,8 @@ def load():
     def rd(name):
         return pd.read_csv(PROC / name, encoding="utf-8-sig")
     places = rd("places_app.csv")
+    # 시장 이름인 곳은 '시장' 분위기만(자연·숲으로 잘못 묶여 산·풍경 질문에 시장이 나오던 문제)
+    places.loc[places["place"].astype(str).str.contains("시장"), "themes"] = "시장"
     if (PROC / "place_contacts.csv").exists():  # 카카오에서 미리 찾은 장소 전화번호·링크
         c = rd("place_contacts.csv")[["place", "phone", "place_url"]]
         places = places.merge(c, on="place", how="left")
@@ -157,6 +159,20 @@ def km(lat1, lon1, lat2, lon2):
     p1, p2 = math.radians(lat1), math.radians(lat2)
     a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
     return 2 * r * math.asin(math.sqrt(a))
+
+
+WHEEL_TYPES = ("manual_wheelchair", "electric_wheelchair")
+
+
+def neutral_words(text, user_type=None):
+    """휠체어·장애를 말하지 않은 사용자에게는 '장애인' 대신 일상적인 말로.
+    장애인 주차구역은 장애인 주차 표지가 있어야 쓸 수 있어 '주차장'으로만 말한다."""
+    if user_type in WHEEL_TYPES or not text:
+        return text
+    for a, b in (("장애인 화장실", "넓은 화장실"), ("장애인용 화장실", "넓은 화장실"), ("장애인 칸", "넓은 칸"),
+                 ("장애인 주차구역", "주차장"), ("장애인 주차", "주차장")):
+        text = text.replace(a, b)
+    return text
 
 
 def josa(word, pair):

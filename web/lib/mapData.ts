@@ -14,12 +14,15 @@ export const VERDICT_HEX: Record<string, string> = {
 };
 
 export const CAUTION_HEX = "#B83227";
-export const ROUTE_HEX = "#2F7A4D";
+// 색은 종류마다 다르게: 추천 장소=판정색(초록·주황·회색), 코스=파랑, 화장실=청록, 조심할 곳=빨강
+export const ROUTE_HEX = "#2F6FD6";
+export const DOT_HEX = "#2F7A4D";
+export const TOILET_HEX = "#0E8A8A";
 export const FOOD_HEX = "#E07A1C";
 export const HELP_HEX = "#5B3A8C";
 
 /** 지도 위험 표시에서 제외할 접근성 항목 (화장실·주차는 경고가 아니라 정보) */
-export const NOT_CAUTION: Set<string> = new Set(["장애인 화장실", "장애인 주차"]);
+export const NOT_CAUTION: Set<string> = new Set(["장애인 화장실", "장애인 주차", "넓은 화장실", "주차장"]);
 
 // ── 내부 상수 ─────────────────────────────────────────────────────────────────
 // 지도 표식 그림(글자 대신 한눈에 알아보는 그림)
@@ -36,9 +39,9 @@ const HELP_SKIP = new Set(["장애인 화장실", "기저귀 교환대"]);
 const LEGEND_DEF: [string, string, string][] = [
   ["place", "추천 장소(번호)", VERDICT_HEX["green"]],
   ["route", "코스", ROUTE_HEX],
-  ["dot", "나들이 장소", ROUTE_HEX],
+  ["dot", "나들이 장소", DOT_HEX],
   ["caution", "조심할 곳", CAUTION_HEX],
-  ["toilet", "장애인 화장실", ROUTE_HEX],
+  ["toilet", "장애인 화장실", TOILET_HEX],
   ["food", "식당", FOOD_HEX],
   ["help", "병원·약국", HELP_HEX],
 ];
@@ -65,6 +68,8 @@ export function buildMapData(o: {
   allPlaces?: PlaceDot[];
   /** 추천 장소 카드의 주소·사진을 찾을 나들이 장소 목록(점은 그리지 않는다) */
   placeInfo?: PlaceDot[];
+  /** 휠체어 이용자인지(화장실 이름을 '장애인 화장실'로) */
+  wheel?: boolean;
 }): MapData {
   // 장소 카드에 보일 주소·사진(나들이 장소 목록에서 이름으로 찾는다)
   const info = new Map((o.placeInfo ?? o.allPlaces ?? []).map((p) => [p.place, p]));
@@ -100,15 +105,17 @@ export function buildMapData(o: {
         sub: `${r.sigungu} ${r.dong}`,
         address: addr(r.address) ?? `${r.sigungu} ${r.dong}`,
         photos: r.photos ?? [],
-        color: ROUTE_HEX,
+        color: DOT_HEX,
       });
     });
   }
 
   // ── 코스 경로 + 위험·화장실 표식 ─────────────────────────────────────────
   if (o.detail?.all_points) {
-    for (const p of o.detail.all_points as any[]) {
-      route.push([p.lat as number, p.lon as number]);
+    // '(=5)'처럼 앞 지점으로 되돌아온 기록은 선이 앞뒤로 튀므로 빼고, 혼자 툭 튀어나온 점도 선에서는 뺀다
+    const pts = (o.detail.all_points as any[]).filter((p) => !/^\(=/.test(String(p.label ?? "")));
+    route.push(...despike(pts.map((p) => [p.lat as number, p.lon as number] as [number, number])));
+    for (const p of pts) {
       const flags = p.flags as string[];
       const caution = flags.filter((f) => !NOT_CAUTION.has(f));
       if (caution.length > 0) {
@@ -127,9 +134,9 @@ export function buildMapData(o: {
           lat: p.lat,
           lon: p.lon,
           text: "🚻",
-          name: "장애인 화장실",
+          name: o.wheel ? "장애인 화장실" : "넓은 화장실",
           sub: p.label as string,
-          color: ROUTE_HEX,
+          color: TOILET_HEX,
         });
       }
     }
@@ -174,7 +181,7 @@ export function buildMapData(o: {
     }
   }
 
-  return { marks, route };
+  return { marks, route, toiletLabel: o.wheel ? "장애인 화장실" : "넓은 화장실" };
 }
 
 /**
@@ -187,7 +194,26 @@ export function legendItems(d: MapData): [string, string][] {
   if (d.route.length > 1) kinds.add("route"); // 점 하나는 선이 아니다(관광공사 장소는 입구 한 점뿐)
   const dots = d.marks.filter((m) => m.kind === "dot").length;
   return LEGEND_DEF.filter(([k]) => kinds.has(k)).map(([k, label, color]) => [
-    k === "dot" ? `${label} ${dots}곳` : label,
+    k === "dot" ? `${label} ${dots}곳` : k === "toilet" ? (d.toiletLabel ?? label) : label,
     color,
   ]);
+}
+
+/** 코스 선에서 혼자 툭 튀어나왔다 돌아오는 점을 뺀다(앞뒤 점을 잇는 길보다 2.5배 넘게 돌아가면 뾰족한 가시) */
+function despike(pts: [number, number][]): [number, number][] {
+  if (pts.length < 3) return pts;
+  const m = (a: [number, number], b: [number, number]) => {
+    const dy = (a[0] - b[0]) * 110540;
+    const dx = (a[1] - b[1]) * 111320 * Math.cos((a[0] * Math.PI) / 180);
+    return Math.hypot(dx, dy);
+  };
+  const out: [number, number][] = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const a = out[out.length - 1], b = pts[i], c = pts[i + 1];
+    const detour = m(a, b) + m(b, c), direct = m(a, c);
+    if (detour > direct * 2.5 + 40) continue; // 가시처럼 튀어나온 점
+    out.push(b);
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
 }

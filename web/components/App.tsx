@@ -33,6 +33,7 @@ function useMapData(s: State) {
   return useMemo(() => {
     if (onResult && top) {
       return buildMapData({
+        wheel: s.user_type.includes("wheelchair"),
         results: s.results?.results ?? [],
         selected: top.place,
         placeInfo: places.data ?? [],
@@ -43,11 +44,11 @@ function useMapData(s: State) {
     }
     if (s.screen === "food" && s.food) return buildMapData({ food: s.food });
     if (s.screen === "answer" && (s.detail_only || s.help_only)) {
-      return buildMapData({ detail: s.detail_only ?? undefined, help: s.help_only ?? undefined });
+      return buildMapData({ detail: s.detail_only ?? undefined, help: s.help_only ?? undefined, wheel: s.user_type.includes("wheelchair") });
     }
     return buildMapData({ allPlaces: places.data ?? [] });
   }, [onResult, top, s.results, s.tab, s.screen, s.food, s.detail_only, s.help_only, det.data, ownFood, food.data,
-    help.data, places.data]);
+    help.data, places.data, s.user_type]);
 }
 
 export default function App() {

@@ -72,6 +72,7 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
     1박 2일·2박 3일처럼 여러 날 일정이나 시간표를 원해도 날짜별 시간표를 지어내지 않는다. 첫 나들이를 plan_outing으로 제안하고
     "다른 날 갈 곳은 결과 카드의 '+ 일정'으로 담아 일정표에 모을 수 있어요"라고 안내한다.
     "전체 동선을 짜 드릴게요", "2일차는…"처럼 여러 날 일정을 만들어 주겠다는 제안도 하지 않는다.
+13. 사용자가 휠체어·장애를 말하지 않았으면 '장애인'이라는 말을 쓰지 않는다(화장실은 '넓은 화장실', 주차는 '주차장').
 12. 도구 결과에 없는 현장 상황(모래길, 혼잡, 공사 등)을 추측해서 말하지 않는다. 주의할 점은 결과의 watch_out, tips, checks에 있는 것만 말한다.
     장소에 rain_alt(비 오면 대신 갈 실내 장소)가 있으면 한 줄로 알려준다.
 
@@ -193,7 +194,18 @@ def plan_text(plan, multi_day=False):
     return "\n".join(lines)
 
 
-def normalize_answer(text, tool_results, last_q=""):
+THEME_HINTS = [("바다", r"바다|해변|해안|바닷가|해수욕"), ("시장", r"시장"),
+               ("자연·숲", r"(?<![가-힣])산(?!책)|산을|산이|오름|숲|풍경|경치|자연|꽃|단풍|억새"),
+               ("실내", r"실내|박물관|미술관|전시"), ("역사·문화", r"역사|유적|문화"), ("마을", r"마을|골목")]
+
+
+def theme_from(text):
+    """질문 속 분위기 말 → 테마(모델이 빠뜨렸을 때 코드가 채운다)"""
+    import re
+    return next((k for k, p in THEME_HINTS if re.search(p, text or "")), None)
+
+
+def normalize_answer(text, tool_results, last_q="", user_type=None):
     """AI 답변의 형식을 코드로 한 번 더 맞춘다.
     - 일정을 짰으면 일정 형식으로 다시 만든다
     - 장소·식당 답변의 '다만 …' 줄은 '조심할 점:'으로 통일한다
@@ -241,7 +253,7 @@ def normalize_answer(text, tool_results, last_q=""):
         text = "\n".join(body)
     content_tools = [n for n in names if n not in ("get_weather", "ask_user")]
     if content_tools and set(content_tools) == {"find_nearby_help"}:
-        built = help_text(tool_results)
+        built = help_text(tool_results, last_q)
         if built:
             return built
     if any(name == "find_nearby_help" for name, _, _ in tool_results) and "119" not in text:
@@ -249,12 +261,25 @@ def normalize_answer(text, tool_results, last_q=""):
     return text
 
 
-def help_text(tool_results):
-    """병원·약국 답변은 코드가 직접 만든다(항상 같은 형식)."""
+def help_text(tool_results, last_q=""):
+    """병원·약국·화장실 답변은 코드가 직접 만든다(항상 같은 형식)."""
+    import re
     calls = [(a, r) for n, a, r in tool_results if n == "find_nearby_help" and isinstance(r, dict) and r.get("help")]
     if not calls:
         return None
     args, res = calls[-1]
+    base = "현재 위치" if res.get("place") == "현재 위치" else res.get("place", "")
+    wc_kind = "기저귀 교환대" if re.search(r"기저귀", last_q) else ("장애인 화장실" if re.search(r"화장실", last_q) else None)
+    if wc_kind and res["help"].get(wc_kind):
+        # 화장실을 물었으면 병원·약국이 아니라 가장 가까운 화장실로 답한다
+        t = res["help"][wc_kind][0]
+        dist = f" · {t['km']}km" if t.get("km") is not None else ""
+        what = "기저귀 교환대가 있는 공중화장실" if wc_kind == "기저귀 교환대" else "장애인 칸이 있는 공중화장실"
+        lines = [f"**{t['name']}** — 공중화장실{dist}",
+                 f"{base}에서 가장 가까운 {what}이에요." + (f" 장애인 칸 {t['accessible_count']}개." if t.get("accessible_count") else ""),
+                 "확인할 점: 여는 시간은 가기 전에 관리기관에 전화로 확인해 보세요.",
+                 "응급 상황에는 119에 먼저 연락하세요."]
+        return "\n".join(lines)
     order = [k for k in (args.get("kinds") or ["약국", "병·의원", "응급실"]) if res["help"].get(k)]
     if not order:
         return None
@@ -335,6 +360,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         if a:
             said_place = a
             break
+    if (re.search(r"화장실|기저귀|약국|병원|응급", last_q) and not re.search(r"코스|길|경사|산책|거기|그곳|그 안|안에|어디쯤", last_q)):
+        system += "\n이번 질문은 근처 화장실·약국·병원 질문이다. get_place_detail이 아니라 find_nearby_help를 쓴다."
     if food_q and not re.search(r"구경|산책|바다\s*보|관광|가\s*볼|놀러|가볼", last_q):
         system += "\n이번 질문은 식당·카페 질문이다. recommend_places가 아니라 search_food를 쓴다."
     outside = re.search(r"서울|부산|경기|인천|대구|대전|광주|울산|세종|강원|충청|전라|경상|전주|여수|경주|강릉|속초", last_q)
@@ -377,6 +404,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         msg = resp.choices[0].message
         if not msg.tool_calls:
             text = normalize_answer(msg.content or "", tool_results, last_q)
+            if not re.search(r"장애|휠체어", last_q):  # 사용자가 직접 '장애인'이라고 말했으면 그대로 둔다
+                text = T.neutral_words(text, known_user_type)  # 휠체어를 말하지 않았으면 '장애인' 대신 일상어
             return {"text": text, "ask": None, "tool_results": tool_results, "trace": trace}
         messages.append({"role": "assistant", "content": msg.content or "",
                          "tool_calls": [c.model_dump() for c in msg.tool_calls]})
@@ -423,6 +452,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                     args["prefer_wheelchair"] = True
             if name == "search_food" and known_user_type in T.MOBILITY_TYPES and "avoid_upstairs" not in args:
                 args["avoid_upstairs"] = True  # 휠체어·유모차·어르신이면 1층 가게를 앞으로
+            if name in ("recommend_places", "plan_outing") and not args.get("theme") and theme_from(last_q):
+                args["theme"] = theme_from(last_q)  # '산을 좋아해요' → 자연·숲 (모델이 분위기를 빠뜨린 경우)
             if name in ("recommend_places", "search_food", "plan_outing") and said_area and not args.get("area") and not args.get("place"):
                 args["area"] = said_area  # 사용자가 말한 동네를 모델이 빠뜨린 경우 코드가 채운다
             if (name in ("recommend_places", "search_food", "plan_outing") and user_location and not said_area
@@ -451,7 +482,7 @@ TYPE_WORDS = [("electric_wheelchair", "전동"), ("manual_wheelchair", "휠체�
 THEME_WORDS = [("바다", "바다|해변|해안|포구"), ("마을", "마을|골목"), ("자연·숲", "숲|자연|꽃|산책"), ("역사·문화", "역사|문화|유적")]
 
 
-def rule_mode(text, user_type=None):
+def rule_mode(text, user_type=None, origin=None):
     import re
     if not user_type:
         user_type = next((k for k, p in TYPE_WORDS if re.search(p, text)), None)
@@ -466,6 +497,8 @@ def rule_mode(text, user_type=None):
             area = w
             break
     args = {"user_type": user_type, "area": area, "theme": theme, "need_toilet": "화장실" in text}
+    if origin:  # 시작 화면 '내 위치'를 고른 경우
+        args.update({"area": None, "origin_lat": origin[0], "origin_lon": origin[1]})
     res = T.recommend_places(**args)
     if not res["results"]:
         return {"text": "조건에 맞는 곳을 찾지 못했어요. 동네나 분위기를 바꿔서 말해 보세요.", "ask": None,

@@ -7,7 +7,7 @@ import { USER_TYPES, isError, kakaoRouteLink, urls } from "@/lib/api";
 import type { Detail, Evidence, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
 import {
-  TABS, conditionTexts, focusItem, go, pick, setMapView, setSheet, setTab, toResult, togglePanel, topPlace,
+  TABS, conditionTexts, focusItem, go, pick, setLocation, setMapView, setSheet, setTab, toResult, togglePanel, topPlace,
   type State, type Tab,
 } from "@/lib/store";
 import {
@@ -27,6 +27,7 @@ const TYPES: [string, string, string, string, string, string][] = [
 // 시작 화면 '어디쯤 가세요?' (보이는 글자, 질문에 붙일 동네 말, 지도 가운데). 고르지 않으면 제주 전체
 const AREAS: [string, string, [number, number] | null][] = [
   ["상관없어요", "", null],
+  ["📍 내 위치", "@me", null],
   ["제주시", "제주시", [33.49, 126.53]],
   ["애월·한림", "애월", [33.42, 126.31]],
   ["중문·서귀포", "서귀포", [33.255, 126.49]],
@@ -127,8 +128,41 @@ function BackButton({ s }: { s: State }) {
 }
 
 // ---------- 시작 ----------
+const IN_JEJU = (lat: number, lon: number) => lat >= 33.1 && lat <= 33.6 && lon >= 126.1 && lon <= 127.0;
+
 function PanelHome() {
   const [area, setArea] = useState("");
+  const [note, setNote] = useState("");
+  const pickArea = (word: string, at: [number, number] | null) => {
+    setNote("");
+    if (word === "@me") {
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        setNote("이 기기에서는 위치를 쓸 수 없어요. 동네를 골라 주세요.");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          const { latitude: lat, longitude: lon } = p.coords;
+          if (IN_JEJU(lat, lon)) {
+            setLocation([lat, lon]);
+            setArea("@me");
+            setMapView({ lat, lon, level: 6 });
+          } else {
+            setLocation(null);
+            setArea("");
+            setMapView({ all: true });
+            setNote("지금 계신 곳이 제주가 아니라서 제주 전체에서 찾아요.");
+          }
+        },
+        () => setNote("위치를 가져오지 못했어요. 위치 권한을 허용하거나 동네를 골라 주세요."),
+        { timeout: 10000, maximumAge: 300000 },
+      );
+      return;
+    }
+    setLocation(null);
+    setArea(word);
+    setMapView(at ? { lat: at[0], lon: at[1], level: 8 } : { all: true });
+  };
   return (
     <>
       <div className="hero-art">
@@ -143,12 +177,10 @@ function PanelHome() {
         <div className="where-chips" role="radiogroup" aria-label="어디쯤 가세요">
           {AREAS.map(([label, word, at]) => (
             <button key={label} type="button" role="radio" aria-checked={area === word} className="wchip"
-              onClick={() => {
-                setArea(word);
-                setMapView(at ? { lat: at[0], lon: at[1], level: 8 } : { all: true });
-              }}>{label}</button>
+              onClick={() => pickArea(word, at)}>{label}</button>
           ))}
         </div>
+        {note && <p className="where-note" role="status">{note}</p>}
       </div>
       <ul className="choices">
         {TYPES.map(([label, icon, ut, text, desc, bg]) => (
@@ -162,7 +194,7 @@ function PanelHome() {
                 <span>{desc}</span>
               </div>
             </div>
-            <button type="button" className="btn btn-primary" onClick={() => go(area ? `${area} 쪽 ${text}` : text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
+            <button type="button" className="btn btn-primary" onClick={() => go(area === "@me" ? `내 근처 ${text}` : area ? `${area} 쪽 ${text}` : text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
               <span>찾기</span>
               <Icon name="arrow_forward" />
             </button>
@@ -208,8 +240,18 @@ const EXTRA_ICON: [RegExp, string][] = [
   [/휠체어를 빌릴/, "🦽"], [/유모차를 빌릴/, "👶"], [/수유실/, "🍼"], [/쉬어 갈 곳/, "🪑"], [/분위기/, "🌿"],
 ];
 
+const isWheel = (ut: string) => ut === "manual_wheelchair" || ut === "electric_wheelchair";
+/** 휠체어를 말하지 않은 사람에게는 '장애인' 대신 일상어(장애인 주차구역은 표지가 있어야 쓸 수 있어 '주차장') */
+const facName = (ut: string, what: "toilet" | "parking") =>
+  what === "toilet" ? (isWheel(ut) ? "장애인 화장실" : "넓은 화장실") : (isWheel(ut) ? "장애인 주차" : "주차장");
+const neutralText = (ut: string, t: string) =>
+  isWheel(ut) ? t : t.replace(/장애인 화장실/g, "넓은 화장실").replace(/장애인 주차구역|장애인 주차/g, "주차장");
+
+const neutralPoints = <T extends { flags: string[]; label: string }>(ut: string, pts: T[]): T[] =>
+  pts.map((p) => ({ ...p, label: neutralText(ut, p.label), flags: p.flags.map((f) => neutralText(ut, f)) }));
+
 /** 한 줄씩 훑어 읽는 시설 목록(같은 말을 칸과 목록에 두 번 쓰지 않는다) */
-function overviewFacts(top: PlaceResult): Fact[] {
+function overviewFacts(top: PlaceResult, ut: string): Fact[] {
   const f: Fact[] = [];
   const entry = (top.checks ?? []).find((c) => c.item.includes("출입"));
   if (hasCourse(top)) {
@@ -219,8 +261,8 @@ function overviewFacts(top: PlaceResult): Fact[] {
   } else if (entry) {
     f.push(["♿", entry.known ? `입구 ${entryShort(entry.status)}` : "입구 정보 없음", entry.known]);
   }
-  f.push(["🚻", top.accessible_toilet ? "장애인 화장실 있음" : "장애인 화장실 확인 안 됨", !!top.accessible_toilet]);
-  f.push(["🅿️", top.accessible_parking === "yes" ? "장애인 주차 있음" : "장애인 주차 확인 안 됨", top.accessible_parking === "yes"]);
+  f.push(["🚻", `${facName(ut, "toilet")} ${top.accessible_toilet ? "있음" : "확인 안 됨"}`, !!top.accessible_toilet]);
+  f.push(["🅿️", `${facName(ut, "parking")} ${top.accessible_parking === "yes" ? "있음" : "확인 안 됨"}`, top.accessible_parking === "yes"]);
   for (const g of top.good_points ?? []) {
     const ic = EXTRA_ICON.find(([re]) => re.test(g));
     if (ic) f.push([ic[1], g, true]);
@@ -255,7 +297,7 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
   if (top.companion_advised) warn.unshift("동행인과 함께 가는 것을 권해요");
   if (top.verdict_color !== "green" && top.verdict_reason) warn.unshift(top.verdict_reason);
   if (!hasCourse(top)) warn.push("길 경사는 확인이 안 돼요. 가기 전에 전화해 보세요.");
-  const facts = overviewFacts(top);
+  const facts = overviewFacts(top, s.user_type);
   const bus = det?.bus_stops?.[0];
   const alt = (top as PlaceResult & { rain_alt?: { name: string } }).rain_alt?.name;
   return (
@@ -271,7 +313,7 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
         ))}
       </ul>
       {warn.slice(0, 2).map((w, i) => (
-        <div key={i} className="line warn"><span className="ic" aria-hidden="true">⚠️</span><span><span className="sr-only">조심할 점: </span>{w}</span></div>
+        <div key={i} className="line warn"><span className="ic" aria-hidden="true">⚠️</span><span><span className="sr-only">조심할 점: </span>{neutralText(s.user_type, w)}</span></div>
       ))}
       <WeatherLine place={top.place} when={s.when} alt={alt} />
       <details className="more-d">
@@ -279,7 +321,7 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
           <span>{bus ? <>🚌 {bus.name} 정류소 {fmt(bus.m)}m</> : "시설 정보"}</span>
           <span className="more-go">자세히 ›</span>
         </summary>
-        <Checks rows={top.checks ?? []} />
+        <Checks rows={(top.checks ?? []).map((c) => ({ ...c, item: neutralText(s.user_type, c.item), status: neutralText(s.user_type, c.status) }))} />
         <Src>
           자료: {hasCourse(top) ? `제주데이터허브 무장애여행 정보(${det?.base_date ?? top.base_date} 기준)` : "한국관광공사 무장애 여행 정보(입구·편의시설 기준)"}
           {bus ? ", 버스 정류소 정보(직선거리)" : ""}, 날씨 예보(Open-Meteo). 현장과 다를 수 있어요.
@@ -299,7 +341,7 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
 }
 
 // ---------- 결과: 코스 ----------
-function Course({ top, det, failed }: { top: PlaceResult; det?: Detail; failed: boolean }) {
+function Course({ top, det, failed, ut = "other" }: { top: PlaceResult; det?: Detail; failed: boolean; ut?: string }) {
   if (!det) return failed ? <Caption>코스 정보를 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.</Caption> : <Loading />;
   const bits = [
     hasCourse(det) ? `약 ${det.minutes}분 · ${fmt(det.course_m)}m` : "",
@@ -315,7 +357,7 @@ function Course({ top, det, failed }: { top: PlaceResult; det?: Detail; failed: 
           {det.key_points.length ? (
             <>
               <Caption>지도에 ⚠️로 표시한 곳은 천천히 지나가세요.</Caption>
-              <Timeline points={det.key_points} notCaution={NOT_CAUTION} />
+              <Timeline points={neutralPoints(ut, det.key_points)} notCaution={NOT_CAUTION} />
             </>
           ) : <Caption>코스에 조심할 곳으로 기록된 지점은 없어요.</Caption>}
         </>
@@ -324,19 +366,25 @@ function Course({ top, det, failed }: { top: PlaceResult; det?: Detail; failed: 
       )}
       {toilets.length > 0 && (
         <>
-          <Sect>가까운 장애인 화장실</Sect>
+          <Sect>가까운 {facName(ut, "toilet")}</Sect>
           <ul className="cards">
             {toilets.map((t, i) => (
               <li key={`wc-${i}`} className="card">
-                <Shop name={t.name} meta={[t.km ? `${t.km}km` : "바로 옆", t.address ?? ""].join(" · ")} tags={[]} />
+                <Shop name={t.name}
+                  meta={[t.km ? `${t.km}km` : "바로 옆", t.address ?? ""].join(" · ")}
+                  tags={[
+                    ...(t.accessible_count ? [[`${isWheel(ut) ? "장애인" : "넓은"} 칸 ${t.accessible_count}개`, "wc"] as [string, string]] : []),
+                    ...(t.diaper ? [["기저귀 교환대", ""] as [string, string]] : []),
+                  ]} />
                 {t.phone && (
-                  <div className="row">
-                    <LinkButton href={`tel:${t.phone}`} icon="call">전화 {t.phone}</LinkButton>
+                  <div className="acts">
+                    <LinkButton href={`tel:${t.phone}`} icon="call">관리기관 전화</LinkButton>
                   </div>
                 )}
               </li>
             ))}
           </ul>
+          <Src>공중화장실 정보(제주특별자치도). 전화번호는 화장실을 관리하는 기관 번호예요.</Src>
         </>
       )}
       <Src>{det.source}</Src>
@@ -456,7 +504,7 @@ function PanelResult({ s, userTypes }: { s: State; userTypes?: Record<string, st
       <Tabs tab={s.tab} />
       <div id="tabpanel" role="tabpanel" aria-labelledby={`tab-${s.tab}`} className="tabpanel">
         {s.tab === "한눈에" && <Overview s={s} top={top} det={det} />}
-        {s.tab === "코스" && <Course top={top} det={det} failed={failed} />}
+        {s.tab === "코스" && <Course top={top} det={det} failed={failed} ut={s.user_type} />}
         {s.tab === "식당" && <FoodTab s={s} top={top} />}
         {s.tab === "병원·약국" && <HelpTab s={s} top={top} />}
       </div>
@@ -490,11 +538,11 @@ function PanelAnswer({ s, userTypes }: { s: State; userTypes?: Record<string, st
             evidence={d.evidence} />
           <PlaceHead name={d.place} where={d.where} />
           <Sect>시설 정보</Sect>
-          <Checks rows={d.checks} />
+          <Checks rows={d.checks.map((c) => ({ ...c, item: neutralText(s.user_type, c.item), status: neutralText(s.user_type, c.status) }))} />
           {d.key_points.length > 0 && (
             <>
               <Sect>코스 따라가기</Sect>
-              <Timeline points={d.key_points} notCaution={NOT_CAUTION} />
+              <Timeline points={neutralPoints(s.user_type, d.key_points)} notCaution={NOT_CAUTION} />
             </>
           )}
         </>

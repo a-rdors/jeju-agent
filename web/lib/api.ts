@@ -115,7 +115,7 @@ export interface Detail extends Access {
   key_points: CoursePoint[];
   all_points: CoursePoint[];
   bus_stops?: BusStop[];
-  toilets_near?: { name: string; km?: number; m?: number; phone?: string; address?: string }[];
+  toilets_near?: { name: string; km?: number; m?: number; phone?: string; address?: string; accessible_count?: number; diaper?: boolean }[];
   base_date: string;
   data_kind?: string;
 }

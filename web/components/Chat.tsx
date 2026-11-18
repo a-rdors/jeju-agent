@@ -60,37 +60,6 @@ export function Searching() {
   );
 }
 
-/** 한 글자씩 써 내려가듯이(전체 1.5초 안쪽). 끝나면 onDone. */
-function Typewriter({ text, onDone }: { text: string; onDone: () => void }) {
-  const [n, setN] = useState(0);
-  const done = useRef(onDone);
-  useEffect(() => {
-    done.current = onDone;
-  }, [onDone]);
-  useEffect(() => {
-    const step = Math.max(2, Math.floor(text.length / 50));
-    let k = 0;
-    const t = window.setInterval(() => {
-      k += step;
-      if (k >= text.length) {
-        window.clearInterval(t);
-        done.current();
-      } else {
-        setN(k);
-      }
-    }, 30);
-    return () => window.clearInterval(t);
-  }, [text]);
-  return (
-    <>
-      <div className="sr-only">{text}</div>
-      <div aria-hidden="true">
-        <Markdown text={text.slice(0, n) + " ▍"} />
-      </div>
-    </>
-  );
-}
-
 // 답변 줄 앞의 말머리를 그림으로 바꿔 한눈에 보이게 한다(화면 읽기 프로그램에는 말머리를 읽어 준다)
 const LINE_MARKS: [RegExp, string, string, string][] = [
   [/^조심할 점:\s*/, "⚠️", "warn", "조심할 점"],
@@ -149,20 +118,27 @@ function AnswerView({ text, phone }: { text: string; phone?: string }) {
 }
 
 function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
+  // 새 답은 한 글자씩 쓰지 않고 정리된 상자째 부드럽게 나타난다
+  useEffect(() => {
+    if (!animate) return;
+    const t = window.setTimeout(typingDone, 350);
+    return () => window.clearTimeout(t);
+  }, [animate]);
   const shown = [...resultNames(s), ...(s.detail_only ? [s.detail_only.place] : [])];
+  const order = resultNames(s);
   const places = (m.places ?? []).filter((p) => shown.includes(p));
   const open = (p: string) => {
     showPlace(p);
     closeChat(); // 대화창이 대시보드 자리(휴대폰은 화면 전체)를 덮으므로 닫아서 그 장소의 대시보드를 보여 준다
   };
   return (
-    <div className="bot">
+    <div className={`bot${animate ? " appear" : ""}`}>
       <Avatar />
       <div className="botb">
         <div className="md">
-          {animate ? <Typewriter text={m.text} onDone={typingDone} /> : <AnswerView text={m.text} phone={m.items?.[0]?.phone} />}
+          <AnswerView text={m.text} phone={m.items?.[0]?.phone} />
         </div>
-        {!animate && (m.items ?? []).length > 0 && (
+        {(m.items ?? []).length > 0 && (
           <ul className="mitems">
             {(m.items ?? []).map((it) => (
               <li key={it.name}>
@@ -179,13 +155,20 @@ function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
           </ul>
         )}
         {places.length > 0 && (
-          <div className="mplaces">
-            {places.map((p) => (
-              <button key={p} type="button" className="btn" onClick={() => open(p)} aria-label={`${p} 지도와 패널에서 보기`}>
-                <Icon name="location_on" />
-                <span>{p}</span>
-              </button>
-            ))}
+          <div className="mplaces-wrap">
+            <p className="mp-cap">추천 후보 · 누르면 지도와 아래에서 자세히 보여요</p>
+            <div className="mplaces">
+              {places.map((p) => {
+                const n = order.indexOf(p) + 1;
+                return (
+                  <button key={p} type="button" className="mp-btn" onClick={() => open(p)} aria-label={`${p} 자세히 보기`}>
+                    {n > 0 && <i className="num" aria-hidden="true">{n}</i>}
+                    <span>{p}</span>
+                    <span className="chev" aria-hidden="true">›</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

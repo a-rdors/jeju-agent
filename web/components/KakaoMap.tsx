@@ -10,6 +10,7 @@
  * @module KakaoMap
  */
 "use client";
+import { ROUTE_HEX } from "@/lib/mapData";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import "./KakaoMap.module.css";
@@ -39,6 +40,8 @@ interface MapState {
   cluster?: any;
   /** 식당·병원 표식 이름 → 그 표식 말풍선을 여는 함수(패널·대화에서 고르면 지도도 따라온다) */
   openers?: Map<string, () => void>;
+  /** 코드가 지도를 옮기는 중에는 제주 밖 클램프를 잠시 끈다(옮긴 뒤 다시 끌려가지 않게) */
+  noClamp?: boolean;
 }
 
 /** 현재 렌더 사이클의 최신 props (비동기 콜백용) */
@@ -260,7 +263,7 @@ function drawMarkers(
         map: state.map,
         path,
         strokeWeight: 6,
-        strokeColor: "#2F7A4D",
+        strokeColor: ROUTE_HEX,
         strokeOpacity: 0.85,
       }),
     );
@@ -523,6 +526,7 @@ export default function KakaoMap({
 
           // 제주도 밖으로 중심이 나가지 않도록 클램프
           const clamp = () => {
+            if (stateRef.current?.noClamp) return;
             const c = map.getCenter();
             const lat = Math.min(JEJU.n, Math.max(JEJU.s, c.getLat()));
             const lng = Math.min(JEJU.e, Math.max(JEJU.w, c.getLng()));
@@ -570,7 +574,7 @@ export default function KakaoMap({
     );
   }, [data, panelOpen, chatOpen]);
 
-  // 시작 화면에서 동네를 고르면 지도를 그쪽으로 부드럽게(먼저 확대·축소, 다음에 미끄러지듯 이동).
+  // 시작 화면에서 동네를 고르면 지도를 그쪽으로 바로 옮긴다(어느 동네든 같은 방식).
   // 패널·아래 시트에 가리지 않게 보이는 영역의 가운데로 맞춘다.
   useEffect(() => {
     const st = stateRef.current;
@@ -579,19 +583,14 @@ export default function KakaoMap({
     const map = st.map;
     const level = view.all ? (small() ? 11 : 10) : (view.level ?? 8) + (small() ? 1 : 0);
     const target = view.all ? new k.LatLng(33.38, 126.55) : new k.LatLng(view.lat!, view.lon!);
-    const glide = () => {
-      const [t, r, b, l] = pads(latestRef.current.panelOpen, latestRef.current.chatOpen);
-      const proj = map.getProjection();
-      const p = proj.containerPointFromCoords(target);
-      map.panTo(proj.coordsFromContainerPoint(new k.Point(p.x + (r - l) / 2, p.y + (b - t) / 2)));
-    };
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    if (map.getLevel() !== level) {
-      map.setLevel(level, { animate: { duration: 350 } });
-      timer = setTimeout(glide, 380);
-    } else {
-      glide();
-    }
+    st.noClamp = true;
+    map.setLevel(level);
+    map.setCenter(target);
+    const [t, r, b, l] = pads(latestRef.current.panelOpen, latestRef.current.chatOpen);
+    const proj = map.getProjection();
+    const p = proj.containerPointFromCoords(target);
+    map.setCenter(proj.coordsFromContainerPoint(new k.Point(p.x + (r - l) / 2, p.y + (b - t) / 2)));
+    const timer = setTimeout(() => { st.noClamp = false; }, 300);
     return () => clearTimeout(timer);
   }, [view]);
 

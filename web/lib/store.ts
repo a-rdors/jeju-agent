@@ -398,6 +398,11 @@ export function locateAndRetry() {
   );
 }
 
+/** 시작 화면 '내 위치': 제주 안 좌표만 넣는다(밖이면 null) */
+export function setLocation(loc: [number, number] | null) {
+  set({ location: loc });
+}
+
 export function setMapView(v: Omit<MapView, "n">) {
   set((s) => ({ ...s, view: { ...v, n: (s.view?.n ?? 0) + 1 } }));
 }

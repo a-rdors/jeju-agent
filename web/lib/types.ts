@@ -20,6 +20,8 @@ export interface MapMark {
 export interface MapData {
   marks: MapMark[];
   route: [number, number][];
+  /** 범례의 화장실 이름(휠체어 이용자면 '장애인 화장실', 아니면 '넓은 화장실') */
+  toiletLabel?: string;
 }
 
 export interface PlaceDot {

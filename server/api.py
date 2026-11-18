@@ -198,7 +198,7 @@ def _location(loc) -> Optional[tuple]:
 def chat(req: ChatRequest):
     fallback = False
     if req.user_type:
-        out = A.rule_mode(req.text, req.user_type)
+        out = A.rule_mode(req.text, req.user_type, _location(req.location) if req.location else None)
     else:
         known = req.known_user_type
         location = _location(req.location) if req.location else None

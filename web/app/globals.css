@@ -617,6 +617,25 @@ html.big .tab { min-width: 0; padding: 0 6px; }
 .ex-list .ic { width: 28px; text-align: center; font-size: 1.2rem; flex: 0 0 auto; }
 
 /* ---------- 시작 화면 동네 칩: 3칸 + 2칸 가지런히 ---------- */
-.where-chips { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
-.where-chips .wchip { grid-column: span 2; padding: 6px 4px; text-align: center; white-space: nowrap; }
-.where-chips .wchip:nth-child(n + 4) { grid-column: span 3; }
+.where-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.where-chips .wchip { padding: 6px 4px; text-align: center; white-space: nowrap; }
+.where-note { color: var(--muted); font-size: .84rem; }
+
+/* 새 답: 상자째 부드럽게 나타나기 */
+.bot.appear { animation: appear .3s ease-out; }
+@keyframes appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .bot.appear { animation: none; } }
+
+/* 대화 속 추천 후보: 번호(지도와 같음) + › 로 눌리는 단추처럼 */
+.mplaces-wrap { margin-top: 10px; }
+.mp-cap { margin: 0 0 6px; font-size: .8rem; color: var(--muted); }
+.mplaces { display: grid; gap: 6px; }
+.mp-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 6px 10px; cursor: pointer;
+  background: #fff; border: 1.5px solid var(--stone-2); border-radius: 12px; font: inherit; font-weight: 700; color: var(--ink); text-align: left;
+}
+.mp-btn:hover { border-color: var(--gyul); }
+.mp-btn .num { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; background: #2F7A4D; color: #fff; font-style: normal;
+  font-size: .8rem; display: grid; place-items: center; }
+.mp-btn span:not(.chev) { flex: 1 1 auto; min-width: 0; }
+.mp-btn .chev { color: var(--muted); font-size: 1.2rem; }
