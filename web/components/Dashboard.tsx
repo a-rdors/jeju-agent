@@ -495,8 +495,39 @@ function Head({ s, tag, userTypes }: { s: State; tag: string; userTypes?: Record
 /** 추천 후보 번호 단추(지도 번호와 같다) + 본 곳 빼고 새로 찾기 */
 function Candidates({ s, top }: { s: State; top: PlaceResult }) {
   const results = s.results?.results ?? [];
+  const row = useRef<HTMLDivElement>(null);
+  // 이 줄만 옆으로 밀어 본다: PC 마우스 휠(위아래)도 옆으로 움직이고, 끝에 더 있으면 가장자리를 흐리게 보여 준다
+  useEffect(() => {
+    const el = row.current;
+    if (!el) return;
+    const edges = () => {
+      el.classList.toggle("more-left", el.scrollLeft > 2);
+      el.classList.toggle("more-right", el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const left = el.scrollLeft;
+      el.scrollLeft += e.deltaY;
+      if (el.scrollLeft !== left) e.preventDefault(); // 줄 끝이면 패널이 위아래로 움직이게 둔다
+    };
+    edges();
+    el.addEventListener("scroll", edges, { passive: true });
+    el.addEventListener("wheel", onWheel, { passive: false });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(edges) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener("scroll", edges);
+      el.removeEventListener("wheel", onWheel);
+      ro?.disconnect();
+    };
+  }, [results.length]);
+  // 고른 후보가 줄 밖에 있으면 보이게 옮긴다(지도·대화에서 골랐을 때도)
+  useEffect(() => {
+    row.current?.querySelector<HTMLElement>('[aria-pressed="true"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, [top.place]);
   return (
-    <div className="cands" role="group" aria-label={`추천 ${results.length}곳`}>
+    <div className="cands" ref={row} role="group" aria-label={`추천 ${results.length}곳`}>
       {results.map((r, i) => (
         <button key={r.place} type="button" className="cand" aria-pressed={r.place === top.place}
           onClick={() => pick(r.place)} title={`${i + 1}번 · ${r.place} · ${r.verdict}`}>
