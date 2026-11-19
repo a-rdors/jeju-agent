@@ -406,6 +406,9 @@ function Course({ top, det, failed, ut = "other" }: { top: PlaceResult; det?: De
         </>
       )}
       <Src>{det.source}</Src>
+      {!!det.route_runs?.length && (
+        <Src>지도의 코스 선 모양: © OpenStreetMap 기여자. 길을 찾지 못한 구간은 조사 지점을 곧게 이은 점선이에요.</Src>
+      )}
     </>
   );
 }

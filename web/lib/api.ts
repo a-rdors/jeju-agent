@@ -114,6 +114,8 @@ export interface Detail extends Access {
   companion_advised: boolean;
   key_points: CoursePoint[];
   all_points: CoursePoint[];
+  /** 지도 코스 선 모양: [길이면 1·직선이면 0, [[위도, 경도], ...]] 묶음(scripts/08_route_paths.py). 없으면 지점을 직선으로 잇는다 */
+  route_runs?: [number, [number, number][]][] | null;
   bus_stops?: BusStop[];
   toilets_near?: { name: string; km?: number; m?: number; phone?: string; address?: string; accessible_count?: number; diaper?: boolean }[];
   base_date: string;

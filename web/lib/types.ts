@@ -28,6 +28,8 @@ export interface MapMark {
 export interface MapData {
   marks: MapMark[];
   route: [number, number][];
+  /** 코스 선을 나눠 그릴 묶음: road=실제 길 모양(실선), 아니면 길을 못 찾은 직선 구간(점선). 없으면 route 를 실선 하나로 */
+  routeRuns?: { road: boolean; pts: [number, number][] }[];
   /** 범례의 화장실 이름(휠체어 이용자면 '장애인 화장실', 아니면 '넓은 화장실') */
   toiletLabel?: string;
 }

@@ -47,6 +47,19 @@ SLOPE_WORDS = {
 
 
 @lru_cache(maxsize=1)
+def route_runs_all():
+    """코스 선 모양(scripts/08_route_paths.py): 장소 → [[길이면 1·직선이면 0, [[위도, 경도], ...]], ...]. 없으면 빈 dict."""
+    p = PROC / "route_paths.json"
+    if not p.exists():
+        return {}
+    import json
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+@lru_cache(maxsize=1)
 def load():
     def rd(name):
         return pd.read_csv(PROC / name, encoding="utf-8-sig")
@@ -621,6 +634,8 @@ def get_place_detail(place, user_type="other"):
         **access_summary(r, user_type),
         "key_points": important[:12],
         "all_points": steps,
+        # 지도 코스 선: 실제 길 모양(OSM 도보 길찾기)과 길을 못 찾은 직선 구간. 없으면 화면이 조사 지점을 직선으로 잇는다
+        "route_runs": route_runs_all().get(place),
         "toilets_near": toilets,
         "rain_alt": rain_alternative(place, user_type),
         "bus_stops": nearest_bus_stops(float(r["start_lat"]), float(r["start_lon"])),

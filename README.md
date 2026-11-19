@@ -158,6 +158,8 @@ API `/api/questions`로 제공한다. 지금 웹 화면에는 질문지 탭이 �
 - 결과 순서 고정: 추천 장소 → 식당·카페 → 병원·약국·화장실
 - 내 일정: 추천 결과·장소 답·식당 카드의 "+ 일정" 단추로 담는다(최대 10곳, 담으면 체크 표시). 상단 바 "내 일정"에서 순서 바꾸기(앞으로·뒤로)·자세히·지도·빼기·모두 빼기를 하고, "일정표 내려받기"로 한 장짜리 일정표를 받는다. 지도에는 담은 곳이 들르는 순서 번호로 뜬다(장소는 판정색, 식당은 식당색)
 - 내 일정은 로그인 없이 이 브라우저에만 저장된다(localStorage). 다른 기기·시크릿 창에서는 남지 않으므로 일정표를 내려받아 둔다
+- 코스 선: 실제 걷는 길 모양(OpenStreetMap 도보 길찾기로 미리 맞춘 `data/processed/route_paths.json`)은 실선, 길을 못 찾은 구간은 조사 지점을 곧게 이은 점선
+- 대화 입력칸: 긴 글은 다음 줄로 이어지고 칸이 5줄까지 늘어난다. `Enter` 보내기, `Shift+Enter` 줄바꿈(한글 조합 중 `Enter`는 보내지 않음)
 - 휴대폰은 대시보드가 아래 시트로 바뀐다. 시트를 높이 끌어올리면 내 위치 단추와 말풍선이 숨고 하르방 단추는 오른쪽 아래로 내려간다
 - 웹은 화면만 그리고 판단·AI는 모두 API 서버가 `app/tools.py`, `app/agent.py`를 불러 처리(각 폴더 README)
 - 현재 위치: "내 위치"(또는 "내 위치로 찾기") 단추를 누르면 화면이 API `/api/chat`에 `location: [위도, 경도]`를 보내고 "내 근처" 기준으로 찾는다. 제주 밖 위치는 쓰지 않는다
@@ -211,6 +213,7 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 | `scripts/03_build_support.py` | 동네, 의료, 영업 확인, 식당(층 포함), 관광공사 장소 합치기 |
 | `scripts/06_fetch_external.py` | 관광공사 무장애 정보, 화장실 좌표, (contacts) 장소 전화번호 |
 | `scripts/06_place_photos.py`, `scripts/07_hub_api.py` | 장소 사진·주소, 버스 정류소·약국 영업 상태(제주데이터허브) |
+| `scripts/08_route_paths.py` | 지도 코스 선 모양(OpenStreetMap 도보 길찾기, 믿을 만한 구간만) → `route_paths.json` |
 | `scripts/04~05, 07_broad_test.py` | 테스트(아래 8장) |
 | `data/raw`, `data/processed` | 원본과 정제 결과 |
 | `docs/` | 기획서, 데이터 활용 명세, 결과 설명자료, 사용자 매뉴얼, UX 흐름 설계, 검수·테스트 기록 |
@@ -242,6 +245,7 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 .venv\Scripts\python scripts/03_build_support.py            # 보조 표, 관광공사 장소 합치기
 .venv\Scripts\python scripts/06_fetch_external.py contacts  # (키 필요) 장소 전화번호·카카오맵 링크
 .venv\Scripts\python scripts/07_hub_api.py                  # (JEJU_PROJECT_KEY 필요) 버스 정류소·약국 영업 상태
+.venv\Scripts\python scripts/08_route_paths.py               # (키 불필요, 인터넷 필요) 지도 코스 선 모양
 .venv\Scripts\python scripts/06_place_photos.py             # (선택) 코스 장소 사진·주소 → 웹 화면. pip install olefile Pillow 필요
 ```
 
@@ -271,6 +275,7 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 | 제주데이터허브 OpenAPI | 버스 정류소 기본 정보, 약국 정보(영업 상태). 미리 받아 CSV로 저장 | 필요(프로젝트 키, 데이터를 다시 받을 때만) |
 | 카카오 로컬 API | 장소·식당·병원·약국 전화번호와 장소 링크, 화장실 주소 → 좌표 | 필요(무료) |
 | Open-Meteo | 7일 날씨 예보 | 불필요 |
+| OpenStreetMap 도보 길찾기(OSRM) | 코스 선 모양(미리 한 번 받아 저장, © OpenStreetMap 기여자, ODbL) | 불필요 |
 | 카카오맵 JavaScript SDK | 화면 지도(추천 장소·코스·식당·병원) | 필요(없으면 지도가 안 나오고 안내 문구만 뜸) |
 | 카카오맵 링크 | 길안내 열기 | 불필요 |
 
