@@ -637,6 +637,8 @@ html.big .tab { min-width: 0; padding: 0 6px; }
 /* ---------- 같은 크기 단추 한 줄(길안내만 귤색으로 채움) ---------- */
 .acts { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--sp-xs); margin-top: var(--sp-xs); }
 .acts > .btn { min-width: 0; min-height: 38px; padding: 0 var(--sp-xs); justify-content: center; white-space: nowrap; }
+.acts.itin { grid-auto-columns: auto; justify-content: start; margin-top: var(--sp-sm); }
+.acts.itin > .btn { padding: 0 var(--sp-md); }
 
 /* ---------- 결과 한눈에(요약 목록형) ---------- */
 .r-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px var(--sp-xs); }
@@ -781,4 +783,41 @@ html.big .tab { min-width: 0; padding: 0 6px; }
 @media (prefers-reduced-motion: reduce) {
   .locate:active { transform: none; }
   .locate.busy .ic, .locate-note, .sheet-tall .chatfab { animation: none; }
+}
+
+/* ---------- 현장 사진(패널): 큰 사진 1 + 작은 사진 2, 누르면 크게 ---------- */
+.photos { display: grid; gap: 2px; height: 128px; border-radius: var(--r-lg); overflow: hidden; background: var(--paper); }
+.photos.n2 { grid-template-columns: 1fr 1fr; }
+.photos.n3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+.photos.n3 > button:first-child { grid-row: 1 / 3; }
+.photos > button { all: unset; display: block; min-height: 0; cursor: zoom-in; overflow: hidden; }
+.photos > button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.photos img { width: 100%; height: 100%; object-fit: cover; transition: transform var(--dur) var(--ease); }
+.photos > button:hover img { transform: scale(1.03); }
+@media (max-width: 639.98px) { .photos { height: 112px; } }
+@media (min-width: 640px) and (max-height: 780px) { .photos { height: 104px; } }
+
+/* 크게 보기: 화면 전체 어둡게, 사진만 */
+.lightbox {
+  position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: var(--sp-xl) var(--sp-md);
+  background: rgba(0, 0, 0, .86); animation: appear var(--dur) ease-out;
+}
+.lightbox figure { margin: 0; max-width: min(960px, 100%); display: grid; gap: var(--sp-xs); }
+.lightbox img { max-width: 100%; max-height: calc(100dvh - 140px); border-radius: var(--r-sm); object-fit: contain; margin: 0 auto; }
+.lightbox figcaption { display: flex; justify-content: space-between; gap: var(--sp-sm); color: var(--on-dark); font-size: var(--fs-caption); }
+.lightbox figcaption small { color: var(--on-dark-muted); font-size: var(--fs-fine); }
+.lb-nav, .lb-close {
+  position: absolute; width: 44px; height: 44px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  border: 0; border-radius: var(--r-full); color: var(--ink);
+  background: rgba(215, 217, 211, .72); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  transition: transform var(--dur-fast) var(--ease);
+}
+.lb-nav:active, .lb-close:active { transform: var(--press); }
+.lb-nav .ic, .lb-close .ic { width: 22px; height: 22px; }
+.lb-nav.prev { left: var(--sp-md); top: 50%; margin-top: -22px; }
+.lb-nav.next { right: var(--sp-md); top: 50%; margin-top: -22px; }
+.lb-close { top: calc(var(--sp-md) + var(--sat)); right: var(--sp-md); }
+@media (prefers-reduced-motion: reduce) {
+  .lightbox { animation: none; }
+  .photos img { transition: none; }
 }

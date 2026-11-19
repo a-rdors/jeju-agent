@@ -15,6 +15,7 @@ import {
 } from "./bits";
 import { EvidenceList, VerdictWithEvidence } from "./Evidence";
 import Icon from "./Icon";
+import PlacePhotos from "./Photos";
 
 // (버튼 글자, 아이콘, 이동 유형, 보낼 문장, 설명)
 const TYPES: [string, string, string, string, string][] = [
@@ -299,6 +300,7 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
         <h2 className="place-name">{top.place}</h2>
         <span className="place-where">{top.where}</span>
       </div>
+      <PlacePhotos place={top.place} />
       <VerdictPill key={top.place} color={top.verdict_color} label={top.verdict} evidence={top.evidence ?? det?.evidence} />
       <ul className="facts">
         {facts.map(([ic, text, yes], i) => (
@@ -530,6 +532,7 @@ function PanelAnswer({ s, userTypes }: { s: State; userTypes?: Record<string, st
           <VerdictWithEvidence key={d.place} color={d.verdict_color} label={d.verdict} reason={d.verdict_reason}
             evidence={d.evidence} />
           <PlaceHead name={d.place} where={d.where} />
+          <PlacePhotos place={d.place} />
           <Sect>시설 정보</Sect>
           <Checks rows={d.checks.map((c) => ({ ...c, item: neutralText(s.user_type, c.item), status: neutralText(s.user_type, c.status) }))} />
           {d.key_points.length > 0 && (

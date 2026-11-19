@@ -22,7 +22,7 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
    접근성 근거(경사, 턱, 계단, 화장실, 주차, 쉼터)가 없는 추천은 하지 않는다.
 1. 사용자가 가장 편해야 한다. 숫자(경사 몇 도, 몇 km)를 묻지 않는다. 일상어를 네가 해석한다.
 2. ask_user는 이동 유형(누가 가는지)을 전혀 알 수 없을 때만 딱 한 번 쓴다.
-   문장에 휠체어·전동·유모차·아기·할머니·부모님·어르신·무릎·임산부·임신 같은 단서가 있거나 '이미 확인된 이동 유형'이 있으면 절대 묻지 않는다.
+   문장에 휠체어·전동·유모차·아기·할머니(할매·할망)·부모님·어르신·무릎·임산부·임신 같은 단서가 있거나 '이미 확인된 이동 유형'이 있으면 절대 묻지 않는다.
    분위기·지역·동행인·날짜는 묻지 않는다. 모르면 조건 없이 바로 찾는다.
 3. 장소를 추천하려면 반드시 recommend_places를 먼저 호출한다. 도구 결과에 없는 장소·시설·사실은 절대 말하지 않는다.
 4. 답변은 아래 형식만 쓴다(자세한 내용은 화면 카드가 보여준다). 인사말·이모지·목록 기호·제목은 쓰지 않는다. 최대 4줄.
@@ -59,6 +59,7 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
    식사 조건(diet_needs, 여러 개 가능): 이가 안 좋다·씹기 힘들다·틀니 → soft / 소화·속·위장이 안 좋다 → gentle /
    매운 걸 못 먹는다 → mild / 해산물 알레르기 → no_seafood / 혈압·짜게 먹으면 안 된다 → low_salt / 아이·애기와 식사 → kids /
    임산부·임신 중 → no_raw(날음식·술 피하기, 사용자가 원하지 않는다고 하면 빼기).
+   사용자가 말하지 않은 식사 조건은 넣지 않는다. 어르신과 식사라고만 하면 diet_needs 없이 찾는다(이가 안 좋다고 해야 soft).
    어떤 장소나 가게 '근처'를 물으면 place에 그 이름을 그대로 넣는다(식당 이름도 된다). 동네를 말하면 area.
    결과에 anchor_not_found가 있으면 위치를 못 찾았다고 솔직히 말하고 동네 이름을 물어본다.
    맛 평가·순위·의학적 조언은 하지 않는다. why(업종·가게 이름으로 추정한 근거)를 쉬운 말로 전하고,
@@ -70,14 +71,14 @@ SYSTEM = """너는 '제주 같이나들이' 도우미야. 휠체어·유모차·
 11. 사용자가 일정·코스·반나절·하루·동선·묶어 달라고 할 때만 plan_outing을 쓴다. 단순히 장소나 식당 하나를 물으면 쓰지 않고,
     일정 이야기도 꺼내지 않는다. plan_outing 결과는 들르는 순서와 이유를 짧게 말하고 "일정표를 내려받을 수 있어요"라고 안내한다.
     1박 2일·2박 3일처럼 여러 날 일정이나 시간표를 원해도 날짜별 시간표를 지어내지 않는다. 첫 나들이를 plan_outing으로 제안하고
-    "다른 날 갈 곳은 결과 카드의 '+ 일정'으로 담아 일정표에 모을 수 있어요"라고 안내한다.
+    "다른 날 갈 곳은 그날 갈 동네를 말씀해 주시면 하나씩 다시 찾아드릴게요"라고 안내한다.
     "전체 동선을 짜 드릴게요", "2일차는…"처럼 여러 날 일정을 만들어 주겠다는 제안도 하지 않는다.
 13. 사용자가 휠체어·장애를 말하지 않았으면 '장애인'이라는 말을 쓰지 않는다(화장실은 '넓은 화장실', 주차는 '주차장').
 12. 도구 결과에 없는 현장 상황(모래길, 혼잡, 공사 등)을 추측해서 말하지 않는다. 주의할 점은 결과의 watch_out, tips, checks에 있는 것만 말한다.
     장소에 rain_alt(비 오면 대신 갈 실내 장소)가 있으면 한 줄로 알려준다.
 
 이동 유형 해석: '휠체어'라고만 하면 종류를 묻지 말고 manual_wheelchair로 정한다(수동이 경사에 더 조심스러운 기준).
-'전동' -> electric_wheelchair, '유모차/아기' -> stroller, '부모님/할머니/어르신/무릎' -> senior, '임산부/임신/만삭' -> pregnant.
+'전동' -> electric_wheelchair, '유모차/아기' -> stroller, '부모님/할머니/할매/할망/할배/어르신/무릎' -> senior, '임산부/임신/만삭' -> pregnant.
 theme은 사용자가 분위기(바다, 마을, 숲, 꽃, 역사, 시장 등)를 직접 말했을 때만 넣는다. 비·실내·박물관·미술관 -> 실내. '산책'만으로는 theme을 넣지 않는다.
 '잠깐/가볍게' -> max_minutes 30, '반나절' -> 제한 없음. 화장실을 언급하면 need_toilet true."""
 
@@ -190,7 +191,7 @@ def plan_text(plan, multi_day=False):
         lines.append(f"비 오면: {alt['name']}")
     lines.append("일정표를 내려받을 수 있어요.")
     if multi_day:
-        lines.append("다른 날 갈 곳은 결과 카드의 + 일정으로 담아 일정표에 모을 수 있어요.")
+        lines.append("다른 날 갈 곳은 그날 갈 동네를 말씀해 주시면 하나씩 다시 찾아드릴게요.")
     return "\n".join(lines)
 
 
@@ -203,6 +204,26 @@ def theme_from(text):
     """질문 속 분위기 말 → 테마(모델이 빠뜨렸을 때 코드가 채운다)"""
     import re
     return next((k for k, p in THEME_HINTS if re.search(p, text or "")), None)
+
+
+# 식사 조건마다 사용자가 실제로 말했다고 볼 단서. 단서 없이 모델이 붙인 조건(예: '할매랑 밥' → 아이 메뉴)은 뺀다.
+DIET_HINTS = {
+    "soft": r"이가|이빨|치아|잇몸|씹|틀니|임플란트|부드러|연한|딱딱|죽",
+    "gentle": r"소화|속이|속\s|위장|위가|배탈|장이|체했|체하|담백|기름진|느끼",
+    "mild": r"맵|매운|매콤|순한|자극",
+    "no_seafood": r"해산물|해물|생선|갑각|새우|조개|게\s|알레르기|알러지",
+    "low_salt": r"혈압|짜게|짠|싱겁|싱거|염분|나트륨|신장|콩팥",
+    "kids": r"아이|애기|아기|아가|애들|어린|유아|키즈|꼬마|딸|아들|조카|손주|손자|손녀",
+    "no_raw": r"임신|임산부|임부|만삭|날것|날음식|날\s?생선|익힌|술\s?(안|못|말고)",
+}
+DIET_BY_TYPE = {"stroller": "kids", "pregnant": "no_raw"}
+
+
+def said_diets(diets, text, user_type=None):
+    """모델이 고른 식사 조건 중 사용자 말(또는 이동 유형)에 근거가 있는 것만 남긴다."""
+    import re
+    return [d for d in diets or []
+            if DIET_BY_TYPE.get(user_type) == d or re.search(DIET_HINTS.get(d, r"(?!)"), text or "")]
 
 
 def normalize_answer(text, tool_results, last_q="", user_type=None):
@@ -382,7 +403,7 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         # 여러 날 요청: 날짜별 시간표를 만들지 않는다는 결정을 이번 답변에 강하게 적용
         system += ("\n이번 질문은 여러 날 일정 요청이다. 첫 나들이 하나만 plan_outing으로 제안한다. "
                    "여러 날·날짜별 일정표를 정리해 주겠다는 제안('정리해 드릴게요', '짜 드릴게요')을 절대 하지 않는다. "
-                   "답변 마지막 문장은 반드시 '다른 날 갈 곳은 결과 카드의 + 일정으로 담아 일정표에 모을 수 있어요.'로 끝낸다.")
+                   "답변 마지막 문장은 반드시 '다른 날 갈 곳은 그날 갈 동네를 말씀해 주시면 하나씩 다시 찾아드릴게요.'로 끝낸다.")
     if said_place:
         system += f"\n사용자가 말한 가게·장소: {said_place}. 그 근처를 물으면 place='{said_place}'로 찾는다."
     said_area = next((w for w in tokens if w and (not said_place or w not in said_place) and T.find_area(w)), None)
@@ -451,6 +472,11 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                     args.pop("place", None)
             if name == "search_food":
                 args["limit"] = max(3, int(args.get("limit") or 5))  # 화면 카드가 비지 않게 최소 3곳
+                if args.get("diet_needs"):  # 사용자가 말하지 않은 식사 조건은 지어내지 않는다
+                    user_text = " ".join(m["content"] for m in history if m["role"] == "user")
+                    args["diet_needs"] = said_diets(args["diet_needs"], user_text, known_user_type)
+                    if not args["diet_needs"]:
+                        args.pop("diet_needs")
                 if known_user_type in ("manual_wheelchair", "electric_wheelchair") and "prefer_wheelchair" not in args:
                     args["prefer_wheelchair"] = True
             if name == "search_food" and known_user_type in T.MOBILITY_TYPES and "avoid_upstairs" not in args:
@@ -481,7 +507,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
 TYPE_WORDS = [("electric_wheelchair", "전동"), ("manual_wheelchair", "휠체어"),
               ("pregnant", "임산부|임신|임부|만삭|출산\\s*예정|태교"),
               ("stroller", "유모차|아기|애기|아가|아이|영유아|신생아|돌쟁이|아기띠"),
-              ("senior", "어르신|부모님|할머니|할아버지|어머니|아버지|노인|무릎|보행기|지팡이|거동|오래 못 걸|걷기 힘|허리")]
+              ("senior", "어르신|부모님|할머니|할아버지|어머니|아버지|어머님|아버님|노인|노모|노부모|할매|할배|(?<!설문대)할망|할마니|"
+                         "할아방|엄니|어무이|아부지|시부모|시어머니|시아버지|장인어른|장모님|무릎|보행기|지팡이|거동|오래 못 걸|걷기 힘|허리")]
 THEME_WORDS = [("바다", "바다|해변|해안|포구"), ("마을", "마을|골목"), ("자연·숲", "숲|자연|꽃|산책"), ("역사·문화", "역사|문화|유적")]
 
 

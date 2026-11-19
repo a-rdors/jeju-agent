@@ -7,6 +7,21 @@
 
 **바로 써보기: https://jeju-gachi.vercel.app** (PC·휴대폰 같은 주소)
 
+### 제출 문서
+
+| 구분 | 파일 |
+|---|---|
+| AI Agent 기획서 | [docs/기획서.pdf](docs/기획서.pdf) (원본 [docs/기획서.html](docs/기획서.html)) |
+| 실행 소스 코드 | `app/`(Agent·Prompt·도구), `server/`(API), `web/`(화면), `scripts/`(데이터 처리·테스트) |
+| 실행환경·매뉴얼 | 이 README(설치·실행·의존성), [.env.example](.env.example)(환경변수 예시), [docs/사용자_매뉴얼.md](docs/사용자_매뉴얼.md)(사용법·오류 대처·제약사항) |
+| 데이터 활용 명세 | [docs/데이터_활용_명세.md](docs/데이터_활용_명세.md)(사용 데이터·출처·이용조건·전처리 흐름·오픈소스 목록·AI 사용 내역) |
+| 결과 설명자료 | [docs/결과_설명자료.md](docs/결과_설명자료.md)(문제 정의·Agent 구조·주요 기능·실행 결과·검증·한계·센터 활용 방안) |
+| 검증 기록 | [docs/추출_검수기록.md](docs/추출_검수기록.md), [docs/시나리오_테스트.md](docs/시나리오_테스트.md), [docs/시나리오_확인테스트.md](docs/시나리오_확인테스트.md), [docs/폭넓은_질문_테스트.md](docs/폭넓은_질문_테스트.md) |
+
+**사용 AI**: 서비스 안에서는 OpenAI gpt-5.4-mini(함수 호출)를 쓴다. 데이터 정제에는 AI를 쓰지 않는다(규칙 기반). 개발 과정에서는 Claude Code(Anthropic Claude)로 코드 작성·수정, 테스트 스크립트, 문서 초안, 추출 검수 1차 대조를 보조받았다. 자세한 내용은 데이터 활용 명세 7장에 있다.
+
+**API 키는 제출물에 넣지 않았다.** 발급·설정 방법은 `.env.example`에 있다. OpenAI 키가 없으면 버튼·단어 기반 기본 모드로 동작한다.
+
 ---
 
 ## 1. 빠른 실행
@@ -21,7 +36,8 @@ python -m venv .venv
 # 웹 화면 라이브러리(처음 한 번)
 cd web; npm install; cd ..
 
-# 2) 키 파일: 프로젝트 폴더에 .env 파일을 만들고 아래를 넣는다(값은 각자 발급)
+# 2) 키 파일: .env.example 을 .env 로 복사하고 값을 채운다(값은 각자 발급. 발급 방법은 .env.example 안에 있다)
+copy .env.example .env
 #    OPENAI_API_KEY=sk-...     Agent 대화(없으면 버튼 기반 기본 모드로 동작)
 #    KAKAO_JS_KEY=...          카카오맵(없으면 기본 지도. 카카오 개발자 앱 > 플랫폼 Web에 http://localhost:3000 등록, 카카오맵 사용 설정 ON)
 #    KAKAO_REST_KEY=...        카카오 REST API(식당·병원·약국 전화번호. 없으면 전화번호만 빠짐)
@@ -34,6 +50,9 @@ cd web; npm run dev                                        # 터미널 2: 웹 �
 ```
 
 브라우저에서 http://localhost:3000 을 연다(127.0.0.1 말고 localhost로). 웹 화면(3000)이 API 서버(8000)를 불러 쓴다. `.env`는 절대 GitHub에 올리지 않는다(`.gitignore`로 막혀 있음).
+잘 안 되면 [docs/사용자_매뉴얼.md](docs/사용자_매뉴얼.md) 5장(오류와 대처)을 본다.
+
+의존성 목록: Python `requirements.txt`(pandas, openai, python-dotenv, fastapi, uvicorn), 웹 `web/package.json`(Next.js 16, React 19). 사진을 다시 뽑을 때만 `olefile`, `Pillow`가 더 필요하다. 라이선스는 데이터 활용 명세 6장에 있다.
 
 ---
 
@@ -114,8 +133,8 @@ cd web; npm run dev                                        # 터미널 2: 웹 �
 ### 3-7. 반나절 일정 — `tools.plan_outing`
 - "일정·코스·반나절·하루·동선"을 말할 때만: 장소 → 근처 식당(식사 조건 반영) → (원하면) 카페
 - 근처에 식당이 있는 장소를 우선, 장소마다 비 오면 대신 갈 실내 장소
-- 지금 웹 화면에서는 일정을 대화 답(`**A → B → C**`)으로 보여 준다
-- 일정표 HTML(`itinerary_html`: 들르는 순서·거리, 장소별 확인표, 가까운 장애인 화장실, 급할 때 연락처, 전화로 확인할 것)과 "+ 일정" 담기는 도구에 남아 있지만, Streamlit 화면을 지우면서 웹 화면에는 아직 내려받기·담기 단추가 없다
+- 웹 화면은 일정을 대화 답(`**A → B → C**`)으로 보여 주고, 답 아래 **일정표 내려받기** 단추를 단다
+- 일정표는 한 장짜리 HTML(`itinerary_html`: 들르는 순서·거리, 장소별 확인표, 가까운 장애인 화장실, 급할 때 연락처, 전화로 확인할 것). 브라우저로 열어 인쇄하거나 PDF로 저장한다. 서버 `/api/chat`이 `plan_outing` 결과에 `html`로 붙여 보낸다
 - 여러 날(1박 2일 등) 시간표는 만들지 않는다(여행 기간이 제각각이라 주관적). 첫 나들이만 제안
 
 ### 3-8. 전화 확인 질문지 — `tools.call_questions`

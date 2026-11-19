@@ -117,6 +117,27 @@ function AnswerView({ text, phone }: { text: string; phone?: string }) {
   );
 }
 
+// 반나절 일정표(서버가 만든 한 장짜리 HTML)를 파일로 내려받는다. 브라우저로 열어 인쇄하거나 PDF로 저장한다.
+function ItineraryButton({ html }: { html: string }) {
+  const save = () => {
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "제주_같이나들이_일정표.html";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return (
+    <div className="acts itin">
+      <button type="button" className="btn btn-primary" onClick={save}>
+        <Icon name="download" /><span>일정표 내려받기</span>
+      </button>
+    </div>
+  );
+}
+
 function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
   // 새 답은 한 글자씩 쓰지 않고 정리된 상자째 부드럽게 나타난다
   useEffect(() => {
@@ -138,6 +159,7 @@ function BotMsg({ m, s, animate }: { m: Msg; s: State; animate?: boolean }) {
         <div className="md">
           <AnswerView text={m.text} phone={m.items?.[0]?.phone} />
         </div>
+        {m.itinerary && <ItineraryButton html={m.itinerary} />}
         {(m.items ?? []).length > 0 && (
           <ul className="mitems">
             {(m.items ?? []).map((it, i) => (

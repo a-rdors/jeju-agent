@@ -22,6 +22,10 @@ import tools as T  # noqa: E402
 
 PLACES = set(T.load()["places"]["place"])
 FOOD_NAMES = set(T.load()["food"]["name"]) | set(T.load()["nearby"]["name"])
+# 업종을 뜻하는 일반 낱말과 같은 가게 이름(예: 돈까스집, 기사식당)은 답에 일반 낱말로 나와도 가게 이름으로 보지 않는다
+GENERIC_FOOD = re.compile(r"(돈까스|돈가스|국수|칼국수|고기|중국|분식|국밥|백반|해장국|순대|김밥|만두|치킨|피자|족발|보쌈|"
+                          r"횟|회|빵|떡|밥|술|찻|맛|기사|가정|한식|일식|양식|동네|해물|생선|갈비|냉면|우동|죽|카레|라면|고깃)(집|식당)")
+FOOD_NAMES = {f for f in FOOD_NAMES if isinstance(f, str) and not GENERIC_FOOD.fullmatch(f)}
 
 
 def results_of(out, tool):
@@ -144,7 +148,7 @@ SCENARIOS = [
     {"id": 19, "q": ["휠체어 타는 아빠랑 1박 2일로 제주 가는데 일정 짜줘"],
      "expect": "(사용자 결정) 여러 날 시간표를 지어내지 않고 첫 나들이만 제안, 전체 동선 제안도 안 함",
      "check": lambda o: (bool(results_of(o, "plan_outing")) and not any(w in o["text"] for w in ("2일차", "둘째 날", "전체 동선", "1일차"))
-                         and not re.search(r"(정리|짜|만들)[어아]?\s*드릴(게|까)", o["text"]) and "+ 일정" in o["text"],
+                         and not re.search(r"(정리|짜|만들)[어아]?\s*드릴(게|까)", o["text"]) and "다른 날" in o["text"],
                          f"일정 도구 {'O' if results_of(o, 'plan_outing') else 'X'}, 답변 앞부분: {o['text'][:40]}")},
     {"id": 13, "q": ["어르신 모시고 갈 만한 곳", "다른 곳은 없어?"],
      "expect": "두 번째 질문에서 앞서 보여준 장소를 빼고 새로 추천",
