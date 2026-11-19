@@ -500,8 +500,10 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                     args["prefer_wheelchair"] = True
             if name == "search_food" and known_user_type in T.MOBILITY_TYPES and "avoid_upstairs" not in args:
                 args["avoid_upstairs"] = True  # 휠체어·유모차·어르신이면 1층 가게를 앞으로
-            if name in ("recommend_places", "plan_outing") and not args.get("theme") and theme_from(last_q):
-                args["theme"] = theme_from(last_q)  # '산을 좋아해요' → 자연·숲 (모델이 분위기를 빠뜨린 경우)
+            if name in ("recommend_places", "plan_outing") and theme_from(last_q) and args.get("theme") != theme_from(last_q):
+                # 사용자가 직접 말한 분위기('바다 보러')가 우선. 모델이 빠뜨리거나 날씨를 보고 '실내'로 바꿔도 되돌린다
+                # (비 걱정은 결과의 '비 오면' 대안으로 알린다)
+                args["theme"] = theme_from(last_q)
             if name in ("recommend_places", "search_food", "plan_outing") and area and not said_area and not args.get("place"):
                 # 시작 화면에서 고른 지역(모델이 '애월'만 넣거나 시 전체로 넓히지 않게). 이번 말에 다른 동네가 있으면 그쪽
                 args["area"] = area
