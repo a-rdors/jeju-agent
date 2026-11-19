@@ -417,9 +417,40 @@ export function locateAndRetry() {
   );
 }
 
-/** 시작 화면 '내 위치': 제주 안 좌표만 넣는다(밖이면 null) */
+/** 기준 위치: 제주 안 좌표만 넣는다(밖이면 null) */
 export function setLocation(loc: [number, number] | null) {
   set({ location: loc });
+}
+
+const IN_JEJU = (lat: number, lon: number) => lat >= 33.1 && lat <= 33.6 && lon >= 126.1 && lon <= 127.0;
+
+/**
+ * 지도 왼쪽 '내 위치' 단추: 제주 안이면 지도를 그 자리로 옮기고 찾기 기준으로 삼는다.
+ * 사용자에게 알릴 말을 돌려준다(제대로 옮겼으면 빈 글).
+ */
+export function locateMe(): Promise<string> {
+  return new Promise((resolve) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      resolve("이 기기에서는 현재 위치를 확인할 수 없어요.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const { latitude: lat, longitude: lon } = p.coords;
+        if (IN_JEJU(lat, lon)) {
+          setLocation([lat, lon]);
+          setMapView({ lat, lon, level: 6 });
+          resolve("");
+        } else {
+          setLocation(null);
+          setMapView({ all: true });
+          resolve("현재 위치가 제주 밖이에요. 제주 전체를 보여 드려요.");
+        }
+      },
+      () => resolve("현재 위치를 확인하지 못했어요. 브라우저에서 위치 권한을 허용해 주세요."),
+      { timeout: 10000, maximumAge: 300000 },
+    );
+  });
 }
 
 export function setMapView(v: Omit<MapView, "n">) {

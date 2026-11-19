@@ -16,12 +16,12 @@ import {
 import { EvidenceList, VerdictWithEvidence } from "./Evidence";
 import Icon from "./Icon";
 
-// (버튼 글자, 아이콘, 이동 유형, 보낼 문장, 설명, 아이콘 배경)
-const TYPES: [string, string, string, string, string, string][] = [
-  ["휠체어 타는 가족", "wheel", "manual_wheelchair", "휠체어 타는 가족과 나들이 갈 곳 추천해 줘", "턱 없는 입구 · 장애인 화장실", "#E3F1E7"],
-  ["아기와 유모차", "stroller", "stroller", "유모차 끌고 갈 만한 곳 추천해 줘", "계단 없는 길 · 수유실", "#FDE9D6"],
-  ["걷기 힘든 어르신", "senior", "senior", "부모님 모시고 가볍게 다녀올 곳 추천해 줘", "짧고 완만한 길 · 쉴 곳", "#E2EDF7"],
-  ["임신 중인 가족", "pregnant", "pregnant", "임신 중이라 무리 없이 다녀올 곳 추천해 줘", "평평한 길 · 가까운 병원", "#F6E6EF"],
+// (버튼 글자, 아이콘, 이동 유형, 보낼 문장, 설명)
+const TYPES: [string, string, string, string, string][] = [
+  ["휠체어 타는 가족", "wheel", "manual_wheelchair", "휠체어 타는 가족과 나들이 갈 곳 추천해 줘", "턱 없는 입구 · 장애인 화장실"],
+  ["아기와 유모차", "stroller", "stroller", "유모차 끌고 갈 만한 곳 추천해 줘", "계단 없는 길 · 수유실"],
+  ["걷기 힘든 어르신", "senior", "senior", "부모님 모시고 가볍게 다녀올 곳 추천해 줘", "짧고 완만한 길 · 쉴 곳"],
+  ["임신 중인 가족", "pregnant", "pregnant", "임신 중이라 무리 없이 다녀올 곳 추천해 줘", "평평한 길 · 가까운 병원"],
 ];
 
 // 시작 화면 '어디쯤 가세요?' (보이는 글자, 질문에 붙일 동네 말, 지도 가운데). 고르지 않으면 제주 전체
@@ -31,7 +31,6 @@ const AREAS: [string, string, [number, number] | null][] = [
   ["애월·한림", "애월", [33.42, 126.31]],
   ["중문·서귀포", "서귀포", [33.255, 126.49]],
   ["성산·구좌", "성산", [33.47, 126.85]],
-  ["📍 내 위치", "@me", null],
 ];
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
@@ -142,38 +141,11 @@ function foodTitle(around: string | null | undefined, what: string) {
 }
 
 // ---------- 시작 ----------
-const IN_JEJU = (lat: number, lon: number) => lat >= 33.1 && lat <= 33.6 && lon >= 126.1 && lon <= 127.0;
-
-function PanelHome() {
+// '내 위치'는 지도 왼쪽 단추(Locate.tsx)로 정한다. 위치가 있고 동네를 고르지 않았으면 내 근처로 찾는다.
+function PanelHome({ s }: { s: State }) {
   const [area, setArea] = useState("");
-  const [note, setNote] = useState("");
+  const near = !!s.location && !area;
   const pickArea = (word: string, at: [number, number] | null) => {
-    setNote("");
-    if (word === "@me") {
-      if (typeof navigator === "undefined" || !navigator.geolocation) {
-        setNote("이 기기에서는 현재 위치를 확인할 수 없어요. 가실 동네를 골라 주세요.");
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (p) => {
-          const { latitude: lat, longitude: lon } = p.coords;
-          if (IN_JEJU(lat, lon)) {
-            setLocation([lat, lon]);
-            setArea("@me");
-            setMapView({ lat, lon, level: 6 });
-            setNote("현재 위치를 기준으로 가까운 곳부터 찾아 드릴게요.");
-          } else {
-            setLocation(null);
-            setArea("");
-            setMapView({ all: true });
-            setNote("현재 위치가 제주 밖이에요. 제주 전체에서 찾아 드릴게요. 가실 동네를 고르면 그 근처로 찾을 수 있어요.");
-          }
-        },
-        () => setNote("현재 위치를 확인하지 못했어요. 브라우저에서 위치 권한을 허용하거나 가실 동네를 골라 주세요."),
-        { timeout: 10000, maximumAge: 300000 },
-      );
-      return;
-    }
     setLocation(null);
     setArea(word);
     setMapView(at ? { lat: at[0], lon: at[1], level: 8 } : { all: true });
@@ -191,22 +163,22 @@ function PanelHome() {
         <p><b>어디쯤 가세요?</b> <span>고르지 않아도 돼요</span></p>
         <div className="where-chips" role="radiogroup" aria-label="어디쯤 가세요">
           {AREAS.map(([label, word, at]) => (
-            <button key={label} type="button" role="radio" aria-checked={area === word} className="wchip"
+            <button key={label} type="button" role="radio" aria-checked={area === word && !(word === "" && near)} className="wchip"
               onClick={() => pickArea(word, at)}>{label}</button>
           ))}
         </div>
-        {note && (
+        {near && (
           <p className="where-note" role="status">
-            <span className="ic" aria-hidden="true">📍</span>
-            <span>{note}</span>
+            <Icon name="my_location" />
+            <span>현재 위치를 기준으로 가까운 곳부터 찾아 드릴게요.</span>
           </p>
         )}
       </div>
       <ul className="choices">
-        {TYPES.map(([label, icon, ut, text, desc, bg]) => (
+        {TYPES.map(([label, icon, ut, text, desc]) => (
           <li key={ut} className="choice-card">
             <div className="choice">
-              <div className="ic" style={{ background: bg }}>
+              <div className="ic">
                 <Svg src={ICON_URI[icon]} />
               </div>
               <div>
@@ -214,7 +186,7 @@ function PanelHome() {
                 <span>{desc}</span>
               </div>
             </div>
-            <button type="button" className="btn btn-primary" onClick={() => go(area === "@me" ? `내 근처 ${text}` : area ? `${area} 쪽 ${text}` : text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
+            <button type="button" className="btn btn-primary" onClick={() => go(near ? `내 근처 ${text}` : area ? `${area} 쪽 ${text}` : text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
               <span>찾기</span>
               <Icon name="arrow_forward" />
             </button>
@@ -239,7 +211,7 @@ function WeatherLine({ place, when, alt }: { place: string; when: string; alt?: 
   const rain = wx.rain_chance === null || wx.rain_chance === undefined ? "" : `비 ${wx.rain_chance}%`;
   return (
     <div className="line info">
-      <span className="ic" aria-hidden="true">{rainy ? "☔" : "🌤️"}</span>
+      <Icon name={rainy ? "umbrella" : "sun"} />
       <span>
         {[day, rain, wx.temp].filter(Boolean).join(" · ")}
         {rainy && alt && <> · 실내라면 <b>{alt}</b></>}
@@ -256,8 +228,9 @@ const entryShort = (st: string) =>
   /턱이 없|턱 없|단차 없/.test(st) ? "턱 없음" : /경사로/.test(st) ? "경사로 있음" : /계단|턱이 있|단차/.test(st) ? "턱·계단 있음" : "정보 있음";
 
 type Fact = [string, string, boolean];
+// 있으면 좋은 것: 아이콘 이름(lib/icons.ts)
 const EXTRA_ICON: [RegExp, string][] = [
-  [/휠체어를 빌릴/, "🦽"], [/유모차를 빌릴/, "👶"], [/수유실/, "🍼"], [/쉬어 갈 곳/, "🪑"], [/분위기/, "🌿"],
+  [/휠체어를 빌릴/, "wheelchair"], [/유모차를 빌릴/, "stroller"], [/수유실/, "check"], [/쉬어 갈 곳/, "seat"], [/분위기/, "check"],
 ];
 
 const isWheel = (ut: string) => ut === "manual_wheelchair" || ut === "electric_wheelchair";
@@ -276,18 +249,18 @@ function overviewFacts(top: PlaceResult, ut: string): Fact[] {
   const entry = (top.checks ?? []).find((c) => c.item.includes("출입"));
   if (hasCourse(top)) {
     const known = !!top.slope_level && top.slope_level !== "기록 없음";
-    f.push(["↗️", known ? `길 경사 ${top.slope_level}` : "길 경사 기록 없음", top.slope_level === "완만한 편"]);
-    f.push(["⏱️", `코스 약 ${top.minutes}분 · ${fmt(top.course_m)}m`, true]);
+    f.push(["slope", known ? `길 경사 ${top.slope_level}` : "길 경사 기록 없음", top.slope_level === "완만한 편"]);
+    f.push(["schedule", `코스 약 ${top.minutes}분 · ${fmt(top.course_m)}m`, true]);
   } else if (entry) {
-    f.push(["♿", entry.known ? `입구 ${entryShort(entry.status)}` : "입구 정보 없음", entry.known]);
+    f.push(["wheelchair", entry.known ? `입구 ${entryShort(entry.status)}` : "입구 정보 없음", entry.known]);
   }
-  f.push(["🚻", `${facName(ut, "toilet")} ${top.accessible_toilet ? "있음" : "확인 안 됨"}`, !!top.accessible_toilet]);
-  f.push(["🅿️", `${facName(ut, "parking")} ${top.accessible_parking === "yes" ? "있음" : "확인 안 됨"}`, top.accessible_parking === "yes"]);
+  f.push(["wc", `${facName(ut, "toilet")} ${top.accessible_toilet ? "있음" : "확인 안 됨"}`, !!top.accessible_toilet]);
+  f.push(["parking", `${facName(ut, "parking")} ${top.accessible_parking === "yes" ? "있음" : "확인 안 됨"}`, top.accessible_parking === "yes"]);
   for (const g of top.good_points ?? []) {
     const ic = EXTRA_ICON.find(([re]) => re.test(g));
     if (ic) f.push([ic[1], g, true]);
   }
-  if (!hasCourse(top)) f.push(["↗️", "길 경사 조사 자료 없음", false]);
+  if (!hasCourse(top)) f.push(["slope", "길 경사 조사 자료 없음", false]);
   return f;
 }
 
@@ -300,7 +273,7 @@ function VerdictPill({ color, label, evidence }: { color: string; label: string;
   return (
     <>
       <div className="vrow">
-        <span className={`vpill ${VERDICT_CLS[color] ?? "gray"}`}>{color === "green" ? "✓ " : ""}{label}</span>
+        <span className={`vpill ${VERDICT_CLS[color] ?? "gray"}`}>{color === "green" && <Icon name="check" />}{label}</span>
         {has && (
           <button type="button" className="ev-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
             {open ? "근거 닫기" : evidence!.kind === "course" ? `근거 보기 · 조사 지점 ${evidence!.items.length}곳` : "근거 보기"}
@@ -329,16 +302,16 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
       <VerdictPill key={top.place} color={top.verdict_color} label={top.verdict} evidence={top.evidence ?? det?.evidence} />
       <ul className="facts">
         {facts.map(([ic, text, yes], i) => (
-          <li key={i} className={yes ? "y" : "n"}><span className="ic" aria-hidden="true">{ic}</span><span>{text}</span></li>
+          <li key={i} className={yes ? "y" : "n"}><Icon name={ic} /><span>{text}</span></li>
         ))}
       </ul>
       {warn.slice(0, 2).map((w, i) => (
-        <div key={i} className="line warn"><span className="ic" aria-hidden="true">⚠️</span><span><span className="sr-only">조심할 점: </span>{neutralText(s.user_type, w)}</span></div>
+        <div key={i} className="line warn"><Icon name="warning" /><span><span className="sr-only">조심할 점: </span>{neutralText(s.user_type, w)}</span></div>
       ))}
       <WeatherLine place={top.place} when={s.when} alt={alt} />
       <details className="more-d">
         <summary>
-          <span>{bus ? <>🚌 {bus.name} 정류소 {fmt(bus.m)}m</> : "시설 정보"}</span>
+          <span>{bus ? <><Icon name="bus" />{bus.name} 정류소 {fmt(bus.m)}m</> : "시설 정보"}</span>
           <span className="more-go">자세히 ›</span>
         </summary>
         <Checks rows={(top.checks ?? []).map((c) => ({ ...c, item: neutralText(s.user_type, c.item), status: neutralText(s.user_type, c.status) }))} />
@@ -376,7 +349,7 @@ function Course({ top, det, failed, ut = "other" }: { top: PlaceResult; det?: De
           <Sect>코스 따라가기</Sect>
           {det.key_points.length ? (
             <>
-              <Caption>지도에 ⚠️로 표시한 곳은 천천히 지나가세요.</Caption>
+              <Caption>지도에 빨간 ! 로 표시한 곳은 천천히 지나가세요.</Caption>
               <Timeline points={neutralPoints(ut, det.key_points)} notCaution={NOT_CAUTION} />
             </>
           ) : <Caption>코스에 조심할 곳으로 기록된 지점은 없어요.</Caption>}
@@ -499,7 +472,7 @@ function Candidates({ s, top }: { s: State; top: PlaceResult }) {
       {results.map((r, i) => (
         <button key={r.place} type="button" className="cand" aria-pressed={r.place === top.place}
           onClick={() => pick(r.place)} title={`${i + 1}번 · ${r.place} · ${r.verdict}`}>
-          <i style={{ background: VERDICT_HEX[r.verdict_color] ?? "#5F6B73" }} aria-hidden="true">{i + 1}</i>
+          <i style={{ background: VERDICT_HEX[r.verdict_color] ?? VERDICT_HEX.gray }} aria-hidden="true">{i + 1}</i>
           <span>{r.place}</span>
         </button>
       ))}
@@ -589,7 +562,9 @@ export default function Dashboard({ s, userTypes }: { s: State; userTypes?: Reco
     scroller.current?.scrollTo({ top: 0 });
   }, [s.screen, s.tab, s.selected]);
 
-  // 패널(휴대폰 아래 시트)의 실제 높이를 --dash-h 로 알려 하르방 단추·말풍선이 끌어올리는 대로 따라오게 한다
+  // 패널(휴대폰 아래 시트)의 실제 높이를 --dash-h 로 알려 하르방 단추·말풍선이 끌어올리는 대로 따라오게 한다.
+  // 시트가 높아 위쪽에 단추 둘 자리(상단 바 아래 약 170px)가 없으면 sheet-tall 을 달아
+  // 내 위치 단추·말풍선은 숨기고 하르방 단추는 시트 위 오른쪽 아래로 내린다(시트와 겹치지 않게).
   useEffect(() => {
     const root = document.documentElement;
     const el = box.current;
@@ -597,11 +572,16 @@ export default function Dashboard({ s, userTypes }: { s: State; userTypes?: Reco
       root.style.setProperty("--dash-h", "0px");
       return;
     }
-    const ro = new ResizeObserver(() => root.style.setProperty("--dash-h", `${Math.round(el.getBoundingClientRect().height)}px`));
+    const ro = new ResizeObserver(() => {
+      const h = Math.round(el.getBoundingClientRect().height);
+      root.style.setProperty("--dash-h", `${h}px`);
+      root.classList.toggle("sheet-tall", window.innerHeight - h < 170);
+    });
     ro.observe(el);
     return () => {
       ro.disconnect();
       root.style.setProperty("--dash-h", "0px");
+      root.classList.remove("sheet-tall");
     };
   }, [s.panel_open]);
 
@@ -667,7 +647,7 @@ export default function Dashboard({ s, userTypes }: { s: State; userTypes?: Reco
     body = <PanelAnswer s={s} userTypes={userTypes} />;
     label = "장소 정보";
   } else {
-    body = <PanelHome />;
+    body = <PanelHome s={s} />;
   }
 
   return (
