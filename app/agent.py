@@ -158,7 +158,7 @@ def _llm_view(name, result):
     if not isinstance(result, dict):
         return json.dumps(result, ensure_ascii=False, default=str)
     if name == "get_place_detail":
-        result = {k: v for k, v in result.items() if k not in ("all_points", "evidence")}
+        result = {k: v for k, v in result.items() if k not in ("all_points", "evidence", "route_runs")}
     if name == "recommend_places" and isinstance(result.get("results"), list):
         result = {**result, "results": [{k: v for k, v in x.items() if k != "evidence"} for x in result["results"]]}
     return json.dumps(result, ensure_ascii=False, default=str)

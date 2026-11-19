@@ -301,16 +301,19 @@ img { display: block; }
 .chatlist > * { flex-shrink: 0; }
 /* 입력창: 알약 */
 .chatform {
-  flex: 0 0 auto; display: flex; gap: 6px; align-items: center; margin: var(--sp-sm); padding: 4px 4px 4px var(--sp-md);
-  background: var(--card); border: 1px solid var(--stone-2); border-radius: var(--r-pill);
+  flex: 0 0 auto; display: flex; gap: 6px; align-items: flex-end; margin: var(--sp-sm); padding: 4px 4px 4px var(--sp-md);
+  background: var(--card); border: 1px solid var(--stone-2); border-radius: 23px; /* 여러 줄이 되어도 둥근 모서리 */
 }
 .chatform:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
-.chatform input {
-  flex: 1 1 auto; min-width: 0; min-height: 40px; font-size: max(16px, 1rem); padding: 6px 2px;
-  border: 0; border-radius: 0; background: transparent; color: var(--ink);
+/* 글이 칸 오른쪽 끝에 닿으면 다음 줄로(띄어쓰기 없는 긴 글도). 높이는 Chat.tsx 가 글에 맞춰 5줄까지 늘린다 */
+.chatform textarea {
+  flex: 1 1 auto; min-width: 0; min-height: 38px; max-height: 132px; font: inherit; font-size: max(16px, 1rem);
+  line-height: 1.5; padding: 7px 2px; border: 0; border-radius: 0; background: transparent; color: var(--ink);
+  resize: none; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  scrollbar-width: thin;
 }
-.chatform input::placeholder { color: var(--faint); }
-.chatform input:focus { outline: none; }
+.chatform textarea::placeholder { color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chatform textarea:focus { outline: none; }
 .chatform .send { width: 38px; height: 38px; min-height: 38px; padding: 0; flex: 0 0 auto; border-radius: var(--r-full); }
 .msg-me {
   align-self: flex-end; max-width: 85%; margin-left: auto; background: var(--gyul); color: var(--on-gyul);

@@ -264,18 +264,23 @@ function drawMarkers(
   const b = new k.LatLngBounds();
   let n = 0;
 
-  // 코스 경로
+  // 코스 경로: 실제 길 모양 구간은 실선, 길을 못 찾아 조사 지점을 곧게 이은 구간은 가는 점선(정확한 길이 아님을 보이게)
   if (data.route.length > 1) {
     const path = data.route.map((p) => new k.LatLng(p[0], p[1]));
-    state.layers.push(
-      new k.Polyline({
-        map: state.map,
-        path,
-        strokeWeight: 6,
-        strokeColor: ROUTE_HEX,
-        strokeOpacity: 0.85,
-      }),
-    );
+    const runs = data.routeRuns?.length ? data.routeRuns : [{ road: true, pts: data.route }];
+    for (const r of runs) {
+      if (r.pts.length < 2) continue;
+      state.layers.push(
+        new k.Polyline({
+          map: state.map,
+          path: r.pts.map((p) => new k.LatLng(p[0], p[1])),
+          strokeWeight: r.road ? 6 : 4,
+          strokeColor: ROUTE_HEX,
+          strokeOpacity: r.road ? 0.85 : 0.7,
+          strokeStyle: r.road ? "solid" : "shortdash",
+        }),
+      );
+    }
     path.forEach((p) => {
       b.extend(p);
       n++;

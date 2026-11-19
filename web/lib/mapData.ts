@@ -87,6 +87,7 @@ export function buildMapData(o: {
   const addr = (a?: string | null) => (a ? a.replace(/^제주(특별자치도)?\s+(?=(제주시|서귀포시))/, "") : a);
   const marks: MapMark[] = [];
   const route: [number, number][] = [];
+  let routeRuns: { road: boolean; pts: [number, number][] }[] | undefined;
 
   // ── 내 일정: 담은 순서대로 번호(장소는 판정색, 식당은 식당색) ──────────────────
   if (o.plan) {
@@ -155,7 +156,14 @@ export function buildMapData(o: {
   if (o.detail?.all_points) {
     // '(=5)'처럼 앞 지점으로 되돌아온 기록은 선이 앞뒤로 튀므로 빼고, 혼자 툭 튀어나온 점도 선에서는 뺀다
     const pts = (o.detail.all_points as any[]).filter((p) => !/^\(=/.test(String(p.label ?? "")));
-    route.push(...despike(pts.map((p) => [p.lat as number, p.lon as number] as [number, number])));
+    const runs = o.detail.route_runs as [number, [number, number][]][] | null | undefined;
+    if (Array.isArray(runs) && runs.length) {
+      // 미리 맞춰 둔 실제 길 모양(scripts/08_route_paths.py). 길을 못 찾은 구간은 점선 직선
+      routeRuns = runs.map(([road, p]) => ({ road: road === 1, pts: p }));
+      route.push(...routeRuns.flatMap((r) => r.pts));
+    } else {
+      route.push(...despike(pts.map((p) => [p.lat as number, p.lon as number] as [number, number])));
+    }
     for (const p of pts) {
       const flags = p.flags as string[];
       const caution = flags.filter((f) => !NOT_CAUTION.has(f));
@@ -226,7 +234,7 @@ export function buildMapData(o: {
     }
   }
 
-  return { marks, route, toiletLabel: o.wheel ? "장애인 화장실" : "넓은 화장실" };
+  return { marks, route, routeRuns, toiletLabel: o.wheel ? "장애인 화장실" : "넓은 화장실" };
 }
 
 /**
@@ -239,7 +247,9 @@ export function legendItems(d: MapData): [string, string][] {
   if (d.route.length > 1) kinds.add("route"); // 점 하나는 선이 아니다(관광공사 장소는 입구 한 점뿐)
   const dots = d.marks.filter((m) => m.kind === "dot").length;
   return LEGEND_DEF.filter(([k]) => kinds.has(k)).map(([k, label, color]) => [
-    k === "dot" ? `${label} ${dots}곳` : k === "toilet" ? (d.toiletLabel ?? label) : label,
+    k === "dot" ? `${label} ${dots}곳`
+      : k === "toilet" ? (d.toiletLabel ?? label)
+      : k === "route" && d.routeRuns?.some((r) => !r.road) ? `${label}(점선은 지점을 곧게 이은 곳)` : label,
     color,
   ]);
 }

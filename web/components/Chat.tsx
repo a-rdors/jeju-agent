@@ -1,6 +1,6 @@
 "use client";
 // 오른쪽 아래 하르방 버튼과 대화창 (main.py chat_fab(), chat_window(), bot_msg())
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ART } from "@/lib/art";
 import { closeChat, focusItem, go, locateAndRetry, resultNames, showPlace, toggleChat, typingDone, type Msg, type State } from "@/lib/store";
 import { kakaoRouteLink } from "@/lib/api";
@@ -215,7 +215,7 @@ function Typing({ text }: { text: string }) {
 
 export function ChatWindow({ s }: { s: State }) {
   const [text, setText] = useState("");
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
 
   // 열리면 입력창으로(휴대폰은 자판이 화면을 가려서 바로 올리지 않는다). Esc 로 닫는다.
   useEffect(() => {
@@ -241,6 +241,21 @@ export function ChatWindow({ s }: { s: State }) {
     if (s.pending || !text.trim()) return;
     go(text, null, true);
     setText("");
+  };
+
+  // 입력칸: 글이 오른쪽 끝에 닿으면 다음 줄로 이어지고, 칸이 5줄까지 늘어난다(그 뒤로는 칸 안에서 올려 보기)
+  useLayoutEffect(() => {
+    const el = input.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
+  }, [text]);
+
+  // Enter 는 보내기, Shift+Enter 는 줄바꿈. 한글 조합 중(받침 입력 중)의 Enter 는 글자 확정이라 보내지 않는다.
+  const onEnter = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    e.currentTarget.form?.requestSubmit();
   };
 
   const animate = reducedMotion() ? null : s.typing;
@@ -302,8 +317,8 @@ export function ChatWindow({ s }: { s: State }) {
       </div>
       <form className="chatform" onSubmit={submit}>
         <label htmlFor="chat-text" className="sr-only">하르방에게 할 말</label>
-        <input id="chat-text" ref={input} type="text" value={text} onChange={(e) => setText(e.target.value)}
-          placeholder={placeholder} autoComplete="off" enterKeyHint="send" />
+        <textarea id="chat-text" ref={input} rows={1} value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={onEnter} placeholder={placeholder} autoComplete="off" enterKeyHint="send" />
         <button type="submit" className="btn btn-primary send" disabled={!!s.pending || !text.trim()} aria-label="보내기">
           <Icon name="send" />
         </button>
