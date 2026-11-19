@@ -1,0 +1,827 @@
+[
+ {
+  "category": "장소",
+  "questions": [
+   "아빠가 휠체어 타시는데 바다 보러 갈 만한 데 있어?"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**종달항과해안길** — 갈 만해요\n길 경사가 대체로 완만하고, 장애인 화장실과 주차장이 있어요.\n조심할 점: 쉬어 갈 곳 기록은 없어서 중간에 잠깐 쉴 곳은 미리 확인해 보세요.\n비 오면: 해녀박물관",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "전동휠체어로 숲길 산책할 데"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**감귤박물관** — 갈 만해요\n경사로가 설치돼 있고 장애인 화장실도 있어 전동휠체어로 들르기 좋아요.\n조심할 점: 출입은 괜찮지만, 숲길 산책 코스의 자세한 경사 정보는 확인이 안 돼요, 가기 전에 전화해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "유모차 끌고 서귀포에서 갈 만한 곳"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**감귤박물관** — 갈 만해요\n유모차로 들어갈 수 있고, 넓은 화장실과 주차장도 있어요.\n유모차 대여와 수유실이 있어 편하게 들르기 좋아요.\n조심할 점: 현장 상황은 가기 전에 한 번 확인해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "돌 지난 아기랑 실내로 갈 곳 추천해줘"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**감귤박물관** — 갈 만해요\n유모차를 빌릴 수 있고, 수유실·넓은 화장실·주차장이 있어 돌 지난 아기와 가기 좋아요.\n조심할 점: 수유실은 2층이에요.",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "할머니가 무릎이 안 좋으신데 잠깐 바람 쐬러 갈 곳"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "get_weather",
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**세계자연유산센터** — 갈 만해요\n길이 대체로 완만하고, 넓은 화장실과 주차장이 있어 할머니와 잠깐 들르기 좋아요.\n조심할 점: 턱은 수치 기록이 없어 확인이 안 돼요, 가기 전에 전화해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "부모님 모시고 제주시에서 박물관 가고 싶어"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**세계자연유산센터** — 갈 만해요\n부모님과 함께 가기엔 길 경사가 완만하고, 넓은 화장실과 주차장이 있어요.\n조심할 점: 쉼터 기록은 없어서 잠깐씩 쉬어 갈 곳은 가기 전에 확인해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "임신 8개월인데 무리 없이 갈 수 있는 곳"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**세계자연유산센터** — 갈 만해요\n길이 대체로 완만하고, 넓은 화장실과 주차구역이 있어 임신 중에도 비교적 편하게 가기 좋아요.\n조심할 점: 턱 정보는 확인이 안 돼요, 가기 전에 전화해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "만삭 아내랑 바다 보고 싶어"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**종달항과해안길** — 갈 만해요\n길이 대체로 완만하고 넓은 화장실, 주차 정보가 있어 만삭 아내와 걷기 부담이 비교적 적어요.\n조심할 점: 쉬어 갈 곳 기록은 없어서 중간중간 자주 쉬면서 보세요.\n비 오면: 해녀박물관",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "휠체어 타는 동생이랑 중문 근처에서 갈 곳, 화장실 꼭 있어야 해"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**제주국제평화센터** — 갈 만해요\n출입구까지 턱이 없어 휠체어로 들어가기 편하고, 장애인 화장실도 있어요.\n조심할 점: 코스의 가파른 구간 정보는 확인이 안 돼요, 가기 전에 전화해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "장소",
+  "questions": [
+   "어르신 두 분 모시고 성산 쪽 가볍게 다녀올 데"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**아쿠아플라넷 제주** — 갈 만해요\n실내라서 어르신 두 분이 가볍게 쉬엄쉬엄 보기 좋아요. 출입구까지 턱이 없어 들어가기 편하고 넓은 화장실도 있어요.\n조심할 점: 수유실은 2층이라 이동이 필요해요, 가기 전에 전화로 한 번 확인해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "장소 확인",
+  "questions": [
+   "휠체어로 감귤박물관 갈 수 있어?"
+  ],
+  "expect_tools": [
+   "get_place_detail",
+   "recommend_places"
+  ],
+  "used_tools": [
+   "get_place_detail"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**감귤박물관** — 갈 만해요\n경사로가 있고 장애인 화장실, 엘리베이터, 휠체어 대여가 있어 휠체어로 들르기 괜찮아요.\n조심할 점: 수유실이 2층이라 필요한 경우 미리 동선 확인이 필요해요.",
+  "pass": true
+ },
+ {
+  "category": "장소 확인",
+  "questions": [
+   "유모차로 사려니숲 가능해?"
+  ],
+  "expect_tools": [
+   "get_place_detail",
+   "recommend_places"
+  ],
+  "used_tools": [
+   "get_place_detail"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**사려니숲길-무장애나눔길** — 확인이 더 필요해요\n유모차로 갈 수 있는 코스이긴 하지만, 경사 기록이 없어서 현장 확인이 필요해요.\n조심할 점: 경사 기록이 없어요. 가기 전에 전화로 확인해 보세요.\n비 오면: 제주돌문화공원",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "할머니 이가 안 좋으신데 제주시에서 밥 먹을 곳"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**원조교래손칼국수** — 국수/칼국수 · 1층\n이가 안 좋으시면 국물 음식이라 씹기 부담이 덜할 수 있어요.\n확인할 점: 죽이나 더 부드러운 메뉴가 있는지 전화로 물어보세요.",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "엄마가 속이 안 좋아서 순한 거 먹고 싶어. 서귀포"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**본죽엔비빔밥까페제주강정점** — 백반/한정식 · 1층\n이름에 본죽이 들어가서 속 편한 메뉴를 기대해 볼 수 있어요.\n확인할 점: 맵지 않고 기름지지 않은 메뉴가 있나요?",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "아이가 매운 걸 못 먹어. 애월에서 저녁 먹을 데"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**이순신김밥** — 분식 · 1층\n아이와 먹기 좋은 김밥·분식이라 저녁으로 무난해 보여요.\n확인할 점: 맵지 않은 메뉴와 아이용 의자가 있는지 전화로 물어보세요.",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "남편이 해산물 알레르기 있어. 성산 근처 식당"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**부뚜막식당 성산** — 백반/한정식 · 층 정보 없음\n해산물 없는 메뉴를 고를 수 있을 가능성이 있어요.\n확인할 점: 해산물이 들어가지 않은 메뉴가 있나요?",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "아버지 혈압 때문에 짜게 드시면 안 돼. 한림 쪽 식당"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**콩창고** — 백반·한정식 · 1층\n업종이 백반·한정식이라 싱겁게 부탁하기 좋은 편이에요.\n확인할 점: 간을 싱겁게 해 주실 수 있는지 전화로 물어보세요.",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "임산부인데 함덕에서 먹을 만한 곳"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**은희네해장국** — 국/탕/찌개류 · 층 정보 없음\n날음식 없이 먹기 쉬운 국물 메뉴가 있어 임산부 식사로 고르기 편해 보여요.\n확인할 점: 완전히 익힌 메뉴로 가능한지 전화로 물어보세요.",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "휠체어 타는 아빠랑 흑돼지 먹고 싶어. 서귀포 시내"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**고기땡기네** — 돼지고기 구이/찜 · 1층\n휠체어 진입 확인이 되어 있고 1층이라 아빠와 들어가기 편한 편이에요.\n확인할 점: 테이블 간격이 괜찮은지 전화로 물어보세요.",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "유모차 들어갈 수 있는 카페 애월에"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**토브농장베이커리** — 카페 · 1층\n빵/도넛 쪽이라 잠깐 쉬며 들르기 좋아 보여요.\n확인할 점: 유모차가 입구를 바로 들어갈 수 있는지 전화로 물어보세요.",
+  "pass": true
+ },
+ {
+  "category": "식당",
+  "questions": [
+   "할아버지 모시고 중문에서 국수 먹을 데"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**중문수두리보말칼국수** — 국수 · 1층\n할아버지 모시고 가기엔 1층이고 출입구까지 경사로가 있어 들어가기 편한 편이에요.\n확인할 점: 자세한 실내 동선은 확인이 안 돼요, 가기 전에 전화해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "의료",
+  "questions": [
+   "곽지해수욕장 근처 약국이랑 병원 어디야?"
+  ],
+  "expect_tools": [
+   "find_nearby_help"
+  ],
+  "used_tools": [
+   "find_nearby_help"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**핑크약국** — 약국 · 2.4km\n곽지해수욕장에서 가장 가까운 약국이에요. 영업 중으로 확인됐어요.\n확인할 점: 가기 전에 전화로 문을 열었는지 확인해 보세요.\n응급 상황에는 119에 먼저 연락하세요.",
+  "pass": true
+ },
+ {
+  "category": "의료",
+  "questions": [
+   "임신 중인데 감귤박물관 근처에 산부인과 있어?"
+  ],
+  "expect_tools": [
+   "find_nearby_help"
+  ],
+  "used_tools": [
+   "find_nearby_help"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**서울의원** — 병·의원 · 4.1km\n감귤박물관에서 가장 가까운 병·의원이에요.\n확인할 점: 가기 전에 전화로 문을 열었는지 확인해 보세요.\n응급 상황에는 119에 먼저 연락하세요.",
+  "pass": true
+ },
+ {
+  "category": "의료",
+  "questions": [
+   "동문시장 근처에 장애인 화장실 있어?"
+  ],
+  "expect_tools": [
+   "find_nearby_help",
+   "get_place_detail"
+  ],
+  "used_tools": [
+   "find_nearby_help"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**제주중앙지하도상가 2차(동문로)** — 공중화장실 · 0.05km\n동문시장에서 가장 가까운 장애인 칸이 있는 공중화장실이에요. 장애인 칸 2개.\n확인할 점: 여는 시간은 가기 전에 관리기관에 전화로 확인해 보세요.\n응급 상황에는 119에 먼저 연락하세요.",
+  "pass": true
+ },
+ {
+  "category": "날씨",
+  "questions": [
+   "내일 휠체어 타는 엄마랑 바다 가도 될까?"
+  ],
+  "expect_tools": [
+   "get_weather",
+   "recommend_places"
+  ],
+  "used_tools": [
+   "get_weather",
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**종달항과해안길** — 갈 만해요\n길이 대체로 완만하고, 장애인 화장실과 주차장이 있어 엄마와 함께 가기 좋아요.\n조심할 점: 쉼터 정보는 확인이 안 돼요, 가기 전에 전화해 보세요.\n비 오면: 해녀박물관",
+  "pass": true
+ },
+ {
+  "category": "날씨",
+  "questions": [
+   "주말에 비 온다던데 아기랑 갈 만한 데"
+  ],
+  "expect_tools": [
+   "get_weather",
+   "recommend_places"
+  ],
+  "used_tools": [
+   "get_weather",
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**감귤박물관** — 갈 만해요  \n경사로가 있고 넓은 화장실도 있어서 아기랑 실내로 들르기 좋아요.  \n조심할 점: 수유실이 2층에 있어요.  ",
+  "pass": true
+ },
+ {
+  "category": "일정",
+  "questions": [
+   "휠체어 아빠랑 서귀포에서 반나절 코스 짜줘"
+  ],
+  "expect_tools": [
+   "plan_outing"
+  ],
+  "used_tools": [
+   "plan_outing"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**감귤박물관 → 유나카페**\n감귤박물관: 갈 만해요 / 유나카페: 카페 · 1층\n일정표를 내려받을 수 있어요.",
+  "pass": true
+ },
+ {
+  "category": "일정",
+  "questions": [
+   "어르신 모시고 애월에서 하루 일정 짜줘. 이가 안 좋으셔"
+  ],
+  "expect_tools": [
+   "plan_outing"
+  ],
+  "used_tools": [
+   "plan_outing"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**제주 항파두리 항몽 유적 → 우리네국밥**\n제주 항파두리 항몽 유적: 갈 만해요 / 우리네국밥: 국/탕/찌개류 · 1층 · 가게 이름에 '국밥'\n비 오면: 제주홀릭뮤지엄\n일정표를 내려받을 수 있어요.",
+  "pass": true
+ },
+ {
+  "category": "일정",
+  "questions": [
+   "임산부랑 제주시에서 가볍게 동선 짜줘"
+  ],
+  "expect_tools": [
+   "plan_outing"
+  ],
+  "used_tools": [
+   "plan_outing",
+   "plan_outing"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**세계자연유산센터 → 빠우사**\n세계자연유산센터: 갈 만해요 / 빠우사: 카페 · 1층\n일정표를 내려받을 수 있어요.",
+  "pass": true
+ },
+ {
+  "category": "여러 날",
+  "questions": [
+   "어르신 2명 모시고 서귀포로 1박 2일 가는데 일정 짜줘"
+  ],
+  "expect_tools": [
+   "plan_outing"
+  ],
+  "used_tools": [
+   "plan_outing"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**서귀포매일올레시장 → 고기땡기네**\n서귀포매일올레시장: 갈 만해요 / 고기땡기네: 돼지고기 구이/찜 · 1층\n비 오면: 서귀포시립기당미술관\n일정표를 내려받을 수 있어요.\n다른 날 갈 곳은 그날 갈 동네를 말씀해 주시면 하나씩 다시 찾아드릴게요.",
+  "pass": true
+ },
+ {
+  "category": "여러 날",
+  "questions": [
+   "유모차랑 2박 3일 제주 일정 부탁해"
+  ],
+  "expect_tools": [
+   "plan_outing"
+  ],
+  "used_tools": [
+   "plan_outing"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**세계자연유산센터 → 빠우사**\n세계자연유산센터: 갈 만해요 / 빠우사: 카페 · 1층\n일정표를 내려받을 수 있어요.\n다른 날 갈 곳은 그날 갈 동네를 말씀해 주시면 하나씩 다시 찾아드릴게요.",
+  "pass": true
+ },
+ {
+  "category": "이어서",
+  "questions": [
+   "휠체어로 갈 만한 데 추천해줘",
+   "거기 화장실은 어디쯤 있어?"
+  ],
+  "expect_tools": [
+   "get_place_detail"
+  ],
+  "used_tools": [
+   "get_place_detail"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**세계자연유산센터** — 갈 만해요\n장애인 화장실은 본관 안 전시실 입구 쪽에 있어요.\n길이 대체로 완만하고, 화장실도 안쪽에 기록돼 있어 휠체어로 들르기 괜찮습니다.\n조심할 점: 턱 정보는 확인이 안 돼요, 가기 전에 전화해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "이어서",
+  "questions": [
+   "어르신 모시고 갈 만한 곳",
+   "다른 곳은 없어?"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**서귀포매일올레시장** — 갈 만해요\n길이 대체로 완만하고, 넓은 화장실이 있어서 어르신과 함께 들르기 좋아요.\n조심할 점: 주차장는 확인이 안 돼요, 가기 전에 전화해 보세요.\n비 오면: 서귀포시립기당미술관",
+  "pass": true
+ },
+ {
+  "category": "이어서",
+  "questions": [
+   "유모차로 갈 바다 추천",
+   "그 근처 카페도 알려줘"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**오늘종달** — 카페 · 1층\n바다 근처라 유모차로 들르기 편한 쪽으로 먼저 보여드렸어요.\n확인할 점: 입구에 턱이 없는지 전화로 물어보세요",
+  "pass": true
+ },
+ {
+  "category": "이어서",
+  "questions": [
+   "휠체어 타는 엄마랑 갈 실내",
+   "거기 근처 약국은?"
+  ],
+  "expect_tools": [
+   "find_nearby_help"
+  ],
+  "used_tools": [
+   "find_nearby_help"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**함덕하나로약국** — 약국 · 9.6km\n세계자연유산센터에서 가장 가까운 약국이에요. 영업 중으로 확인됐어요.\n확인할 점: 가기 전에 전화로 문을 열었는지 확인해 보세요.\n응급 상황에는 119에 먼저 연락하세요.",
+  "pass": true
+ },
+ {
+  "category": "이어서",
+  "questions": [
+   "아기랑 갈 만한 데",
+   "거기 비 오면 어떡해?"
+  ],
+  "expect_tools": [
+   "get_place_detail",
+   "get_weather",
+   "recommend_places"
+  ],
+  "used_tools": [
+   "get_weather",
+   "get_place_detail"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**감귤박물관** — 갈 만해요\n경사로, 엘리베이터, 유모차 대여와 수유실이 있어 아기랑 들어가기 편해요.\n조심할 점: 수유실은 2층에 있어요. 비 오면 갈 실내 대체 장소는 확인이 안 돼요.",
+  "pass": true
+ },
+ {
+  "category": "막연",
+  "questions": [
+   "어디 갈 만한 데 있어?"
+  ],
+  "expect_tools": [
+   "ask_user"
+  ],
+  "used_tools": [
+   "ask_user"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "누구와 함께 가시나요?",
+  "pass": true
+ },
+ {
+  "category": "막연",
+  "questions": [
+   "추천해줘"
+  ],
+  "expect_tools": [
+   "ask_user"
+  ],
+  "used_tools": [
+   "ask_user"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "누구와 함께 가시나요?",
+  "pass": true
+ },
+ {
+  "category": "범위 밖",
+  "questions": [
+   "휠체어 타는 아빠랑 서울에서 갈 만한 곳"
+  ],
+  "expect_tools": [],
+  "used_tools": [],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "제주 지역만 안내할 수 있어요.\n제주로 오시면 함께 가실 분에 맞춰 갈 만한 곳과 식당을 찾아드릴게요.",
+  "pass": true
+ },
+ {
+  "category": "범위 밖",
+  "questions": [
+   "어르신 모시고 묵을 숙소 추천해줘"
+  ],
+  "expect_tools": [],
+  "used_tools": [],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "제주 같이나들이는 숙소 추천은 도와드릴 수 없어요.  \n대신 어르신과 함께 가기 편한 제주 나들이 장소나 식당은 조건에 맞춰 찾아드릴게요.",
+  "pass": true
+ },
+ {
+  "category": "범위 밖",
+  "questions": [
+   "제주에서 제일 맛있는 집 1위 알려줘"
+  ],
+  "expect_tools": [],
+  "used_tools": [],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "범위 밖 요청이에요. 맛 평가나 순위는 근거 자료가 없어서 알려드릴 수 없어요.\n대신 함께 가실 분과 동네를 말씀해 주시면 들어가기 편한 식당을 찾아드릴게요.",
+  "pass": true
+ },
+ {
+  "category": "범위 밖",
+  "questions": [
+   "임신 중인데 감기약 먹어도 돼?"
+  ],
+  "expect_tools": [],
+  "used_tools": [],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "이건 제주 나들이가 아니라 임신 중 약 복용에 대한 건강 상담이라 답을 드릴 수 없어요.\n대신 감기 증상에 맞는 약을 고르기 전에 산부인과나 약국에 바로 확인해 보세요.",
+  "pass": true
+ },
+ {
+  "category": "범위 밖",
+  "questions": [
+   "식당 예약 좀 해줘"
+  ],
+  "expect_tools": [],
+  "used_tools": [],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "예약 대행은 할 수 없어요.\n대신 제주에서 조건에 맞는 식당을 찾아드리거나, 전화로 물어볼 질문을 정리해드릴 수 있어요.",
+  "pass": true
+ },
+ {
+  "category": "줄임말",
+  "questions": [
+   "휠체어 바다 ㄱㄱ"
+  ],
+  "expect_tools": [
+   "recommend_places"
+  ],
+  "used_tools": [
+   "recommend_places"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**종달항과해안길** — 갈 만해요\n길 경사가 대체로 완만하고 장애인 화장실·장애인 주차가 있어요.\n조심할 점: 쉬어 갈 곳 기록은 없어서 중간에 잠깐 쉴 곳은 확인이 안 돼요.\n비 오면: 해녀박물관",
+  "pass": true
+ },
+ {
+  "category": "줄임말",
+  "questions": [
+   "할매랑 밥 어디서 먹지 제주시"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**원조교래손칼국수** — 국수/칼국수 · 1층\n할매랑 같이 가기 편한 1층 가게이고, 출입구에 턱이 없어 들어가기 쉬운 편이에요.\n확인할 점: 자리나 통로가 넉넉한지 전화로 한 번 물어보세요.",
+  "pass": true
+ },
+ {
+  "category": "줄임말",
+  "questions": [
+   "유모차 카패 서귀포"
+  ],
+  "expect_tools": [
+   "search_food"
+  ],
+  "used_tools": [
+   "search_food"
+  ],
+  "tool_ok": true,
+  "format_problems": [],
+  "grounded": true,
+  "ungrounded": [],
+  "answer": "**유나카페** — 카페 · 1층\n유모차로 들어갈 수 있는 곳으로 확인됐어요.\n확인할 점: 입구 턱 없음 확인 기록이 있지만, 현재 출입구나 내부는 가기 전에 전화로 다시 확인해 보세요.",
+  "pass": true
+ }
+]

@@ -1,0 +1,125 @@
+[
+ {
+  "id": "H1",
+  "questions": [
+   "엄마가 보행기 쓰시는데 바닷가 산책할 만한 데 있을까"
+  ],
+  "expect": "보행 불편 어르신으로 해석, 바다 장소",
+  "tools": [
+   "recommend_places"
+  ],
+  "condition_ok": true,
+  "detail": "1순위 종달항과해안길 (바다)",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**종달항과해안길** — 갈 만해요\n길 경사가 대체로 완만하고, 넓은 화장실과 주차가 있어 엄마와 같이 걷기 좋아요.\n조심할 점: 턱 정보는 확인이 안 돼서 가기 전에 전화해 보세요.\n비 오면: 해녀박물관"
+ },
+ {
+  "id": "H2",
+  "questions": [
+   "애기 데리고 비 오는 날 갈 만한 곳"
+  ],
+  "expect": "유모차 기준, 날씨 확인, 실내 장소",
+  "tools": [
+   "get_weather",
+   "recommend_places"
+  ],
+  "condition_ok": true,
+  "detail": "날씨 O, 1순위 감귤박물관",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**감귤박물관** — 갈 만해요\n유모차를 빌릴 수 있고, 수유실과 넓은 화장실도 있어 비 오는 날 아이 데리고 가기 좋아요.\n조심할 점: 수유실은 2층이라 이동할 때 확인이 필요해요."
+ },
+ {
+  "id": "H3",
+  "questions": [
+   "휠체어 타는 친구랑 제주시에서 구경할 만한 시장 있어?"
+  ],
+  "expect": "제주시 안의 시장",
+  "tools": [
+   "recommend_places"
+  ],
+  "condition_ok": true,
+  "detail": "1순위 동문시장 제주시 이도1동",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**동문시장** — 갈 만해요\n짧은 오르막·내리막이 있어요. 천천히 가면 괜찮은 편이에요.\n조심할 점: 장애인 주차는 확인 안 됐어요. 가기 전에 전화해 보세요.\n비 오면: 김만덕기념관"
+ },
+ {
+  "id": "H4",
+  "questions": [
+   "아버지가 휠체어 타시는데 함덕 근처 흑돼지 집 있어?"
+  ],
+  "expect": "함덕 근처 흑돼지 식당(휠체어 확인 가게는 배지)",
+  "tools": [
+   "search_food"
+  ],
+  "condition_ok": true,
+  "detail": "[('함덕그때그집', False), ('제주 함덕흑돼지 왕표고기', False), ('함덕흑돼지연탄구이', False)]",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**함덕그때그집** — 돼지고기 구이/찜 · 1층\n아버지와 함께 가기엔 함덕 근처에서 가장 가깝고, 1층이라 동선이 비교적 단순해요.\n확인할 점: 입구 정보가 없어 휠체어 진입은 확인이 안 돼요, 가기 전에 전화해 보세요.\n전화로 입구 턱이나 문 폭을 꼭 물어보세요."
+ },
+ {
+  "id": "H5",
+  "questions": [
+   "할아버지가 오래 못 걸으셔서 잠깐 바람 쐬러 갈 곳"
+  ],
+  "expect": "어르신 기준 짧은 코스(30분 안팎)",
+  "tools": [
+   "get_weather",
+   "recommend_places"
+  ],
+  "condition_ok": true,
+  "detail": "1순위 세계자연유산센터 약 5분",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**세계자연유산센터** — 갈 만해요\n길이 대체로 완만하고, 넓은 화장실·주차구역이 있어 짧게 바람 쐬기 좋아요.\n조심할 점: 턱 정보는 확인이 안 돼요, 가기 전에 전화해 보세요."
+ },
+ {
+  "id": "H6",
+  "questions": [
+   "전동휠체어로 사려니숲 갈 수 있어?"
+  ],
+  "expect": "특정 장소 질문 → 사려니숲길 무장애나눔길 정보로 답",
+  "tools": [
+   "get_place_detail"
+  ],
+  "condition_ok": true,
+  "detail": "상세 사려니숲길-무장애나눔길, 추천 []",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**사려니숲길-무장애나눔길** — 확인이 더 필요해요\n장애인 주차와 넓은 화장실이 있고, 쉬어 갈 곳도 있어서 전동휠체어로 둘러보기는 좋아 보여요.\n조심할 점: 경사 기록이 없어서, 가기 전에 현장 확인이 필요해요.\n비 오면: 제주돌문화공원"
+ },
+ {
+  "id": "H7",
+  "questions": [
+   "유모차로 서귀포에 있는 실내 전시 보러 가고 싶어"
+  ],
+  "expect": "서귀포시 안의 실내 장소",
+  "tools": [
+   "recommend_places"
+  ],
+  "condition_ok": true,
+  "detail": "1순위 감귤박물관 서귀포시 신효동",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**감귤박물관** — 갈 만해요\n출입구까지 경사로가 있고 유모차 대여, 엘리베이터, 넓은 화장실이 있어요.\n조심할 점: 수유실은 2층에 있어요."
+ },
+ {
+  "id": "H8",
+  "questions": [
+   "어르신 모시고 갈 곳 추천해 줘",
+   "거기 화장실은 어디쯤 있어?"
+  ],
+  "expect": "두 번째 질문에서 앞서 추천한 장소의 코스 상세 조회",
+  "tools": [
+   "get_place_detail"
+  ],
+  "condition_ok": true,
+  "detail": "상세 조회 장소 세계자연유산센터",
+  "grounded": true,
+  "ungrounded_names": [],
+  "answer": "**세계자연유산센터** — 갈 만해요\n넓은 화장실은 전시실 입구 쪽, 본관 안에 있어요.\n주차장과 가까운 쪽에서 들어가면 찾기 편해요.\n조심할 점: 턱과 쉬어 갈 곳은 확인이 안 돼요. 가기 전에 전화해 보세요."
+ }
+]
