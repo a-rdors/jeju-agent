@@ -19,6 +19,7 @@ export const CAUTION_HEX = "#B83227"; // --red
 // 색은 종류마다 다르게: 추천 장소=판정색(초록·주황·회색), 코스=파랑, 화장실=청록, 조심할 곳=빨강
 export const ROUTE_HEX = "#2F6FD6"; // --map-route
 export const DOT_HEX = "#2F7A4D"; // --leaf
+export const DOT_GYUL_HEX = "#F0892B"; // --gyul (지역 구분용 두 번째 점 색)
 export const TOILET_HEX = "#0E8A8A"; // --map-toilet
 export const FOOD_HEX = "#E07A1C"; // --map-food
 export const HELP_HEX = "#5B3A8C"; // --map-help
@@ -113,8 +114,8 @@ export function buildMapData(o: {
         sub: `${r.sigungu} ${r.dong}`,
         address: addr(r.address) ?? `${r.sigungu} ${r.dong}`,
         photos: r.photos ?? [],
-        color: DOT_HEX,
         area: areaOf(r.sigungu, r.dong),
+        color: regionHex(areaOf(r.sigungu, r.dong)),
       });
     });
   }
@@ -216,31 +217,44 @@ export function legendItems(d: MapData): [string, string][] {
 const JUNGMUN = new Set(["중문동", "색달동", "대포동", "예래동", "상예동", "하예동", "하원동", "회수동", "도순동"]);
 
 /**
- * 지도 묶음 이름표에 쓸, 사람들이 흔히 부르는 동네 이름.
- * 읍·면은 '애월', '성산'처럼 끝 글자를 떼고, 시내의 잘게 나뉜 동은 '제주시내'·'서귀포 시내'·'중문'으로 묶는다.
+ * 지도 지역: 제주관광공사 비짓제주(visitjeju.net)의 관광지 지역 구분을 따른다.
+ * 제주시 = 제주시내·애월·한림·한경·조천·구좌·우도·추자, 서귀포시 = 서귀포시내·중문·안덕·대정·남원·표선·성산.
+ * 색은 섬 둘레를 따라 이웃 지역끼리 초록·감귤이 번갈아 오도록 정했다.
+ * 둘레의 지역이 13곳(홀수)이라 한 쌍은 같은 색이 되는데, 이웃 중 점이 가장 멀리 떨어진 표선·남원(약 7km)으로 했다.
+ */
+export const REGION_TONE: Record<string, "leaf" | "gyul"> = {
+  제주시내: "leaf", 조천: "gyul", 구좌: "leaf", 우도: "gyul", 성산: "gyul", 표선: "leaf", 남원: "leaf",
+  서귀포시내: "gyul", 중문: "leaf", 안덕: "gyul", 대정: "leaf", 한경: "gyul", 한림: "leaf", 애월: "gyul", 추자: "gyul",
+};
+
+/**
+ * 섬 전체를 볼 때 지역 이름표를 놓을 자리(위도, 경도). 관광안내도처럼 이름표끼리 겹치지 않게 손으로 정했다.
+ * 남쪽 해안의 대정·중문·서귀포시내는 바다 쪽으로, 안덕은 안쪽으로 엇갈리게 두어 휴대폰 화면에서도 겹치지 않는다.
+ * 없는 지역은 그 지역 장소들의 가운데에 둔다.
+ */
+export const REGION_ANCHOR: Record<string, [number, number]> = {
+  제주시내: [33.52, 126.5], 조천: [33.47, 126.65], 구좌: [33.53, 126.8], 우도: [33.51, 126.96],
+  성산: [33.43, 126.9], 표선: [33.36, 126.83], 남원: [33.28, 126.7], 서귀포시내: [33.22, 126.6],
+  중문: [33.215, 126.42], 안덕: [33.3, 126.36], 대정: [33.2, 126.24], 한경: [33.31, 126.18],
+  한림: [33.39, 126.24], 애월: [33.46, 126.36],
+};
+
+/** 지역의 점 색(초록 또는 감귤). 모르는 지역은 초록 */
+export function regionHex(area?: string | null): string {
+  return REGION_TONE[area ?? ""] === "gyul" ? DOT_GYUL_HEX : DOT_HEX;
+}
+
+/**
+ * 장소의 지역 이름(비짓제주 지역 구분). 읍·면은 '애월', '성산'처럼 끝 글자를 떼고,
+ * 시내의 잘게 나뉜 동은 '제주시내'·'서귀포시내'·'중문'으로 묶는다.
  */
 export function areaOf(sigungu?: string | null, dong?: string | null): string {
   const d = (dong ?? "").trim();
   if (/[읍면]$/.test(d) && d.length > 1) return d.slice(0, -1);
   if (JUNGMUN.has(d)) return "중문";
-  if (sigungu === "서귀포시") return "서귀포 시내";
+  if (sigungu === "서귀포시") return "서귀포시내";
   if (sigungu === "제주시") return "제주시내";
   return d || sigungu || "";
-}
-
-/**
- * 묶음 안 장소들의 동네 이름으로 이름표 글을 만든다.
- * 가장 많은 동네 하나. 그 동네가 절반이 안 되거나 둘째 동네도 3분의 1을 넘으면 '애월·한림'처럼 둘까지.
- */
-export function clusterLabel(areas: (string | undefined)[]): string {
-  const n = areas.length;
-  const cnt = new Map<string, number>();
-  for (const a of areas) if (a) cnt.set(a, (cnt.get(a) ?? 0) + 1);
-  const top = [...cnt.entries()].sort((x, y) => y[1] - x[1]);
-  if (!top.length) return `나들이 ${n}곳`;
-  const two = top[1] && (top[1][1] * 3 >= n || top[0][1] * 2 < n);
-  const name = two ? `${top[0][0]}·${top[1][0]}` : top[0][0];
-  return `${name} ${n}곳`;
 }
 
 /** 코스 선에서 혼자 툭 튀어나왔다 돌아오는 점을 뺀다(앞뒤 점을 잇는 길보다 2.5배 넘게 돌아가면 뾰족한 가시) */

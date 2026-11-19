@@ -24,6 +24,8 @@ export interface Msg {
   places?: string[];
   trace?: string[];
   items?: MsgItem[];
+  /** 반나절 일정(plan_outing)을 짰을 때 서버가 만든 한 장짜리 일정표 HTML. '일정표 내려받기' 단추가 쓴다 */
+  itinerary?: string;
 }
 
 /** 지도를 부드럽게 옮겨 달라는 요청(시작 화면 동네 고르기). all이면 제주 전체. n은 같은 곳을 다시 눌러도 움직이게 */
@@ -211,8 +213,13 @@ function send(s0: State, p: Pending, out: ChatOut): State {
   const names: string[] = [];
   let items: MsgItem[] = [];
   let places: string[] = [];
+  let itinerary: string | undefined;
   for (const { name, args, result } of out.tool_results) {
     names.push(name);
+    if (name === "plan_outing") {
+      const html = (result as { html?: unknown } | null)?.html;
+      if (typeof html === "string" && html) itinerary = html;
+    }
     if (name === "get_weather" && args?.when) s.when = String(args.when);
     if (name === "search_food") {
       s.food = result as Food;
@@ -271,6 +278,7 @@ function send(s0: State, p: Pending, out: ChatOut): State {
       text: out.text || "찾은 내용을 정리했어요.",
       places,
       items,
+      ...(itinerary ? { itinerary } : {}),
     }];
   }
   s.typing = p.silent ? null : s.msgs.length - 1;

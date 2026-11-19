@@ -42,6 +42,7 @@
 
 1. 판정 배지 + 한 줄 이유 (`verdict`, `verdict_color`, `verdict_reason`)
 2. 장소 이름, 위치(시·동), 코스 시간·길이
+   - 현장 사진 최대 3장(누르면 크게 보기). 사진이 없는 장소는 이 칸을 그리지 않는다
 3. 지도: 코스 지점(`get_place_detail().all_points`), 주의 지점은 빨강, 화장실·쉼터 표시
 4. 행동 버튼 줄: 길안내, 전화, 공유
 5. 조심할 점 최대 3개 (`watch_out`, 날씨 `tips`)
@@ -61,10 +62,11 @@
 | `get_weather(place, area, when)` | rain_chance, wind_ms, temp, tips[] |
 | `call_questions(user_type, diet_needs)` | 전화로 물을 질문 목록(이동 유형 + 식사 조건) |
 | `kakao_route_link(name, lat, lon)` | 카카오맵 길안내 URL(키 불필요) |
+| `GET /api/places` (`server/api.py`) | 장소 점: place, lat, lon, photos[](현장 사진 경로, `data/processed/place_info.csv`) |
 
 대화는 `agent.run(history, known_user_type, last_place, user_location)`. 반환: `text`(짧은 답), `ask`(버튼 질문), `tool_results`(위 함수 결과), `trace`(확인한 단계).
 
-**현재 위치**: 지도에서 위치 권한을 받으면 `st.session_state.location = (위도, 경도)`로 넣기만 하면 된다. 사용자가 동네를 말하지 않았을 때 자동으로 "내 근처" 기준이 된다.
+**현재 위치**: 지도 왼쪽 '내 위치' 단추를 누르면 브라우저 위치 권한을 받아 `location = [위도, 경도]`를 저장하고(`web/lib/store.ts`의 `locateMe`), 대화 요청에 함께 보낸다. 사용자가 동네를 말하지 않았을 때 자동으로 "내 근처" 기준이 된다. 제주 밖이면 위치를 쓰지 않고 제주 전체를 보여 준다.
 
 ## 5. 하지 말 것
 
@@ -76,6 +78,6 @@
 
 ## 6. 없는 것 (기대하지 말 것)
 
-- 장소 사진: 공개 데이터에 없음
+- 모든 장소의 사진: 코스 장소 70곳 중 50곳만 현장 사진이 있다(제주데이터허브 무장애여행 정보). 나머지 20곳은 사진 칸이 없다
 - 휠체어 길찾기 경로: 카카오·네이버 모두 제공하지 않음. 길안내는 일반 경로이고, 접근성 판단은 조사 지점 기준
 - 실시간 혼잡도·영업시간

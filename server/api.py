@@ -218,6 +218,17 @@ def chat(req: ChatRequest):
         {"name": name, "args": clean(args), "result": clean(result)}
         for name, args, result in out.get("tool_results", [])
     ]
+    # 반나절 일정: 화면의 '일정표 내려받기' 단추가 쓸 한 장짜리 HTML을 붙인다
+    when = next((str(t["args"]["when"]) for t in tool_results
+                 if t["name"] == "get_weather" and isinstance(t["args"], dict) and t["args"].get("when")), "오늘")
+    for t in tool_results:
+        res, args = t["result"], t["args"] if isinstance(t["args"], dict) else {}
+        if t["name"] == "plan_outing" and isinstance(res, dict) and res.get("stops"):
+            try:
+                res["html"] = T.itinerary_html(res["stops"], args.get("user_type") or "other",
+                                               args.get("diet_needs"), when)
+            except Exception:
+                pass  # 일정표를 못 만들어도 답과 카드는 그대로 보낸다
 
     return clean({
         "text": out.get("text", ""),

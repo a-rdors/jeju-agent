@@ -10,7 +10,7 @@
  * @module KakaoMap
  */
 "use client";
-import { ROUTE_HEX, clusterLabel } from "@/lib/mapData";
+import { DOT_GYUL_HEX, ROUTE_HEX, REGION_ANCHOR, REGION_TONE } from "@/lib/mapData";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import "./KakaoMap.module.css";
@@ -36,10 +36,6 @@ interface MapState {
   bounds: any;
   sig: string;
   psig: string;
-  /** 휴대폰에서 멀리 볼 때 초록 점을 묶는 클러스터러(카카오 clusterer 라이브러리) */
-  cluster?: any;
-  /** 묶음에 든 점(오버레이) → 동네 이름. 묶음 이름표를 '애월 21곳'처럼 쓰는 데 쓴다 */
-  dotArea?: WeakMap<object, string>;
   /** 식당·병원 표식 이름 → 그 표식 말풍선을 여는 함수(패널·대화에서 고르면 지도도 따라온다) */
   openers?: Map<string, () => void>;
   /** 코드가 지도를 옮기는 중에는 제주 밖 클램프를 잠시 끈다(옮긴 뒤 다시 끌려가지 않게) */
@@ -118,7 +114,7 @@ function loadSdk(key: string): Promise<void> {
     window.__jejuKakao = new Promise<void>((ok, bad) => {
       const s = document.createElement("script");
       s.src =
-        "https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&libraries=clusterer&appkey=" +
+        "https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=" +
         encodeURIComponent(key);
       s.onerror = () => bad(new Error("Kakao Maps SDK 로드 실패"));
       s.onload = () => {
@@ -261,44 +257,9 @@ function drawMarkers(
   closeTip(state);
   state.layers.forEach((o) => o.setMap(null));
   state.layers = [];
-  state.cluster?.clear();
-  // 섬 전체를 볼 때는 점이 촘촘해(휴대폰·PC 모두) '애월 21곳'처럼 동네 이름표로 묶고, 누르면 부드럽게 다가가 점을 푼다.
-  // 첫 화면엔 범례가 없어 숫자만으로는 무엇인지 몰라서, 어디에 몇 곳인지 글로 보여 준다.
-  const clusterDots = !!k.MarkerClusterer && data.marks.some((m) => m.kind === "dot");
-  state.dotArea = new WeakMap();
-  if (clusterDots && !state.cluster) {
-    state.cluster = new k.MarkerClusterer({
-      map: state.map, averageCenter: true, minLevel: 9, gridSize: 80, minClusterSize: 3,
-      calculator: [10, 30], disableClickZoom: true,
-      texts: (n: number) => `나들이 ${n}곳`, // 동네 이름을 못 찾을 때만 보이는 기본 글
-      // 글자가 들어간 이름표라 곳 수에 따라 키우면 휴대폰에서 서로 겹친다. 크기는 모두 같게.
-      styles: [0, 1, 2].map(() => ({
-        height: "28px", lineHeight: "24px", padding: "0 10px",
-        // 값은 globals.css 토큰(누르면 확대되는 '행동'이라 알약 모양)
-        background: "var(--leaf)", border: "2px solid #fff", borderRadius: "var(--r-pill)",
-        color: "#fff", textAlign: "center", fontWeight: "600", fontSize: "12px", fontFamily: "var(--font)",
-        whiteSpace: "nowrap", cursor: "pointer", boxShadow: "var(--shadow-marker)",
-      })),
-    });
-    // 기본 확대는 아래 시트를 모르고 가운데에 맞춰 묶음이 시트 뒤로 숨는다. 지금 여백으로 직접 맞춘다.
-    k.event.addListener(state.cluster, "clusterclick", (c: any) => {
-      // 숫자 묶음을 누르면 그쪽으로 부드럽게 다가가 점이 풀리는 단계까지 확대
-      const p = JSON.parse(state.psig || "[116,28,40,28]") as number[];
-      flyTo(state, c.getCenter(), Math.min(state.map.getLevel() - 2, 8), p);
-    });
-    // 묶을 때마다 그 묶음에 든 장소들의 동네로 이름표 글을 바꾼다(가장 많은 동네, 비슷하면 둘)
-    k.event.addListener(state.cluster, "clustered", (clusters: any[]) => {
-      for (const c of clusters) {
-        const el = c.getClusterMarker?.()?.getContent?.();
-        if (!(el instanceof HTMLElement)) continue;
-        const label = clusterLabel((c.getMarkers?.() ?? []).map((o: any) => state.dotArea?.get(o)));
-        el.textContent = label;
-        el.title = `${label.replace(/ (\d+)곳$/, " 쪽 나들이 장소 $1곳")}. 누르면 펼쳐져요`;
-        el.setAttribute("aria-label", el.title);
-      }
-    });
-  }
-  const dotOverlays: any[] = [];
+  // 섬 전체를 볼 때는 점이 촘촘해(휴대폰·PC 모두) '애월 16곳'처럼 지역(비짓제주 구분) 이름표만 보여 주고,
+  // 확대하면 이름표 대신 점을 보여 준다(root 의 km-names 로 CSS 가 바꾼다). 이름표를 누르면 그 지역으로 다가간다.
+  const dotsByRegion = new Map<string, [number, number][]>();
 
   const b = new k.LatLngBounds();
   let n = 0;
@@ -335,7 +296,10 @@ function drawMarkers(
       `km-mk ${m.kind}` +
       (m.big ? " big" : "") +
       (m.ring ? " ring" : "");
-    el.style.background = m.color;
+    if (m.kind === "dot") {
+      el.style.setProperty("--mk-c", m.color); // 점은 ::after 가 색을 그린다
+      if (m.color === DOT_GYUL_HEX) el.classList.add("gyul"); // 감귤 지역: 이름 글자도 감귤 계열로
+    } else el.style.background = m.color;
     if (m.icon) {
       // 그림 표식: lib/icons.ts 의 고정 경로라 innerHTML 로 넣어도 안전하다
       el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${m.icon}"/></svg>`;
@@ -363,18 +327,18 @@ function drawMarkers(
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", `${m.name}, ${m.sub || ""}`);
 
-    const inCluster = clusterDots && m.kind === "dot";
     const overlay = new k.CustomOverlay({
-      map: inCluster ? null : state.map,
+      map: state.map,
       position: pos,
       content: el,
       yAnchor: 0.5,
       zIndex: ORDER[m.kind] + (m.big ? 10 : 0),
     });
     state.layers.push(overlay);
-    if (inCluster) {
-      dotOverlays.push(overlay);
-      if (m.area) state.dotArea!.set(overlay, m.area);
+    if (m.kind === "dot") {
+      const list = dotsByRegion.get(m.area ?? "") ?? [];
+      list.push([m.lat, m.lon]);
+      dotsByRegion.set(m.area ?? "", list);
     }
 
     // 누르면 뜨는 말풍선. 나들이·추천 장소는 '장소 카드'(사진·이름·주소 + 자세히 살펴보기),
@@ -488,7 +452,37 @@ function drawMarkers(
     }
   }
 
-  if (dotOverlays.length) state.cluster.addMarkers(dotOverlays);
+  // 지역 이름표: 지역 색(점과 같은 초록·감귤), 휴대폰은 '○○시내'를 줄여 쓴다
+  const phone = small();
+  dotsByRegion.forEach((pts, region) => {
+    const name = region || "나들이";
+    const mid: [number, number] = [
+      pts.reduce((t, p) => t + p[0], 0) / pts.length,
+      pts.reduce((t, p) => t + p[1], 0) / pts.length,
+    ];
+    const at = REGION_ANCHOR[region] ?? mid;
+    const el = document.createElement("div");
+    el.className = `km-region${REGION_TONE[region] === "gyul" ? " gyul" : ""}`;
+    el.textContent = `${phone ? name.replace(/시내$/, "") : name} ${pts.length}곳`;
+    el.tabIndex = 0;
+    el.setAttribute("role", "button");
+    el.setAttribute("aria-label", `${name} 나들이 장소 ${pts.length}곳. 누르면 펼쳐져요`);
+    const go = () => {
+      const p = JSON.parse(state.psig || "[116,28,40,28]") as number[];
+      flyTo(state, new k.LatLng(mid[0], mid[1]), 8, p);
+    };
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      go();
+    });
+    el.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        go();
+      }
+    });
+    state.layers.push(new k.CustomOverlay({ map: state.map, position: new k.LatLng(at[0], at[1]), content: el, yAnchor: 0.5, zIndex: 7 }));
+  });
   state.bounds = n > 0 ? b : null;
   fitMap(state, panelOpen, chatOpen);
 }
