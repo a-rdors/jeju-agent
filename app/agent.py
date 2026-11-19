@@ -342,8 +342,9 @@ def detect_user_type(history):
     return next((k for k, p in TYPE_WORDS if re.search(p, text)), None)
 
 
-def run(history, known_user_type=None, last_place=None, user_location=None, shown_places=None):
-    """user_location: (위도, 경도). 화면(지도)에서 위치 권한을 허용하면 넘겨받는다."""
+def run(history, known_user_type=None, last_place=None, user_location=None, shown_places=None, area=None):
+    """user_location: (위도, 경도). 화면(지도)에서 위치 권한을 허용하면 넘겨받는다.
+    area: 시작 화면에서 고른 지역(예: '애월·한림'). 장소·식당·일정 찾기를 그 지역 안으로 정한다."""
     """history: [{"role": "user"/"assistant", "content": str}, ...]
     반환: {"text": 답변, "ask": {question, options} 또는 None, "tool_results": [(이름, 인자, 결과)], "trace": [...]}"""
     from openai import OpenAI
@@ -444,6 +445,8 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                 return {"text": args.get("question", ""), "ask": args, "tool_results": tool_results, "trace": trace}
             if name == "recommend_places" and shown_places and re.search(r"다른|또|말고|새로운", last_q) and not args.get("exclude"):
                 args["exclude"] = list(shown_places)  # '다른 곳' 요청인데 모델이 제외 목록을 빠뜨린 경우
+            if name == "recommend_places":
+                args["limit"] = max(3, int(args.get("limit") or 3))  # 후보 번호 단추가 1곳만 남지 않게 최소 3곳
             if (name == "search_food" and said_place and not args.get("place")
                     and (not args.get("area") or said_place.startswith(str(args.get("area"))))):
                 args["place"] = said_place  # '서귀포흑돈 근처'를 '서귀포 전체'로 잘못 찾지 않게
@@ -483,6 +486,9 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
                 args["avoid_upstairs"] = True  # 휠체어·유모차·어르신이면 1층 가게를 앞으로
             if name in ("recommend_places", "plan_outing") and not args.get("theme") and theme_from(last_q):
                 args["theme"] = theme_from(last_q)  # '산을 좋아해요' → 자연·숲 (모델이 분위기를 빠뜨린 경우)
+            if name in ("recommend_places", "search_food", "plan_outing") and area and not said_area and not args.get("place"):
+                # 시작 화면에서 고른 지역(모델이 '애월'만 넣거나 시 전체로 넓히지 않게). 이번 말에 다른 동네가 있으면 그쪽
+                args["area"] = area
             if name in ("recommend_places", "search_food", "plan_outing") and said_area and not args.get("area") and not args.get("place"):
                 args["area"] = said_area  # 사용자가 말한 동네를 모델이 빠뜨린 경우 코드가 채운다
             if (name in ("recommend_places", "search_food", "plan_outing") and user_location and not said_area
@@ -512,7 +518,8 @@ TYPE_WORDS = [("electric_wheelchair", "전동"), ("manual_wheelchair", "휠체�
 THEME_WORDS = [("바다", "바다|해변|해안|포구"), ("마을", "마을|골목"), ("자연·숲", "숲|자연|꽃|산책"), ("역사·문화", "역사|문화|유적")]
 
 
-def rule_mode(text, user_type=None, origin=None):
+def rule_mode(text, user_type=None, origin=None, area=None):
+    """area: 시작 화면에서 고른 지역(예: '제주시내', '애월·한림'). 있으면 글에서 찾은 동네보다 우선한다."""
     import re
     if not user_type:
         user_type = next((k for k, p in TYPE_WORDS if re.search(p, text)), None)
@@ -521,8 +528,7 @@ def rule_mode(text, user_type=None, origin=None):
                 "options": ["휠체어", "전동 휠체어", "유모차", "어르신", "임산부"]}, "tool_results": [],
                 "trace": [{"tool": "ask_user", "args": {}}]}
     theme = next((k for k, p in THEME_WORDS if re.search(p, text)), None)
-    area = None
-    for w in re.findall(r"[가-힣]{2,4}", text):
+    for w in ([] if area else re.findall(r"[가-힣]{2,4}", text)):
         if T.find_area(w):
             area = w
             break

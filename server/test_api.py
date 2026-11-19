@@ -403,3 +403,53 @@ def test_api_evidence_fields():
         _check_evidence(x["evidence"])
     places = client.get("/api/places").json()
     assert set(places[0]) == {"place", "lat", "lon", "sigungu", "dong", "address", "photos"}  # 기존 모양 유지
+
+
+# ---------- 내 일정 → 일정표 ----------
+
+def test_itinerary_place_and_food():
+    food = T.search_food(place=_FIRST_PLACE, limit=1)["items"][0]
+    body = {"user_type": "senior", "items": [
+        {"kind": "place", "name": _FIRST_PLACE},
+        {"kind": "food", **food},
+        {"kind": "place", "name": "없는 장소"},  # 못 찾으면 빼고 만든다
+        {"kind": "food", "name": "좌표 없는 가게"},  # 좌표가 없으면 뺀다
+    ]}
+    r = client.post("/api/itinerary", json=body)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["count"] == 2
+    assert _FIRST_PLACE in data["html"] and food["name"] in data["html"]
+
+
+def test_itinerary_escapes_and_empty():
+    r = client.post("/api/itinerary", json={"items": [{"kind": "food", "name": "<script>x</script>", "lat": 33.5, "lon": 126.5}]})
+    assert r.status_code == 200
+    assert "<script>x" not in r.json()["html"]
+    r = client.post("/api/itinerary", json={"items": []})
+    assert r.json() == {"html": "", "count": 0}
+
+
+# ---------- 시작 화면 지역(비짓제주 구분) ----------
+
+def test_regions_filter_places_and_food():
+    for spec, want in [("제주시내", {"제주시내"}), ("애월·한림", {"애월", "한림"}),
+                       ("중문·서귀포", {"중문", "서귀포시내"}), ("성산·구좌", {"성산", "구좌"})]:
+        res = T.recommend_places(user_type="stroller", area=spec, limit=10)["results"]
+        assert res, spec
+        got = {T.region_of(*r["where"].split()[:2]) for r in res}
+        assert got <= want, (spec, got)
+    f = T.search_food(area="애월·한림", limit=5)
+    assert f["around"] == "애월·한림" and f["items"]
+    assert all(("애월" in it["address"]) or ("한림" in it["address"]) for it in f["items"])
+    # 읍 하나·시 전체는 예전처럼(읍은 동네 좌표 기준, 시는 시 전체)
+    assert T.find_area("애월")["lat"] is not None and T.find_area("제주시")["sigungu"] == "제주시"
+
+
+def test_chat_with_area_from_home():
+    r = client.post("/api/chat", json={"text": "제주시내 쪽 유모차 끌고 갈 만한 곳 추천해 줘", "user_type": "stroller",
+                                       "history": [], "area": "제주시내"})
+    assert r.status_code == 200
+    rec = next(t for t in r.json()["tool_results"] if t["name"] == "recommend_places")
+    assert all(x["where"].split()[0] == "제주시" and not x["where"].split()[1].endswith(("읍", "면"))
+               for x in rec["result"]["results"])

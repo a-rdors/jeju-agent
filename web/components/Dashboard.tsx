@@ -1,10 +1,11 @@
 "use client";
 // 오른쪽 대시보드(휴대폰은 아래 시트). 시작 / 결과(한눈에·코스·식당·병원·약국) / 식당 / 장소·병원 답.
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type PointerEvent } from "react";
 import { NOT_CAUTION, VERDICT_HEX } from "@/lib/mapData";
-import { ART, ICON, dataUri } from "@/lib/art";
+import { ICON, dataUri, heroBanner, heroLabel } from "@/lib/art";
 import { USER_TYPES, isError, kakaoRouteLink, urls } from "@/lib/api";
 import type { Detail, Evidence, Food, Help, Nearby, PlaceResult, Weather } from "@/lib/api";
+import type { PlanItem } from "@/lib/plan";
 import { useApi } from "@/lib/useApi";
 import {
   TABS, backHome, conditionTexts, focusItem, go, pick, setLocation, setMapView, setSheet, setTab, toResult, togglePanel, topPlace,
@@ -16,6 +17,7 @@ import {
 import { EvidenceList, VerdictWithEvidence } from "./Evidence";
 import Icon from "./Icon";
 import PlacePhotos from "./Photos";
+import { PanelPlan, PlanButton } from "./Plan";
 
 // (버튼 글자, 아이콘, 이동 유형, 보낼 문장, 설명)
 const TYPES: [string, string, string, string, string][] = [
@@ -25,13 +27,14 @@ const TYPES: [string, string, string, string, string][] = [
   ["임신 중인 가족", "pregnant", "pregnant", "임신 중이라 무리 없이 다녀올 곳 추천해 줘", "평평한 길 · 가까운 병원"],
 ];
 
-// 시작 화면 '어디쯤 가세요?' (보이는 글자, 질문에 붙일 동네 말, 지도 가운데). 고르지 않으면 제주 전체
+// 시작 화면 '어디쯤 가세요?' (보이는 글자, 지역, 지도 가운데). 고르지 않으면 제주 전체.
+// 지역은 지도와 같은 비짓제주 구분이고, 고른 지역 안에서만 찾는다(서버 tools.find_regions)
 const AREAS: [string, string, [number, number] | null][] = [
   ["상관없어요", "", null],
-  ["제주시", "제주시", [33.49, 126.53]],
-  ["애월·한림", "애월", [33.42, 126.31]],
-  ["중문·서귀포", "서귀포", [33.255, 126.49]],
-  ["성산·구좌", "성산", [33.47, 126.85]],
+  ["제주시내", "제주시내", [33.49, 126.53]],
+  ["애월·한림", "애월·한림", [33.42, 126.31]],
+  ["중문·서귀포", "중문·서귀포", [33.255, 126.49]],
+  ["성산·구좌", "성산·구좌", [33.47, 126.85]],
 ];
 
 const fmt = (n: number) => n.toLocaleString("ko-KR");
@@ -55,13 +58,15 @@ function MapButton({ name }: { name: string }) {
   );
 }
 
-/** 길안내·전화·지도: 같은 크기로 한 줄(길안내만 주황) */
-function Acts({ name, lat, lon, phone, map = true }: { name: string; lat: number; lon: number; phone?: string; map?: boolean }) {
+/** 길안내·전화·지도(·일정 담기): 같은 크기로 한 줄(길안내만 주황) */
+function Acts({ name, lat, lon, phone, map = true, plan }:
+  { name: string; lat: number; lon: number; phone?: string; map?: boolean; plan?: PlanItem }) {
   return (
     <div className="acts">
       <LinkButton href={kakaoRouteLink(name, lat, lon)} icon="directions" kind="primary">길안내</LinkButton>
       {phone && <LinkButton href={`tel:${phone}`} icon="call">전화</LinkButton>}
       {map && <MapButton name={name} />}
+      {plan && <PlanButton item={plan} />}
     </div>
   );
 }
@@ -73,7 +78,9 @@ function ShopCard({ it, focus, ut = "other" }: { it: Food["items"][number]; focu
   return (
     <FocusCard name={it.name} focus={focus}>
       <Shop name={it.name} meta={meta} tags={tags} />
-      <Acts name={it.name} lat={it.lat} lon={it.lon} phone={it.phone} />
+      <Acts name={it.name} lat={it.lat} lon={it.lon} phone={it.phone}
+        plan={{ kind: "food", name: it.name, food_type: it.food_type, address: it.address, phone: it.phone,
+          wheelchair_entry: it.wheelchair_entry, access_info: it.access_info, why: it.why, lat: it.lat, lon: it.lon }} />
     </FocusCard>
   );
 }
@@ -141,6 +148,20 @@ function foodTitle(around: string | null | undefined, what: string) {
   return `${around} 근처 ${what}`;
 }
 
+// ---------- 시작 그림 ----------
+// 시작 그림의 하늘은 제주의 실제 해·달을 따른다(5분마다 다시 그린다). 서버 그림은 여름 낮으로 두고 브라우저에서 바로 맞춘다
+const tick = (l: () => void) => {
+  const t = window.setInterval(l, 60_000);
+  return () => window.clearInterval(t);
+};
+const fiveMin = () => Math.floor(Date.now() / 300_000);
+function HeroArt() {
+  const slot = useSyncExternalStore(tick, fiveMin, () => -1);
+  const at = useMemo(() => (slot < 0 ? undefined : new Date(slot * 300_000)), [slot]);
+  const src = useMemo(() => dataUri(heroBanner(at)), [at]);
+  return <Svg src={src} className="scene" alt={`${heroLabel(at)}의 제주도: 한라산 앞 JEJU 글자, 섬 위의 한라봉 둘과 돌하르방 둘`} />;
+}
+
 // ---------- 시작 ----------
 // '내 위치'는 지도 왼쪽 단추(Locate.tsx)로 정한다. 위치가 있고 동네를 고르지 않았으면 내 근처로 찾는다.
 function PanelHome({ s }: { s: State }) {
@@ -154,14 +175,14 @@ function PanelHome({ s }: { s: State }) {
   return (
     <>
       <div className="hero-art">
-        <Svg src={ART.heroBanner} className="scene" alt="한라산과 바다를 배경으로 선 돌하르방과 귤" />
+        <HeroArt />
       </div>
       <div className="hello">
-        <h2>함께 가도 괜찮을지,<br />먼저 알려 드려요</h2>
+        <h2>함께 가도 괜찮을지, 먼저 알려 드려요</h2>
         <p>입구·길·화장실부터 식당·병원까지 확인해요.</p>
       </div>
       <div className="where">
-        <p><b>어디쯤 가세요?</b> <span>고르지 않아도 돼요</span></p>
+        <p><b>어디쯤 가세요?</b></p>
         <div className="where-chips" role="radiogroup" aria-label="어디쯤 가세요">
           {AREAS.map(([label, word, at]) => (
             <button key={label} type="button" role="radio" aria-checked={area === word && !(word === "" && near)} className="wchip"
@@ -187,7 +208,7 @@ function PanelHome({ s }: { s: State }) {
                 <span>{desc}</span>
               </div>
             </div>
-            <button type="button" className="btn btn-primary" onClick={() => go(near ? `내 근처 ${text}` : area ? `${area} 쪽 ${text}` : text, ut, false, true)} aria-label={`${label} 갈 곳 찾기`}>
+            <button type="button" className="btn btn-primary" onClick={() => go(near ? `내 근처 ${text}` : area ? `${area} 쪽 ${text}` : text, ut, false, true, near ? null : area || null)} aria-label={`${label} 갈 곳 찾기`}>
               <span>찾기</span>
               <Icon name="arrow_forward" />
             </button>
@@ -330,6 +351,8 @@ function Overview({ s, top, det }: { s: State; top: PlaceResult; det?: Detail })
             <Icon name="route" /><span>코스</span>
           </button>
         )}
+        <PlanButton item={{ kind: "place", name: top.place, where: top.where, lat: top.lat, lon: top.lon,
+          verdict: top.verdict, verdict_color: top.verdict_color }} />
       </div>
     </>
   );
@@ -533,6 +556,13 @@ function PanelAnswer({ s, userTypes }: { s: State; userTypes?: Record<string, st
             evidence={d.evidence} />
           <PlaceHead name={d.place} where={d.where} />
           <PlacePhotos place={d.place} />
+          {d.all_points?.[0] && (
+            <div className="acts">
+              <LinkButton href={kakaoRouteLink(d.place, d.all_points[0].lat, d.all_points[0].lon)} icon="directions" kind="primary">길안내</LinkButton>
+              <PlanButton item={{ kind: "place", name: d.place, where: d.where, lat: d.all_points[0].lat, lon: d.all_points[0].lon,
+                verdict: d.verdict, verdict_color: d.verdict_color }} />
+            </div>
+          )}
           <Sect>시설 정보</Sect>
           <Checks rows={d.checks.map((c) => ({ ...c, item: neutralText(s.user_type, c.item), status: neutralText(s.user_type, c.status) }))} />
           {d.key_points.length > 0 && (
@@ -646,6 +676,9 @@ export default function Dashboard({ s, userTypes }: { s: State; userTypes?: Reco
   } else if (s.screen === "food" && s.food) {
     body = <PanelFood s={s} f={s.food} userTypes={userTypes} />;
     label = "식당";
+  } else if (s.screen === "plan") {
+    body = <PanelPlan s={s} />;
+    label = "내 일정";
   } else if (s.screen === "answer" && (s.detail_only || s.help_only)) {
     body = <PanelAnswer s={s} userTypes={userTypes} />;
     label = "장소 정보";

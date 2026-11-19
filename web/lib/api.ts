@@ -237,6 +237,8 @@ export interface ChatBody {
   last_place?: string | null;
   location?: [number, number] | null;
   shown_places?: string[];
+  /** 시작 화면에서 고른 지역(예: '제주시내', '애월·한림') */
+  area?: string | null;
 }
 
 /** 도구 결과에 error 가 있으면 true */
@@ -286,6 +288,16 @@ export const api = {
     });
     if (!r.ok) throw new Error(`${r.status} /api/chat`);
     return (await r.json()) as ChatOut;
+  },
+  /** '내 일정'에 담은 곳들로 한 장짜리 일정표 HTML을 만든다(서버는 저장하지 않는다) */
+  async itinerary(body: { items: unknown[]; user_type?: string | null; when?: string }): Promise<{ html: string; count: number }> {
+    const r = await fetch("/api/itinerary", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`${r.status} /api/itinerary`);
+    return (await r.json()) as { html: string; count: number };
   },
 };
 
