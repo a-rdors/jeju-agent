@@ -5,32 +5,31 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { MapData, MapMark, PlaceDot } from "./types";
+import { FILL } from "./icons";
 
-// ── 색 상수 (Python map_view.py / ui.py 와 같은 값) ───────────────────────────
+// ── 색 상수: app/globals.css 의 토큰과 같은 값(web/DESIGN.md) ─────────────────
+// 지도 표식은 카카오 지도 위에 JS 로 그리므로 CSS 변수 대신 같은 값을 여기 둔다.
 export const VERDICT_HEX: Record<string, string> = {
   green: "#2F7A4D",
   orange: "#2C6EA6",
-  gray: "#6B7075",
+  gray: "#5E6368", // --slate
 };
 
-export const CAUTION_HEX = "#B83227";
+export const CAUTION_HEX = "#B83227"; // --red
 // 색은 종류마다 다르게: 추천 장소=판정색(초록·주황·회색), 코스=파랑, 화장실=청록, 조심할 곳=빨강
-export const ROUTE_HEX = "#2F6FD6";
-export const DOT_HEX = "#2F7A4D";
-export const TOILET_HEX = "#0E8A8A";
-export const FOOD_HEX = "#E07A1C";
-export const HELP_HEX = "#5B3A8C";
+export const ROUTE_HEX = "#2F6FD6"; // --map-route
+export const DOT_HEX = "#2F7A4D"; // --leaf
+export const TOILET_HEX = "#0E8A8A"; // --map-toilet
+export const FOOD_HEX = "#E07A1C"; // --map-food
+export const HELP_HEX = "#5B3A8C"; // --map-help
 
 /** 지도 위험 표시에서 제외할 접근성 항목 (화장실·주차는 경고가 아니라 정보) */
 export const NOT_CAUTION: Set<string> = new Set(["장애인 화장실", "장애인 주차", "넓은 화장실", "주차장"]);
 
 // ── 내부 상수 ─────────────────────────────────────────────────────────────────
-// 지도 표식 그림(글자 대신 한눈에 알아보는 그림)
-const HELP_SHORT: Record<string, string> = {
-  "약국": "💊",
-  "병·의원": "🏥",
-  "응급실": "🚑",
-  "산부인과": "🤰",
+// 지도 표식 그림(이모지 대신 흰 그림). 약국만 따로, 나머지 병원은 십자 그림
+const HELP_ICON: Record<string, string> = {
+  "약국": FILL.local_pharmacy,
 };
 /** 병원·약국 표식에서 뺄 항목(화장실은 코스 쪽에서 보여 준다) */
 const HELP_SKIP = new Set(["장애인 화장실", "기저귀 교환대"]);
@@ -115,6 +114,7 @@ export function buildMapData(o: {
         address: addr(r.address) ?? `${r.sigungu} ${r.dong}`,
         photos: r.photos ?? [],
         color: DOT_HEX,
+        area: areaOf(r.sigungu, r.dong),
       });
     });
   }
@@ -132,7 +132,7 @@ export function buildMapData(o: {
           kind: "caution",
           lat: p.lat,
           lon: p.lon,
-          text: "⚠️",
+          text: "!",
           name: `출발 후 약 ${p.at_m}m`,
           sub: caution.join(" · "),
           color: CAUTION_HEX,
@@ -142,7 +142,7 @@ export function buildMapData(o: {
           kind: "toilet",
           lat: p.lat,
           lon: p.lon,
-          text: "🚻",
+          icon: FILL.wc,
           name: o.wheel ? "장애인 화장실" : "넓은 화장실",
           sub: p.label as string,
           color: TOILET_HEX,
@@ -161,7 +161,7 @@ export function buildMapData(o: {
         pin: o.focus && it.name === o.focus ? it.name : undefined,
         lat: it.lat,
         lon: it.lon,
-        text: "🍽️",
+        icon: FILL.restaurant,
         name: it.name,
         sub:
           (it.food_type as string) +
@@ -185,7 +185,7 @@ export function buildMapData(o: {
           pin: o.focus && it.name === o.focus ? it.name : undefined,
           lat: it.lat,
           lon: it.lon,
-          text: HELP_SHORT[kind] ?? "🏥",
+          icon: HELP_ICON[kind] ?? FILL.local_hospital,
           name: it.name,
           sub: `${kind} · ${it.km}km`,
           color: HELP_HEX,
@@ -210,6 +210,37 @@ export function legendItems(d: MapData): [string, string][] {
     k === "dot" ? `${label} ${dots}곳` : k === "toilet" ? (d.toiletLabel ?? label) : label,
     color,
   ]);
+}
+
+/** 중문 관광단지 언저리의 서귀포시 동(시내가 아니라 '중문'으로 부른다) */
+const JUNGMUN = new Set(["중문동", "색달동", "대포동", "예래동", "상예동", "하예동", "하원동", "회수동", "도순동"]);
+
+/**
+ * 지도 묶음 이름표에 쓸, 사람들이 흔히 부르는 동네 이름.
+ * 읍·면은 '애월', '성산'처럼 끝 글자를 떼고, 시내의 잘게 나뉜 동은 '제주시내'·'서귀포 시내'·'중문'으로 묶는다.
+ */
+export function areaOf(sigungu?: string | null, dong?: string | null): string {
+  const d = (dong ?? "").trim();
+  if (/[읍면]$/.test(d) && d.length > 1) return d.slice(0, -1);
+  if (JUNGMUN.has(d)) return "중문";
+  if (sigungu === "서귀포시") return "서귀포 시내";
+  if (sigungu === "제주시") return "제주시내";
+  return d || sigungu || "";
+}
+
+/**
+ * 묶음 안 장소들의 동네 이름으로 이름표 글을 만든다.
+ * 가장 많은 동네 하나. 그 동네가 절반이 안 되거나 둘째 동네도 3분의 1을 넘으면 '애월·한림'처럼 둘까지.
+ */
+export function clusterLabel(areas: (string | undefined)[]): string {
+  const n = areas.length;
+  const cnt = new Map<string, number>();
+  for (const a of areas) if (a) cnt.set(a, (cnt.get(a) ?? 0) + 1);
+  const top = [...cnt.entries()].sort((x, y) => y[1] - x[1]);
+  if (!top.length) return `나들이 ${n}곳`;
+  const two = top[1] && (top[1][1] * 3 >= n || top[0][1] * 2 < n);
+  const name = two ? `${top[0][0]}·${top[1][0]}` : top[0][0];
+  return `${name} ${n}곳`;
 }
 
 /** 코스 선에서 혼자 툭 튀어나왔다 돌아오는 점을 뺀다(앞뒤 점을 잇는 길보다 2.5배 넘게 돌아가면 뾰족한 가시) */

@@ -91,7 +91,7 @@ export function Notes({ good, warn }: { good: string[]; warn: string[] }) {
 export function WeatherBox({ line, tips }: { line: string; tips: string[] }) {
   return (
     <div className="weather">
-      <span aria-hidden="true">☂</span>
+      <Icon name="umbrella" />
       <div>
         {tips.length > 0 && (
           <>

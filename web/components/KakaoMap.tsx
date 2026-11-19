@@ -10,7 +10,7 @@
  * @module KakaoMap
  */
 "use client";
-import { ROUTE_HEX } from "@/lib/mapData";
+import { ROUTE_HEX, clusterLabel } from "@/lib/mapData";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import "./KakaoMap.module.css";
@@ -38,6 +38,8 @@ interface MapState {
   psig: string;
   /** 휴대폰에서 멀리 볼 때 초록 점을 묶는 클러스터러(카카오 clusterer 라이브러리) */
   cluster?: any;
+  /** 묶음에 든 점(오버레이) → 동네 이름. 묶음 이름표를 '애월 21곳'처럼 쓰는 데 쓴다 */
+  dotArea?: WeakMap<object, string>;
   /** 식당·병원 표식 이름 → 그 표식 말풍선을 여는 함수(패널·대화에서 고르면 지도도 따라온다) */
   openers?: Map<string, () => void>;
   /** 코드가 지도를 옮기는 중에는 제주 밖 클램프를 잠시 끈다(옮긴 뒤 다시 끌려가지 않게) */
@@ -96,8 +98,8 @@ function pads(
 ): [number, number, number, number] {
   const w = window.innerWidth,
     h = window.innerHeight;
-  // 휴대폰: 위쪽 상자+범례(약 110px), 아래쪽 시트(화면의 46%)
-  if (small()) return [116, 28, panelOpen ? Math.round(h * 0.46) + 28 : 40, 28];
+  // 휴대폰: 위쪽 상자+범례(약 110px), 아래쪽 시트(화면의 40%, globals.css --sheet-h)
+  if (small()) return [116, 28, panelOpen ? Math.round(h * 0.40) + 28 : 40, 28];
   // 넓은 화면: 대화창은 대시보드 자리에 겹쳐 뜨므로 오른쪽은 둘 중 하나만 열려도 같은 폭(420+16)을 비운다.
   // 왼쪽은 이름표·설정 상자와 범례(약 170px) 자리.
   const r = 40 + (panelOpen || chatOpen ? 436 : 0);
@@ -260,17 +262,22 @@ function drawMarkers(
   state.layers.forEach((o) => o.setMap(null));
   state.layers = [];
   state.cluster?.clear();
-  // 섬 전체를 볼 때는 점이 촘촘해(휴대폰·PC 모두) 숫자 원으로 묶고, 누르면 부드럽게 다가가 점을 푼다.
+  // 섬 전체를 볼 때는 점이 촘촘해(휴대폰·PC 모두) '애월 21곳'처럼 동네 이름표로 묶고, 누르면 부드럽게 다가가 점을 푼다.
+  // 첫 화면엔 범례가 없어 숫자만으로는 무엇인지 몰라서, 어디에 몇 곳인지 글로 보여 준다.
   const clusterDots = !!k.MarkerClusterer && data.marks.some((m) => m.kind === "dot");
+  state.dotArea = new WeakMap();
   if (clusterDots && !state.cluster) {
     state.cluster = new k.MarkerClusterer({
-      map: state.map, averageCenter: true, minLevel: 9, gridSize: 56, minClusterSize: 3,
+      map: state.map, averageCenter: true, minLevel: 9, gridSize: 80, minClusterSize: 3,
       calculator: [10, 30], disableClickZoom: true,
-      styles: [0, 1, 2].map((i) => ({
-        width: `${36 + i * 6}px`, height: `${36 + i * 6}px`, lineHeight: `${32 + i * 6}px`,
-        background: "rgba(47,122,77,.88)", border: "2px solid #fff", borderRadius: "50%",
-        color: "#fff", textAlign: "center", fontWeight: "800", fontSize: "13px",
-        boxShadow: "0 1px 4px rgba(0,0,0,.35)",
+      texts: (n: number) => `나들이 ${n}곳`, // 동네 이름을 못 찾을 때만 보이는 기본 글
+      // 글자가 들어간 이름표라 곳 수에 따라 키우면 휴대폰에서 서로 겹친다. 크기는 모두 같게.
+      styles: [0, 1, 2].map(() => ({
+        height: "28px", lineHeight: "24px", padding: "0 10px",
+        // 값은 globals.css 토큰(누르면 확대되는 '행동'이라 알약 모양)
+        background: "var(--leaf)", border: "2px solid #fff", borderRadius: "var(--r-pill)",
+        color: "#fff", textAlign: "center", fontWeight: "600", fontSize: "12px", fontFamily: "var(--font)",
+        whiteSpace: "nowrap", cursor: "pointer", boxShadow: "var(--shadow-marker)",
       })),
     });
     // 기본 확대는 아래 시트를 모르고 가운데에 맞춰 묶음이 시트 뒤로 숨는다. 지금 여백으로 직접 맞춘다.
@@ -278,6 +285,17 @@ function drawMarkers(
       // 숫자 묶음을 누르면 그쪽으로 부드럽게 다가가 점이 풀리는 단계까지 확대
       const p = JSON.parse(state.psig || "[116,28,40,28]") as number[];
       flyTo(state, c.getCenter(), Math.min(state.map.getLevel() - 2, 8), p);
+    });
+    // 묶을 때마다 그 묶음에 든 장소들의 동네로 이름표 글을 바꾼다(가장 많은 동네, 비슷하면 둘)
+    k.event.addListener(state.cluster, "clustered", (clusters: any[]) => {
+      for (const c of clusters) {
+        const el = c.getClusterMarker?.()?.getContent?.();
+        if (!(el instanceof HTMLElement)) continue;
+        const label = clusterLabel((c.getMarkers?.() ?? []).map((o: any) => state.dotArea?.get(o)));
+        el.textContent = label;
+        el.title = `${label.replace(/ (\d+)곳$/, " 쪽 나들이 장소 $1곳")}. 누르면 펼쳐져요`;
+        el.setAttribute("aria-label", el.title);
+      }
     });
   }
   const dotOverlays: any[] = [];
@@ -318,7 +336,12 @@ function drawMarkers(
       (m.big ? " big" : "") +
       (m.ring ? " ring" : "");
     el.style.background = m.color;
-    el.textContent = m.text || "";
+    if (m.icon) {
+      // 그림 표식: lib/icons.ts 의 고정 경로라 innerHTML 로 넣어도 안전하다
+      el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${m.icon}"/></svg>`;
+    } else {
+      el.textContent = m.text || "";
+    }
     if (m.pin) {
       // 1순위: 위로 뾰족하게 튀어나온 이름 말풍선(누르지 않아도 어디인지 바로 보이게)
       el.classList.add("pinned");
@@ -336,12 +359,6 @@ function drawMarkers(
       lb.setAttribute("aria-hidden", "true");
       el.appendChild(lb);
     }
-    if (/\p{Extended_Pictographic}/u.test(m.text || "")) {
-      // 그림 표식: 흰 바탕에 종류 색 테두리(그림이 잘 보이게)
-      el.classList.add("emoji");
-      el.style.background = "#fff";
-      el.style.borderColor = m.color;
-    }
     el.tabIndex = 0;
     el.setAttribute("role", "button");
     el.setAttribute("aria-label", `${m.name}, ${m.sub || ""}`);
@@ -355,7 +372,10 @@ function drawMarkers(
       zIndex: ORDER[m.kind] + (m.big ? 10 : 0),
     });
     state.layers.push(overlay);
-    if (inCluster) dotOverlays.push(overlay);
+    if (inCluster) {
+      dotOverlays.push(overlay);
+      if (m.area) state.dotArea!.set(overlay, m.area);
+    }
 
     // 누르면 뜨는 말풍선. 나들이·추천 장소는 '장소 카드'(사진·이름·주소 + 자세히 살펴보기),
     // 식당·병원·확인할 지점 등은 짧은 설명.
@@ -485,6 +505,7 @@ export default function KakaoMap({
   onFocus,
   focus,
   view,
+  me,
 }: {
   kakaoKey: string;
   data: MapData;
@@ -495,8 +516,11 @@ export default function KakaoMap({
   onFocus?: (name: string) => void;
   focus?: string | null;
   view?: { lat?: number; lon?: number; level?: number; all?: boolean; n: number } | null;
+  /** 내 위치(제주 안일 때만). 지도에 파란 점으로 보인다 */
+  me?: [number, number] | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const meRef = useRef<any>(null);
   const stateRef = useRef<MapState | null>(null);
 
   // 콜백을 ref 에 보관해 핸들러 identity 가 바뀌어도 맵을 다시 만들지 않는다
@@ -627,6 +651,29 @@ export default function KakaoMap({
     const target = view.all ? new k.LatLng(33.38, 126.55) : new k.LatLng(view.lat!, view.lon!);
     flyTo(st, target, level, pads(latestRef.current.panelOpen, latestRef.current.chatOpen));
   }, [view]);
+
+  // 내 위치: 다른 표식과 따로 두는 파란 점(지도 앱처럼). 표식을 다시 그려도 지워지지 않는다
+  useEffect(() => {
+    const st = stateRef.current;
+    if (!st?.map || !window.kakao) return;
+    const k = window.kakao.maps;
+    if (!me) {
+      meRef.current?.setMap(null);
+      meRef.current = null;
+      return;
+    }
+    const pos = new k.LatLng(me[0], me[1]);
+    if (!meRef.current) {
+      const el = document.createElement("div");
+      el.className = "km-me";
+      el.setAttribute("role", "img");
+      el.setAttribute("aria-label", "내 위치");
+      meRef.current = new k.CustomOverlay({ map: st.map, position: pos, content: el, xAnchor: 0.5, yAnchor: 0.5, zIndex: 5 });
+    } else {
+      meRef.current.setPosition(pos);
+      meRef.current.setMap(st.map);
+    }
+  }, [me, view]);
 
   // 패널·대화에서 가게·병원을 고르면 지도 표식 말풍선을 연다
   useEffect(() => {

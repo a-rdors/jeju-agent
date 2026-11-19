@@ -6,6 +6,8 @@ export interface MapMark {
   lat: number;
   lon: number;
   text?: string;
+  /** 글자 대신 그릴 흰 그림(lib/icons.ts 의 FILL 경로) */
+  icon?: string;
   name: string;
   sub: string;
   color: string;
@@ -17,6 +19,8 @@ export interface MapMark {
   /** 장소 카드(나들이 장소·추천 장소)에 보일 주소와 대표 사진 */
   address?: string;
   photos?: string[];
+  /** 나들이 장소 점의 동네 이름(애월·중문·제주시내 등). 멀리 볼 때 묶음 이름표에 쓴다 */
+  area?: string;
 }
 
 export interface MapData {

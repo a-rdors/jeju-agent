@@ -8,12 +8,12 @@ import { Avatar, LinkButton, Svg } from "./bits";
 import Icon from "./Icon";
 import Markdown from "./Markdown";
 
-// 빈 대화창에 보이는 예시(그림, 말)
+// 빈 대화창에 보이는 예시(아이콘 이름, 말)
 const EXAMPLES: [string, string][] = [
-  ["♿", "휠체어 타는 아빠랑 바다 보러"],
-  ["👶", "유모차로 비 오는 날 실내"],
-  ["🍲", "할머니 드시기 편한 식당"],
-  ["🚻", "근처 장애인 화장실"],
+  ["wheelchair", "휠체어 타는 아빠랑 바다 보러"],
+  ["stroller", "유모차로 비 오는 날 실내"],
+  ["restaurant", "할머니 드시기 편한 식당"],
+  ["wc", "근처 장애인 화장실"],
 ];
 const GREETING = "안녕하세요, 하르방 도우미예요. 누구와 가는지 말해 주시면 **그분이 갈 수 있는 곳**만 골라 드려요.";
 // 기다리는 동안 보여 줄 말. 질문 종류에 맞춰 고른다(응급실을 물었는데 '경사 계산 중'이 뜨지 않게).
@@ -60,12 +60,12 @@ export function Searching() {
   );
 }
 
-// 답변 줄 앞의 말머리를 그림으로 바꿔 한눈에 보이게 한다(화면 읽기 프로그램에는 말머리를 읽어 준다)
+// 답변 줄 앞의 말머리를 아이콘으로 바꿔 한눈에 보이게 한다(화면 읽기 프로그램에는 말머리를 읽어 준다)
 const LINE_MARKS: [RegExp, string, string, string][] = [
-  [/^조심할 점:\s*/, "⚠️", "warn", "조심할 점"],
-  [/^확인할 점:\s*/, "📞", "check", "확인할 점"],
-  [/^비 오면:\s*/, "☔", "rain", "비 오면"],
-  [/^(응급 상황에는|응급 시에는)/, "🚨", "sos", ""],
+  [/^조심할 점:\s*/, "warning", "warn", "조심할 점"],
+  [/^확인할 점:\s*/, "call", "check", "확인할 점"],
+  [/^비 오면:\s*/, "umbrella", "rain", "비 오면"],
+  [/^(응급 상황에는|응급 시에는)/, "alert", "sos", ""],
 ];
 
 function AnswerView({ text, phone }: { text: string; phone?: string }) {
@@ -90,20 +90,20 @@ function AnswerView({ text, phone }: { text: string; phone?: string }) {
             // 확인할 점: 전화번호가 있으면 누르면 바로 전화, 없으면 상자 없이 글자만(눌리는 것처럼 보이지 않게)
             return phone ? (
               <a key={i} className="ans-row check call" href={`tel:${phone}`}>
-                <span className="ic" aria-hidden="true">{icon}</span>
+                <Icon name={icon} />
                 <span className="grow"><span className="sr-only">{label}: </span>{body}</span>
                 <span className="go">전화 ›</span>
               </a>
             ) : (
               <div key={i} className="ans-row check plain">
-                <span className="ic" aria-hidden="true">{icon}</span>
+                <Icon name={icon} />
                 <span><span className="sr-only">{label}: </span>{body}</span>
               </div>
             );
           }
           return (
             <div key={i} className={`ans-row ${cls}`}>
-              <span className="ic" aria-hidden="true">{icon}</span>
+              <Icon name={icon} />
               <span>
                 {label && <span className="sr-only">{label}: </span>}
                 {cls === "rain" ? <>비 오면 <b>{body}</b></> : body}
@@ -249,7 +249,7 @@ export function ChatWindow({ s }: { s: State }) {
               {EXAMPLES.map(([ic, ex]) => (
                 <li key={ex}>
                   <button type="button" onClick={() => go(ex, null, true)}>
-                    <span className="ic" aria-hidden="true">{ic}</span>
+                    <Icon name={ic} />
                     <span>{ex}</span>
                   </button>
                 </li>

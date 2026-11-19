@@ -10,6 +10,7 @@ import { useApi } from "@/lib/useApi";
 import { focusItem, lookPlace, showPlace, topPlace, useStore, type State } from "@/lib/store";
 import { ChatFab, ChatWindow, Searching } from "./Chat";
 import Dashboard from "./Dashboard";
+import LocateButton from "./Locate";
 import TopBar from "./TopBar";
 
 /** 지도 쓰는 법 한 줄(패널 대신 범례 아래에 둔다) */
@@ -84,12 +85,14 @@ export default function App() {
           onFocus={focusItem}
           focus={s.focus}
           view={s.view}
+          me={s.location}
         />
       ) : (
         <div className="map-wait" aria-hidden="true" />
       )}
       <TopBar s={s} legend={legend} hint={mapHint(mapData)} />
       <Dashboard s={s} userTypes={config.data?.user_types} />
+      <LocateButton on={!!s.location} />
       <ChatFab s={s} />
       {s.pending && <Searching />}
       {s.chat_open && <ChatWindow s={s} />}
