@@ -5,6 +5,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { MapData, MapMark, PlaceDot } from "./types";
+import type { PlanItem } from "./plan";
 import { FILL } from "./icons";
 
 // ── 색 상수: app/globals.css 의 토큰과 같은 값(web/DESIGN.md) ─────────────────
@@ -72,6 +73,8 @@ export function buildMapData(o: {
   wheel?: boolean;
   /** 지금 고른 가게·병원(하르방이 추천했거나 사용자가 누른 곳). 이 표식만 크게 + 이름표 */
   focus?: string | null;
+  /** '내 일정'에 담은 곳(들르는 순서대로 번호) */
+  plan?: PlanItem[];
 }): MapData {
   const shopNames = [
     ...((o.food?.items ?? []) as any[]).map((it) => it.name),
@@ -84,6 +87,34 @@ export function buildMapData(o: {
   const addr = (a?: string | null) => (a ? a.replace(/^제주(특별자치도)?\s+(?=(제주시|서귀포시))/, "") : a);
   const marks: MapMark[] = [];
   const route: [number, number][] = [];
+
+  // ── 내 일정: 담은 순서대로 번호(장소는 판정색, 식당은 식당색) ──────────────────
+  if (o.plan) {
+    o.plan.forEach((it, i) => {
+      const place = it.kind === "place";
+      marks.push({
+        kind: place ? "place" : "food",
+        lat: it.lat,
+        lon: it.lon,
+        text: String(i + 1),
+        name: it.name,
+        sub: place ? (it.verdict ?? "") : it.food_type,
+        address: (place ? addr(info.get(it.name)?.address) ?? it.where : addr(it.address)) ?? undefined,
+        photos: place ? info.get(it.name)?.photos ?? [] : [],
+        color: place ? VERDICT_HEX[it.verdict_color ?? ""] ?? VERDICT_HEX.gray : FOOD_HEX,
+        big: it.name === o.focus,
+        pin: it.name === o.focus ? it.name : undefined,
+      });
+    });
+    // 장소 바로 옆 식당처럼 붙어 있는 곳은 번호가 겹쳐 누르기 어렵다: 전체 범위에 비해 아주 가까우면 옆으로 비켜 그린다
+    const lats = marks.map((m) => m.lat), lons = marks.map((m) => m.lon);
+    const span = Math.max(Math.max(...lats) - Math.min(...lats), (Math.max(...lons) - Math.min(...lons)) * 0.84, 0.01);
+    marks.forEach((m, i) => {
+      const near = marks.slice(0, i).filter((p) => Math.hypot(p.lat - m.lat, (p.lon - m.lon) * 0.84) < span * 0.07).length;
+      if (near) m.nudge = near;
+    });
+    return { marks, route };
+  }
 
   // ── 추천 장소 번호 표식 / 나들이 장소 점 ────────────────────────────────
   if (o.results && o.results.length > 0) {

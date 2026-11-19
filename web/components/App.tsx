@@ -2,11 +2,12 @@
 // 한 화면 앱: 지도(화면 전체) 위에 상단 바 · 대시보드 · 하르방 버튼 · 대화창이 떠 있다. (main.py 그리기 순서)
 import { useEffect, useMemo } from "react";
 import KakaoMap from "@/components/KakaoMap";
-import { buildMapData, legendItems } from "@/lib/mapData";
+import { FOOD_HEX, VERDICT_HEX, buildMapData, legendItems } from "@/lib/mapData";
 import type { MapData } from "@/lib/types";
 import { isError, urls } from "@/lib/api";
 import type { Config, Detail, Food, Help, PlaceDot } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { usePlan } from "@/lib/plan";
 import { focusItem, lookPlace, showPlace, topPlace, useStore, type State } from "@/lib/store";
 import { ChatFab, ChatWindow, Searching } from "./Chat";
 import Dashboard from "./Dashboard";
@@ -24,6 +25,7 @@ function mapHint(d: MapData): string {
 function useMapData(s: State) {
   const top = topPlace(s);
   const onResult = s.screen === "result" && !!top;
+  const plan = usePlan();
   const ownFood = top && s.food && s.food.around === top.place ? s.food : null;
   const det = useApi<Detail | { error: string }>(onResult && top ? urls.detail(top.place, s.user_type) : null);
   const food = useApi<Food>(onResult && top && s.tab === "식당" && !ownFood
@@ -44,13 +46,14 @@ function useMapData(s: State) {
         help: s.tab === "병원·약국" && help.data && !isError(help.data) ? help.data : undefined,
       });
     }
+    if (s.screen === "plan") return buildMapData({ plan, placeInfo: places.data ?? [], focus: s.focus });
     if (s.screen === "food" && s.food) return buildMapData({ food: s.food, wheel: s.user_type.includes("wheelchair"), focus: s.focus });
     if (s.screen === "answer" && (s.detail_only || s.help_only)) {
       return buildMapData({ detail: s.detail_only ?? undefined, help: s.help_only ?? undefined, wheel: s.user_type.includes("wheelchair"), focus: s.focus });
     }
     return buildMapData({ allPlaces: places.data ?? [] });
   }, [onResult, top, s.results, s.tab, s.screen, s.food, s.detail_only, s.help_only, det.data, ownFood, food.data,
-    help.data, places.data, s.user_type, s.focus]);
+    help.data, places.data, s.user_type, s.focus, plan]);
 }
 
 export default function App() {
@@ -58,7 +61,18 @@ export default function App() {
   const config = useApi<Config>(urls.config);
   const mapData = useMapData(s);
   // 첫 화면(나들이 장소 점만 있을 때)은 범례 상자를 두지 않는다
-  const legend = useMemo(() => (mapData.marks.some((m) => m.kind !== "dot") ? legendItems(mapData) : []), [mapData]);
+  const onPlan = s.screen === "plan";
+  const legend = useMemo((): [string, string][] => {
+    if (onPlan) {
+      // 내 일정: 번호는 들르는 순서(장소는 판정색, 식당은 식당색)
+      const kinds = new Set(mapData.marks.map((m) => m.kind));
+      return [
+        ...(kinds.has("place") ? [["내 일정 장소(순서)", VERDICT_HEX.green] as [string, string]] : []),
+        ...(kinds.has("food") ? [["내 일정 식당(순서)", FOOD_HEX] as [string, string]] : []),
+      ];
+    }
+    return mapData.marks.some((m) => m.kind !== "dot") ? legendItems(mapData) : [];
+  }, [mapData, onPlan]);
 
   // 큰 글씨: 글자 기준 크기를 125%로
   useEffect(() => {
@@ -90,7 +104,7 @@ export default function App() {
       ) : (
         <div className="map-wait" aria-hidden="true" />
       )}
-      <TopBar s={s} legend={legend} hint={mapHint(mapData)} />
+      <TopBar s={s} legend={legend} hint={onPlan ? "번호는 들르는 순서예요. 패널에서 순서를 바꿀 수 있어요" : mapHint(mapData)} />
       <Dashboard s={s} userTypes={config.data?.user_types} />
       <LocateButton on={!!s.location} />
       <ChatFab s={s} />

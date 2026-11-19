@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 import { api, isError } from "./api";
 import type { Ask, ChatOut, Detail, Food, Help, PlaceResult, Recommend } from "./api";
 
-export type Screen = "home" | "result" | "food" | "answer";
+export type Screen = "home" | "result" | "food" | "answer" | "plan";
 export const TABS = ["한눈에", "코스", "식당", "병원·약국"] as const;
 export type Tab = (typeof TABS)[number];
 
@@ -56,6 +56,7 @@ export interface State {
   when: string;
   shown: string[];
   screen: Screen;
+  plan_from: Screen; // '내 일정'을 열기 전 화면(돌아가기)
   tab: Tab;
   pending: Pending | null;
   detail_only: Detail | null;
@@ -65,6 +66,7 @@ export interface State {
   unread: number;
   typing: number | null;
   location: [number, number] | null; // (위도, 경도). 위치 권한을 받으면 채운다
+  area: string | null; // 시작 화면에서 고른 지역(예: '애월·한림'). 이어지는 질문도 이 지역 안에서 찾는다
   focus: string | null; // 지도·패널·대화가 함께 가리키는 가게·병원 이름
   view: MapView | null; // 지도 부드럽게 옮기기
   // 아래는 처음으로 가도 그대로 두는 화면 설정
@@ -75,9 +77,9 @@ export interface State {
 function defaults(): Omit<State, "checked" | "sheet"> {
   return {
     history: [], msgs: [], ask: null, results: null, user_type: "other", selected: null,
-    big: false, food: null, when: "오늘", shown: [], screen: "home", tab: "한눈에",
+    big: false, food: null, when: "오늘", shown: [], screen: "home", plan_from: "home", tab: "한눈에",
     pending: null, detail_only: null, help_only: null,
-    chat_open: false, panel_open: true, unread: 0, typing: null, location: null, focus: null, view: null,
+    chat_open: false, panel_open: true, unread: 0, typing: null, location: null, area: null, focus: null, view: null,
   };
 }
 
@@ -89,6 +91,7 @@ const listeners = new Set<() => void>();
 function normalize(s: State): State {
   const ok =
     s.screen === "home" ||
+    s.screen === "plan" ||
     (s.screen === "result" && !!s.results) ||
     (s.screen === "food" && !!s.food) ||
     (s.screen === "answer" && !!(s.detail_only || s.help_only));
@@ -150,12 +153,14 @@ export function conditionTexts(s: State, userTypes: Record<string, string>): str
 
 // ---------- 동작 ----------
 /** 버튼·입력창. 사용자 말은 바로 보이고, 답은 기다렸다가 받는다(대화창에는 '입력 중' 표시). */
-export function go(text: string | null | undefined, userType: string | null = null, openChat = false, silent = false) {
+export function go(text: string | null | undefined, userType: string | null = null, openChat = false, silent = false,
+  area?: string | null) {
   const t = (text || "").trim();
   if (!t || state.pending) return;
   const pending: Pending = { text: t, userType, silent };
   set((s) => ({
     ...s,
+    ...(area !== undefined ? { area } : {}), // 시작 화면 찾기는 고른 지역(없으면 null)으로 바꾼다
     msgs: silent ? s.msgs : [...s.msgs, { role: "user", text: t }],
     pending,
     ...(openChat ? { chat_open: true, unread: 0 } : {}),
@@ -176,6 +181,7 @@ async function process(pending: Pending) {
       last_place: s.selected,
       location: s.location,
       shown_places: s.shown,
+      area: state.area,
     });
   } catch {
     out = null;
@@ -366,6 +372,19 @@ export async function lookPlace(place: string) {
   } catch {
     go(`${place} 코스 자세히 알려줘`, null, true);
   }
+}
+
+/** '내 일정' 열기(패널에). 다시 누르면 전 화면으로 */
+export function togglePlan() {
+  set((s) =>
+    s.screen === "plan"
+      ? { ...s, screen: s.plan_from }
+      : { ...s, plan_from: s.screen, screen: "plan", panel_open: true, focus: null },
+  );
+}
+
+export function closePlan() {
+  set((s) => ({ ...s, screen: s.plan_from === "plan" ? "home" : s.plan_from }));
 }
 
 export function toResult() {

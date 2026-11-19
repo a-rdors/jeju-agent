@@ -180,9 +180,15 @@ class ChatRequest(BaseModel):
     last_place: Optional[str] = None
     location: Optional[list] = None
     shown_places: Optional[list] = None
+    area: Optional[str] = None  # 시작 화면에서 고른 지역(예: '제주시내', '애월·한림'). 그 지역 안에서만 찾는다
 
 
 # ---------- 입력 정리 ----------
+def _area(a) -> Optional[str]:
+    """알아볼 수 있는 지역·동네 이름일 때만 쓴다."""
+    return a if isinstance(a, str) and len(a) <= 30 and T.find_area(a) else None
+
+
 def _location(loc) -> Optional[tuple]:
     """[위도, 경도] 두 숫자이고 제주 근처일 때만 쓴다."""
     try:
@@ -198,18 +204,18 @@ def _location(loc) -> Optional[tuple]:
 def chat(req: ChatRequest):
     fallback = False
     if req.user_type:
-        out = A.rule_mode(req.text, req.user_type, _location(req.location) if req.location else None)
+        out = A.rule_mode(req.text, req.user_type, _location(req.location) if req.location else None, _area(req.area))
     else:
         known = req.known_user_type
         location = _location(req.location) if req.location else None
         shown = list(req.shown_places) if req.shown_places else None
         try:
             if A.available():
-                out = A.run(req.history, known, req.last_place, location, shown)
+                out = A.run(req.history, known, req.last_place, location, shown, _area(req.area))
             else:
-                out = A.rule_mode(req.text, known)
+                out = A.rule_mode(req.text, known, None, _area(req.area))
         except Exception:
-            out = A.rule_mode(req.text, known)
+            out = A.rule_mode(req.text, known, None, _area(req.area))
             out["text"] = "(AI 연결이 안 돼서 기본 모드로 찾았어요) " + out["text"]
             fallback = True
 
@@ -237,6 +243,48 @@ def chat(req: ChatRequest):
         "trace": out.get("trace", []),
         "fallback": fallback,
     })
+
+
+class ItineraryIn(BaseModel):
+    """'내 일정'에 담은 곳들. 장소는 이름만, 식당은 검색 결과 항목(이름·좌표·업종 등) 그대로."""
+    items: list = []
+    user_type: Optional[str] = None
+    when: str = "오늘"
+
+
+def _num(x) -> Optional[float]:
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
+@app.post("/api/itinerary")
+def itinerary(req: ItineraryIn):
+    """담은 곳들로 한 장짜리 일정표 HTML을 만든다(반나절 일정의 일정표와 같은 모양). 저장은 하지 않는다."""
+    ut = req.user_type if req.user_type in T.USER_TYPES else "other"
+    stops = []
+    for it in req.items[:10]:  # 한 장에 담을 만큼만
+        if not isinstance(it, dict) or not isinstance(it.get("name"), str):
+            continue
+        if it.get("kind") == "food":
+            lat, lon = _num(it.get("lat")), _num(it.get("lon"))
+            if lat is None or lon is None:
+                continue
+            item = {k: it.get(k) for k in ("name", "address", "food_type", "phone", "access_info", "floor_note")}
+            item = {k: (v if isinstance(v, str) else "") for k, v in item.items()}
+            item.update({"lat": lat, "lon": lon, "why": [w for w in it.get("why") or [] if isinstance(w, str)][:3],
+                         "wheelchair_entry": it.get("wheelchair_entry") is True, "baby_chair": it.get("baby_chair") is True})
+            stops.append(T.food_stop(item))
+        else:
+            st = T.place_stop(it["name"][:80], ut)
+            if st:
+                stops.append(st)
+    if not stops:
+        return {"html": "", "count": 0}
+    return clean({"html": T.itinerary_html(stops, ut, None, req.when if isinstance(req.when, str) else "오늘"),
+                  "count": len(stops)})
 
 
 @app.get("/api/detail")

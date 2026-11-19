@@ -15,6 +15,8 @@ export interface MapMark {
   /** 1순위 표식 위에 늘 떠 있는 뾰족한 이름 말풍선 */
   pin?: string;
   fit?: boolean;
+  /** 바로 옆 표식과 겹칠 때 오른쪽으로 비켜 그릴 칸 수(표식 너비 단위) */
+  nudge?: number;
   ring?: boolean;
   /** 장소 카드(나들이 장소·추천 장소)에 보일 주소와 대표 사진 */
   address?: string;

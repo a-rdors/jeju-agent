@@ -331,6 +331,7 @@ function drawMarkers(
       map: state.map,
       position: pos,
       content: el,
+      xAnchor: m.nudge ? 0.5 - m.nudge * 1.15 : 0.5,
       yAnchor: 0.5,
       zIndex: ORDER[m.kind] + (m.big ? 10 : 0),
     });

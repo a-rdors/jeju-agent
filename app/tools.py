@@ -203,10 +203,57 @@ def join_and(words):
     return ", ".join(words[:-2] + [josa(words[-2], "과와") + " " + words[-1]])
 
 
+# 지도·시작 화면의 지역: 제주관광공사 비짓제주(visitjeju.net)의 관광지 지역 구분(web/lib/mapData.ts areaOf 와 같은 규칙)
+JUNGMUN_DONGS = {"중문동", "색달동", "대포동", "예래동", "상예동", "하예동", "하원동", "회수동", "도순동"}
+REGION_NAMES = {"제주시내", "애월", "한림", "한경", "조천", "구좌", "우도", "추자",
+                "서귀포시내", "중문", "안덕", "대정", "남원", "표선", "성산"}
+
+
+def region_of(sigungu, dong):
+    """시·읍면동 → 비짓제주 지역 이름(읍·면은 끝 글자를 떼고, 시내의 동은 제주시내·서귀포시내·중문)."""
+    d = str(dong or "").strip()
+    if len(d) > 1 and d[-1] in "읍면":
+        return d[:-1]
+    if d in JUNGMUN_DONGS:
+        return "중문"
+    if sigungu == "서귀포시":
+        return "서귀포시내"
+    if sigungu == "제주시":
+        return "제주시내"
+    return d
+
+
+def find_regions(text):
+    """'제주시내', '애월·한림', '중문·서귀포' 처럼 지역 이름(들)로 말하면 그 지역 묶음(순서 유지).
+    읍 하나('애월')는 지금처럼 동네 좌표 기준으로 찾게 두고, 시내나 두 곳 이상일 때만 지역 묶음으로 본다."""
+    t = re.sub(r"\s|쪽|근처|부근|에서", "", str(text or ""))
+    parts = [x for x in re.split(r"[·,/ㆍ]|와|과|및", t) if x]
+    if not parts:
+        return None
+    out = []
+    for x in parts:
+        x = re.sub(r"(읍|면)$", "", x)
+        if x in ("서귀포", "서귀포시") and len(parts) > 1:
+            x = "서귀포시내"  # '중문·서귀포'의 서귀포는 서귀포 시내
+        if x in ("제주", "제주시") and len(parts) > 1:
+            x = "제주시내"
+        if x not in REGION_NAMES:
+            return None
+        if x not in out:
+            out.append(x)
+    if len(out) == 1 and out[0] not in ("제주시내", "서귀포시내"):
+        return None
+    return out
+
+
 def find_area(text):
-    """'애월', '협재리', '중문 쪽', '서귀포' 같은 말에서 동네 좌표를 찾는다."""
+    """'애월', '협재리', '중문 쪽', '서귀포' 같은 말에서 동네 좌표를 찾는다.
+    '제주시내', '애월·한림'처럼 지역 이름으로 말하면 좌표 대신 regions(그 지역 안에서만 찾는다)."""
     if not text:
         return None
+    rg = find_regions(text)
+    if rg:
+        return {"area": "·".join(rg), "sigungu": None, "lat": None, "lon": None, "regions": rg}
     d = load()["areas"]
     t = re.sub(r"\s|쪽|근처|부근|에서|시내", "", str(text))
     for cand in (t, re.sub(r"(읍|면|동|리)$", "", t)):
@@ -407,6 +454,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
             else:
                 score += 6
         dist = None
+        if loc and loc.get("regions") and region_of(r["sigungu"], r["dong"]) not in loc["regions"]:
+            continue  # '제주시내', '애월·한림'처럼 지역을 고르면 그 지역 안에서만 찾는다
         if loc and loc.get("lat") is not None:
             dist = km(loc["lat"], loc["lon"], r["start_lat"], r["start_lon"])
             score += dist / 3  # 사용자가 말한 동네에서 10km 멀어지면 약 3점 감점
@@ -993,7 +1042,7 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
     d = load()
     if diet_needs and "no_seafood" in diet_needs and food_kind == "해산물":
         food_kind = None  # 해산물 알레르기인데 '해산물' 종류를 같이 고르면 결과가 0이 된다
-    center, anchor_missing, city = None, None, None
+    center, anchor_missing, city, regions = None, None, None, None
     if place:
         center = resolve_anchor(place)
         if center is None:
@@ -1004,6 +1053,8 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
         loc = find_area(area)
         if loc and loc.get("lat") is not None:
             center = (loc["lat"], loc["lon"], loc["area"])
+        elif loc and loc.get("regions"):
+            regions = loc["regions"]
         elif loc:
             city = loc["sigungu"]
     if anchor_missing and center is None and not city:
@@ -1016,6 +1067,8 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
     f = f[~f["food_type"].isin(SKIP_TYPES)]
     if city:
         f = f[f["sigungu"] == city]
+    if regions:  # 지역을 고르면 그 지역 가게만
+        f = f[[region_of(a, b) in regions for a, b in zip(f["sigungu"], f["dong"])]]
     f = f[[_kind_ok(food_kind, t, n) for t, n in zip(f["food_type"], f["name"])]]
     wc = _wheelchair_names()
     wheel_first = prefer_wheelchair or wheelchair_only
@@ -1077,7 +1130,7 @@ def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_w
     return {
         "food_kind": food_kind, "diet_needs": diet_needs or [],
         "diet_labels": [DIET_NEEDS[k]["label"] for k in (diet_needs or []) if k in DIET_NEEDS],
-        "around": center[2] if center else (city or "제주 전체"),
+        "around": center[2] if center else ("·".join(regions) if regions else (city or "제주 전체")),
         "center": [center[0], center[1]] if center else None,
         "items": out, "unverified": [],
         "with_wheelchair_badge": sum(1 for i in out if i["wheelchair_entry"]),

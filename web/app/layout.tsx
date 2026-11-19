@@ -5,7 +5,7 @@ const PRETENDARD =
   "https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css";
 
 export const metadata: Metadata = {
-  title: "제주 같이나들이",
+  title: "제주 같이나들이 — 휠체어·유모차·어르신과 함께 가는 제주",
   description: "휠체어·유모차·어르신과 함께 가는 제주. 경사·계단·턱, 장애인 화장실과 쉴 곳까지 먼저 살펴보고 알려드려요.",
 };
 

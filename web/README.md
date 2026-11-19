@@ -37,5 +37,5 @@ npm run build
 ## 폴더
 
 - `app/` 틀(`layout.tsx`, `page.tsx`)과 전체 CSS(`globals.css`)
-- `components/` 상단 바, 대시보드(시작·결과·식당·장소 답), 하르방 버튼과 대화창, 지도(`KakaoMap.tsx`)
-- `lib/store.ts` 화면 상태와 `send()` 규칙(main.py 와 같음), `lib/api.ts` API 호출, `lib/useApi.ts` 결과 저장, `lib/mapData.ts` 지도 표식
+- `components/` 상단 바(`TopBar.tsx`), 대시보드(`Dashboard.tsx`: 시작·결과·식당·장소 답), 하르방 버튼과 대화창(`Chat.tsx`, 일정표 내려받기), 지도(`KakaoMap.tsx`), 내 위치 단추(`Locate.tsx`), 근거 보기(`Evidence.tsx`), 현장 사진(`Photos.tsx`), 화면 조각(`bits.tsx`), 아이콘(`Icon.tsx`), 대화 글 꾸밈(`Markdown.tsx`)
+- `lib/store.ts` 화면 상태와 `send()` 규칙, `lib/api.ts` API 호출, `lib/useApi.ts` 결과 저장, `lib/mapData.ts` 지도 표식, `lib/types.ts` 지도 표식 타입, `lib/art.ts` 그림, `lib/icons.ts` 아이콘 경로
