@@ -1051,7 +1051,7 @@ def _phone(x):
     return t
 
 
-def search_food(food_kind=None, area=None, place=None, diet_needs=None, prefer_wheelchair=False,
+def _search_food_core(food_kind=None, area=None, place=None, diet_needs=None, prefer_wheelchair=False,
                 wheelchair_only=False, limit=5, origin_lat=None, origin_lon=None, radius_km=None,
                 avoid_upstairs=False):
     """제주 식당·카페 찾기(2025 상가 자료 약 1만 9천 곳).
@@ -1436,3 +1436,25 @@ def rain_alternative(place, user_type="other", exclude=None):
         return None
     x = rec["results"][0]
     return {"name": x["place"], "km": x["distance_km"], "verdict": x["verdict"], "lat": x["lat"], "lon": x["lon"]}
+
+
+def search_food(food_kind=None, area=None, place=None, diet_needs=None, **kw):
+    """식당·카페 찾기. 조건을 모두 맞는 곳이 없으면 식사 조건 → 음식 종류 순서로 하나씩 풀어 다시 찾고,
+    무엇을 뺐는지 note·relaxed에 적는다(조건이 겹쳐 결과가 0개가 되는 것을 막는다)."""
+    res = _search_food_core(food_kind=food_kind, area=area, place=place, diet_needs=diet_needs, **kw)
+    if res.get("items") or res.get("anchor_not_found"):
+        return res
+    tries = []
+    if diet_needs:
+        tries.append((food_kind, None, "식사 조건"))
+    if food_kind:
+        tries.append((None, diet_needs, "음식 종류"))
+    if diet_needs and food_kind:
+        tries.append((None, None, "음식 종류와 식사 조건"))
+    for fk, dn, what in tries:
+        r = _search_food_core(food_kind=fk, area=area, place=place, diet_needs=dn, **kw)
+        if r.get("items"):
+            r["relaxed"] = what
+            r["note"] = f"조건을 모두 맞는 곳이 없어 {josa(what, '을를')} 빼고 찾았어요. " + (r.get("note") or "")
+            return r
+    return res

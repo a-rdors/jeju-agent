@@ -368,7 +368,13 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
         ask = {"question": "누구와 함께 가시나요?", "options": ["휠체어", "전동 휠체어", "유모차", "어르신", "임산부"]}
         return {"text": ask["question"], "ask": ask, "tool_results": [], "trace": [{"tool": "ask_user", "args": ask}]}
     named = T.match_place(next((w for w in re.findall(r"[가-힣]{3,}", last_q) if T.match_place(w)), None))
-    if named:
+    near_named = None
+    if named and re.search(re.escape(named) + r"\s*(근처|주변|쪽|가까운)", last_q) and \
+            re.search(r"갈\s*만|갈\s*곳|가고\s*싶|추천|박물관|산책|구경|바다|실내", last_q):
+        # 'OO 근처에서 박물관'처럼 그 장소 주변의 다른 곳을 찾는 질문: OO 자체를 설명하지 않는다
+        near_named = named
+        system += f"\n이번 질문은 {named} 근처의 다른 장소를 찾는 질문이다. get_place_detail이 아니라 recommend_places를 쓴다."
+    elif named:
         system += f"\n사용자가 말한 장소: {named}. 이 장소에 갈 수 있는지 물으면 get_place_detail(place='{named}')로 확인한다."
 
     # 질문 속 가게·장소 이름을 동네 이름보다 먼저 찾는다('서귀포흑돈으로' → 가게 '서귀포흑돈', 동네 '서귀포' 아님)
@@ -393,6 +399,16 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
     if outside and not re.search(r"제주|서귀포", last_q):
         # 제주 밖 지역: AI에 맡기지 않고 항상 같은 답(제주 장소를 엉뚱하게 추천하지 않게)
         return {"text": "제주 지역만 안내할 수 있어요.\n제주로 오시면 함께 가실 분에 맞춰 갈 만한 곳과 식당을 찾아드릴게요.",
+                "ask": None, "tool_results": [], "trace": []}
+    if re.search(r"렌터카|렌트카|항공권|비행기\s*표|비행기표|배편|배\s*표|택시\s*불러", last_q):
+        # 교통편 예약·대여 안내는 하지 않는다(항상 같은 답)
+        return {"text": "범위 밖 요청이에요. 렌터카·항공·배편 같은 교통편은 안내하지 않아요.\n"
+                        "대신 함께 가실 분과 동네를 말씀해 주시면 들어가기 편한 곳을 찾아 드릴게요.",
+                "ask": None, "tool_results": [], "trace": []}
+    if re.search(r"예약|예매|결제|주문해\s*줘|대신\s*전화", last_q) and not re.search(r"예약\s*없이|예약\s*안", last_q):
+        # 예약·결제 같은 외부 행동은 하지 않는다(AI에 맡기지 않고 항상 같은 답)
+        return {"text": "범위 밖 요청이에요. 예약·예매·결제는 도와드릴 수 없어요.\n"
+                        "대신 함께 가실 분과 동네를 말씀해 주시면 들어가기 편한 곳을 찾아 전화번호와 함께 알려 드릴게요.",
                 "ask": None, "tool_results": [], "trace": []}
     taste_rank = re.search(r"제일\s*맛있|가장\s*맛있|최고\s*맛집|맛집\s*(순위|랭킹)|1\s*위|순위|랭킹|베스트\s*\d", last_q)
     if taste_rank and re.search(r"맛|식당|집|가게|음식|카페", last_q):
@@ -489,6 +505,23 @@ def run(history, known_user_type=None, last_place=None, user_location=None, show
             if name in ("recommend_places", "search_food", "plan_outing") and area and not said_area and not args.get("place"):
                 # 시작 화면에서 고른 지역(모델이 '애월'만 넣거나 시 전체로 넓히지 않게). 이번 말에 다른 동네가 있으면 그쪽
                 args["area"] = area
+            if name in ("recommend_places", "plan_outing"):
+                # 모델이 동네 자리에 가게·장소 이름을 넣거나(area='동문시장') 없는 칸(place)을 쓰면 그곳 좌표를 기준으로 바꾼다
+                cand = args.pop("place", None)
+                if not cand and args.get("area") and not T.find_area(args["area"]):
+                    cand = args["area"]
+                if cand and args.get("origin_lat") is None:
+                    anc = T.resolve_anchor(cand)
+                    if anc:
+                        args.pop("area", None)
+                        args["origin_lat"], args["origin_lon"] = anc[0], anc[1]
+                        if name == "recommend_places" and near_named:
+                            args["exclude"] = list(dict.fromkeys((args.get("exclude") or []) + [near_named]))
+            if name == "recommend_places" and near_named and not args.get("area") and args.get("origin_lat") is None:
+                anchor = T.resolve_anchor(near_named)
+                if anchor:  # 그 장소 좌표를 기준으로 가까운 곳을 찾고, 그 장소 자체는 뺀다
+                    args["origin_lat"], args["origin_lon"] = anchor[0], anchor[1]
+                    args["exclude"] = list(dict.fromkeys((args.get("exclude") or []) + [near_named]))
             if name in ("recommend_places", "search_food", "plan_outing") and said_area and not args.get("area") and not args.get("place"):
                 args["area"] = said_area  # 사용자가 말한 동네를 모델이 빠뜨린 경우 코드가 채운다
             if (name in ("recommend_places", "search_food", "plan_outing") and user_location and not said_area
