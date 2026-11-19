@@ -34,6 +34,13 @@ BLOCKED = re.compile(r"(?:접근|진입|출입|이동|이용|접금)\s*(?:이\s*
 HELP = re.compile(r"도움|동행|이동\s*지원")
 CAUTION = re.compile(r"주의|위험|미끄")
 SURFACES = ["자갈", "잔디", "흙", "모래", "판석", "비포장", "울퉁불퉁", "데크", "테크", "야자매트", "야자수 매트", "보도블럭", "돌길", "송이"]
+def surfaces_of(text):
+    """노면 낱말을 찾는다. '벽돌길'은 '돌길'이 아니라 '벽돌'로 센다."""
+    found = ["벽돌"] if "벽돌" in text else []
+    plain = text.replace("벽돌", "")  # '벽돌길' 안의 '돌길'을 지운 뒤 나머지 노면을 찾는다
+    return "/".join(found + [s for s in SURFACES if s in plain])
+
+
 NEG_AFTER = re.compile(r"^\s*(?:구역|칸|장|공간)?\s*[:：]?\s*(?:x|X|없|확인\s*X|확인x)")
 
 
@@ -122,7 +129,7 @@ def extract(text):
         "needs_help": "yes" if HELP.search(text) else "",
         "caution": "yes" if CAUTION.search(text) else "",
         "steep_word": "yes" if re.search(r"급경사|가파르|가파른|가팔", text) else "",
-        "surface": "/".join(s for s in SURFACES if s in text.replace("벽돌", "벽_돌")),  # '벽돌길'은 돌길 아님
+        "surface": surfaces_of(text),
         "accessible_toilet": "no" if ("화장실" in text and re.search(r"장애인\s*[xX]", text)) else has_positive(text, r"장애인\s*(?:남녀\s*구분\s*)?화장실|장애인\s*칸|장애인화장실\s*O|장애남녀"),
         "accessible_parking": has_positive(text, r"장애인\s*주차(?:구역|장|공간)?"),
     }

@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 base = importlib.import_module("04_scenario_test")
-results_of, top, run_one, A = base.results_of, base.top, base.run_one, base.A
+results_of, top, run_one, A, user_type_of = base.results_of, base.top, base.run_one, base.A, base.user_type_of
 
 
 def detail_place(o):
@@ -26,8 +26,8 @@ def detail_place(o):
 HOLDOUT = [
     {"id": "H1", "q": ["엄마가 보행기 쓰시는데 바닷가 산책할 만한 데 있을까"],
      "expect": "보행 불편 어르신으로 해석, 바다 장소",
-     "check": lambda o: (bool(top(o)) and "바다" in top(o)[0]["themes"],
-                         f"1순위 {top(o)[0]['place']} ({top(o)[0]['themes']})" if top(o) else f"추천 없음 / 도구 {[t['tool'] for t in o['trace']]}")},
+     "check": lambda o: (bool(top(o)) and "바다" in top(o)[0]["themes"] and user_type_of(o) == "senior",
+                         f"이동 유형 {user_type_of(o)}, 1순위 {top(o)[0]['place']} ({top(o)[0]['themes']})" if top(o) else f"추천 없음 / 도구 {[t['tool'] for t in o['trace']]}")},
     {"id": "H2", "q": ["애기 데리고 비 오는 날 갈 만한 곳"],
      "expect": "유모차 기준, 날씨 확인, 실내 장소",
      "check": lambda o: (bool(results_of(o, "get_weather")) and bool(top(o)) and "실내" in top(o)[0]["themes"],
@@ -42,7 +42,7 @@ HOLDOUT = [
                          f"{[(i['name'], i['wheelchair_entry']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
     {"id": "H5", "q": ["할아버지가 오래 못 걸으셔서 잠깐 바람 쐬러 갈 곳"],
      "expect": "어르신 기준 짧은 코스(30분 안팎)",
-     "check": lambda o: (bool(top(o)) and (top(o)[0]["minutes"] or 0) <= 35,
+     "check": lambda o: (bool(top(o)) and top(o)[0]["minutes"] is not None and top(o)[0]["minutes"] <= 35,
                          f"1순위 {top(o)[0]['place']} 약 {top(o)[0]['minutes']}분" if top(o) else "추천 없음")},
     {"id": "H6", "q": ["전동휠체어로 사려니숲 갈 수 있어?"],
      "expect": "특정 장소 질문 → 사려니숲길 무장애나눔길 정보로 답",
@@ -54,8 +54,8 @@ HOLDOUT = [
                          f"1순위 {top(o)[0]['place']} {top(o)[0]['where']}" if top(o) else "추천 없음")},
     {"id": "H8", "q": ["어르신 모시고 갈 곳 추천해 줘", "거기 화장실은 어디쯤 있어?"],
      "expect": "두 번째 질문에서 앞서 추천한 장소의 코스 상세 조회",
-     "check": lambda o: (bool(results_of(o, "get_place_detail")),
-                         f"상세 조회 장소 {detail_place(o)}")},
+     "check": lambda o: (detail_place(o) is not None and detail_place(o) == o["last_place_before"],
+                         f"앞서 1순위 {o['last_place_before']}, 상세 조회 장소 {detail_place(o)}")},
 ]
 
 
