@@ -18,7 +18,7 @@
 | 실행환경·매뉴얼 | 이 README(설치·실행·의존성), [.env.example](.env.example)(환경변수 예시), [docs/사용자_매뉴얼.md](docs/사용자_매뉴얼.md)(사용법·오류 대처·제약사항) |
 | 데이터 활용 명세 | [docs/데이터_활용_명세.md](docs/데이터_활용_명세.md)(사용 데이터·출처·이용조건·전처리 흐름·오픈소스 목록·AI 사용 내역) |
 | 결과 설명자료 | [docs/결과_설명자료.md](docs/결과_설명자료.md)(문제 정의·Agent 구조·주요 기능·실행 결과·검증·한계·센터 활용 방안) |
-| 검증 기록 | [docs/추출_검수기록.md](docs/추출_검수기록.md), [docs/시나리오_테스트.md](docs/시나리오_테스트.md), [docs/시나리오_확인테스트.md](docs/시나리오_확인테스트.md), [docs/폭넓은_질문_테스트.md](docs/폭넓은_질문_테스트.md) |
+| 검증 기록 | [docs/추출_검수기록.md](docs/추출_검수기록.md), [docs/시나리오_테스트.md](docs/시나리오_테스트.md), [docs/시나리오_확인테스트.md](docs/시나리오_확인테스트.md), [docs/폭넓은_질문_테스트.md](docs/폭넓은_질문_테스트.md), [docs/새질문_테스트.md](docs/새질문_테스트.md), [docs/접근성_점검.md](docs/접근성_점검.md), [docs/사람검수_표본.md](docs/사람검수_표본.md) |
 
 **사용 AI**: 서비스 안에서는 OpenAI gpt-5.4-mini(함수 호출)를 쓴다. 데이터 정제에는 AI를 쓰지 않는다(규칙 기반). 개발 과정에서는 Claude Code(Anthropic Claude)로 코드 작성·수정, 테스트 스크립트, 문서 초안, 추출 검수 1차 대조를 보조받았다. 자세한 내용은 데이터 활용 명세 7장에 있다.
 
@@ -259,10 +259,11 @@ OpenAI 키가 없거나 연결이 안 되면 버튼·단어 기반으로 장소�
 .venv\Scripts\python scripts/04_scenario_test.py   # 튜닝·회귀 19개 → docs/시나리오_테스트.md
 .venv\Scripts\python scripts/05_holdout_test.py    # 확인용 8개 → docs/시나리오_확인테스트.md
 .venv\Scripts\python scripts/07_broad_test.py      # 폭넓은 질문 46개(형식 점검 포함) → docs/폭넓은_질문_테스트.md
+.venv\Scripts\python scripts/09_fresh_test.py      # 튜닝 뒤 만든 새 질문 10개 → docs/새질문_테스트.md (첫 실행 기록을 덮어쓰니 TEST_OUT_DIR로 다른 곳에 저장 권장)
 ```
 
 채점: 필요한 도구 사용 · 사용자 조건 · 근거(답변의 장소·가게 이름이 모두 도구 결과에 있나) · 답변 형식 · 금지 표현.
-기능을 고친 뒤에는 세 테스트를 모두 돌린다. 경과와 고친 내용은 `docs/테스트_기록.md`, 추출 정확도는 `docs/추출_검수기록.md`.
+기능을 고친 뒤에는 04·05·07 세 테스트를 모두 돌린다. 화면 접근성 점검은 `docs/접근성_점검.md`. 경과와 고친 내용은 `docs/테스트_기록.md`, 추출 정확도는 `docs/추출_검수기록.md`.
 
 ---
 

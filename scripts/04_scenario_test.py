@@ -71,6 +71,16 @@ def top(out):
     return r[-1]["results"] if r else []
 
 
+def user_type_of(out):
+    """마지막 장소 추천에서 Agent가 알아들은 이동 유형."""
+    a = [a for name, a, _ in out["tool_results"] if name == "recommend_places"]
+    return (a[-1].get("user_type") if a else None) or out.get("known_before")
+
+
+def tomorrow():
+    return (dt.date.today() + dt.timedelta(days=1)).isoformat()
+
+
 SCENARIOS = [
     {"id": 1, "q": ["어디 갈 만한 데 있어?"],
      "expect": "누가 가는지 모르므로 버튼으로 되묻기",
@@ -97,19 +107,19 @@ SCENARIOS = [
                          f"상위 {[(i['name'], i['wheelchair_entry']) for i in results_of(o, 'search_food')[-1]['items'][:3]]}" if results_of(o, "search_food") else "식당 도구 안 씀")},
     {"id": 7, "q": ["무릎 안 좋으신 어머니랑 숲길 잠깐 걷고 싶어"],
      "expect": "어르신 기준 숲 장소, 짧은 코스",
-     "check": lambda o: (bool(top(o)) and "자연·숲" in top(o)[0]["themes"] and (top(o)[0]["minutes"] or 0) <= 45,
+     "check": lambda o: (bool(top(o)) and "자연·숲" in top(o)[0]["themes"] and top(o)[0]["minutes"] is not None and top(o)[0]["minutes"] <= 45,
                          f"1순위 {top(o)[0]['place']} 약 {top(o)[0]['minutes']}분" if top(o) else "추천 없음")},
     {"id": 8, "q": ["휠체어로 갈 만한 데 추천해 줘", "거기 근처에 약국이나 병원 있어?"],
      "expect": "두 번째 질문에서 앞서 추천한 장소 기준으로 의료 찾기",
-     "check": lambda o: (bool(results_of(o, "find_nearby_help")),
-                         f"의료 찾기 기준 장소 {results_of(o, 'find_nearby_help')[-1]['place']}" if results_of(o, "find_nearby_help") else "의료 도구 안 씀")},
+     "check": lambda o: (bool(results_of(o, "find_nearby_help")) and results_of(o, "find_nearby_help")[-1]["place"] == o["last_place_before"],
+                         f"앞서 1순위 {o['last_place_before']}, 의료 찾기 기준 장소 {results_of(o, 'find_nearby_help')[-1]['place']}" if results_of(o, "find_nearby_help") else "의료 도구 안 씀")},
     {"id": 9, "q": ["서귀포 쪽에서 아기랑 갈 만한 곳"],
      "expect": "유모차 기준, 결과가 모두 서귀포시",
      "check": lambda o: (bool(top(o)) and all(r["where"].startswith("서귀포시") for r in top(o)),
                          ", ".join(r["where"] for r in top(o)) if top(o) else "추천 없음")},
     {"id": 10, "q": ["내일 바람 많이 불면 휠체어로 해안길 가도 괜찮을까?"],
      "expect": "내일 날씨 확인 후 바람 관련 판단",
-     "check": lambda o: (bool(results_of(o, "get_weather")),
+     "check": lambda o: (bool(results_of(o, "get_weather")) and results_of(o, "get_weather")[-1].get("date") == tomorrow() and "바람" in o["text"],
                          f"날씨 {results_of(o, 'get_weather')[-1].get('date')} 바람 {results_of(o, 'get_weather')[-1].get('wind_ms')}m/s" if results_of(o, "get_weather") else "날씨 안 봄")},
     {"id": 11, "q": ["아들이 휠체어를 타는데 이번에 제주도를 놀러가. 서귀포쪽으로 갈거같은데 가자마자 흑돼지를 먹고싶은데 맛집좀 알려줘",
                      "서귀포흑돈으로 갈거고 근처 카페좀 알려줘"],
@@ -161,7 +171,9 @@ def run_one(sc):
     history, known, last_place, shown, out = [], None, None, [], None
     for q in sc["q"]:
         history.append({"role": "user", "content": q})
+        before = {"last_place_before": last_place, "known_before": known, "shown_before": list(shown)}
         out = A.run(history, known, last_place, None, shown)
+        out.update(before)  # 채점에서 '앞서 추천한 곳', '앞서 알아들은 이동 유형'을 본다
         for name, a, res in out["tool_results"]:
             if name == "recommend_places":
                 known = a.get("user_type") or known

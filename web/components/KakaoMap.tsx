@@ -469,10 +469,12 @@ function drawMarkers(
     const at = REGION_ANCHOR[region] ?? mid;
     const el = document.createElement("div");
     el.className = `km-region${REGION_TONE[region] === "gyul" ? " gyul" : ""}`;
-    el.textContent = `${phone ? name.replace(/시내$/, "") : name} ${pts.length}곳`;
+    const shown = `${phone ? name.replace(/시내$/, "") : name} ${pts.length}곳`;
+    el.textContent = shown;
     el.tabIndex = 0;
     el.setAttribute("role", "button");
-    el.setAttribute("aria-label", `${name} 나들이 장소 ${pts.length}곳. 누르면 펼쳐져요`);
+    // 화면 읽기 이름은 보이는 글자로 시작한다(음성으로 "애월 16곳"이라 말해 누를 수 있게)
+    el.setAttribute("aria-label", `${shown}. ${name} 나들이 장소, 누르면 펼쳐져요`);
     const go = () => {
       const p = JSON.parse(state.psig || "[116,28,40,28]") as number[];
       flyTo(state, new k.LatLng(mid[0], mid[1]), 8, p);

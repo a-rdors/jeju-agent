@@ -475,8 +475,8 @@ def recommend_places(user_type="other", area=None, theme=None, need_toilet=False
         elif loc and loc.get("sigungu") and r["sigungu"] != loc["sigungu"]:
             continue  # '서귀포', '제주시'처럼 시를 말하면 그 시 안에서만 찾는다
         mins = None if tour else minutes_for(r["course_m"])
-        if max_minutes and mins and mins > max_minutes:
-            score += 2
+        if max_minutes and (not mins or mins > max_minutes):
+            score += 2  # 걷는 시간을 모르는 곳도 '짧게'를 지킨다고 볼 수 없어 넘는 곳과 같이 감점
         if r["accessible_parking"] == "yes":
             why.append("장애인 주차구역이 있어요")
         if int(r["rest_points"]) >= 2:
@@ -545,7 +545,7 @@ def match_place(text):
 # 사람들이 '근처'의 기준으로 자주 말하는 곳(가게·나들이 장소 목록에는 없는 큰 기준점)
 LANDMARKS = [
     ("제주공항", r"공항", (33.5066, 126.4929)),
-    ("제주항 여객터미널", r"제주\s*항|여객\s*터미널|제주\s*항구", (33.5193, 126.5442)),
+    ("제주항 여객터미널", r"제주\s*항(?!공)|여객\s*터미널|제주\s*항구", (33.5193, 126.5442)),
     ("서귀포항", r"서귀포\s*항", (33.2397, 126.5656)),
     ("성산항", r"성산\s*항", (33.4747, 126.9306)),
     ("중문관광단지", r"중문\s*관광\s*단지|중문\s*단지", (33.2500, 126.4120)),
@@ -566,10 +566,14 @@ def resolve_anchor(name):
     """'근처'의 기준이 되는 이름을 좌표로 바꾼다. 공항·항구 같은 기준점, 나들이 장소, 그다음 식당·카페 이름."""
     if not name:
         return None
+    d = load()
+    exact_pl = match_place(name) if str(name).replace(" ", "") in set(d["places"]["place"].str.replace(" ", "")) else None
+    if exact_pl:  # 나들이 장소 이름과 똑같으면 그 장소가 기준(예: '제주항공우주박물관'이 '제주항'으로 잡히지 않게)
+        r = d["places"][d["places"]["place"] == exact_pl].iloc[0]
+        return (float(r["start_lat"]), float(r["start_lon"]), exact_pl)
     lm = find_landmark(name)
     if lm:
         return lm
-    d = load()
     pl = match_place(name)
     if pl:
         r = d["places"][d["places"]["place"] == pl].iloc[0]
