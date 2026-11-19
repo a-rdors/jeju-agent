@@ -178,8 +178,8 @@ function PanelHome({ s }: { s: State }) {
         <HeroArt />
       </div>
       <div className="hello">
-        <h2>함께 가도 괜찮을지, 먼저 알려 드려요</h2>
-        <p>입구·길·화장실부터 식당·병원까지 확인해요.</p>
+        <h2>우리 가족도 갈 수 있을까요?</h2>
+        <p>입구 턱과 경사, 장애인 화장실, 가까운 식당·병원까지 가기 전에 알려 드려요.</p>
       </div>
       <div className="where">
         <p><b>어디쯤 가세요?</b></p>
